@@ -1,0 +1,95 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Welcome to ISUCauFA, Inc.!{% endblock %}
+{% block header_title %}Welcome!{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:15px; line-height:1.6; margin:0 0 6px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px;">
+                Welcome to the <strong>Isabela State University Cauayan Campus Faculty Association (ISUCauFA, Inc.)</strong>!
+                You are now an official member.
+              </p>
+
+              <!-- MEMBERSHIP -->
+              <div style="margin:0 0 6px;">
+                <span style="font-size:14px; font-weight:700; color:#1b5e20;">📋 MEMBERSHIP</span>
+              </div>
+              <div style="border-top:2px solid #1b5e20; margin-bottom:12px;"></div>
+              <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="margin:0 0 24px;">
+                <tr>
+                  <td style="color:#555555; width:180px;">Full Name:</td>
+                  <td style="font-weight:600; color:#222222;">{{ full_name }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#555555;">Department:</td>
+                  <td style="font-weight:600; color:#222222;">{{ department }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#555555;">Membership Type:</td>
+                  <td style="font-weight:600; color:#222222;">{{ membership_category }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#555555;">Date Registered:</td>
+                  <td style="font-weight:600; color:#222222;">{{ date_joined }}</td>
+                </tr>
+              </table>
+
+              <!-- CONTRIBUTION -->
+              <div style="margin:0 0 6px;">
+                <span style="font-size:14px; font-weight:700; color:#1b5e20;">💰 CONTRIBUTION</span>
+              </div>
+              <div style="border-top:2px solid #1b5e20; margin-bottom:12px;"></div>
+              <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="margin:0 0 24px;">
+                <tr>
+                  <td style="color:#555555; width:180px;">Membership Fee:</td>
+                  <td style="font-weight:700; color:#222222;">₱{{ membership_fee_amount }} <span style="font-weight:400; color:#777777;">(one-time)</span></td>
+                </tr>
+                <tr>
+                  <td style="color:#555555;">Monthly Dues:</td>
+                  <td style="font-weight:700; color:#222222;">₱{{ monthly_dues_amount }} <span style="font-weight:400; color:#777777;">(monthly)</span></td>
+                </tr>
+              </table>
+
+              <!-- HOW YOUR CONTRIBUTION WORKS -->
+              <div style="margin:0 0 6px;">
+                <span style="font-size:14px; font-weight:700; color:#1b5e20;">📌 HOW YOUR CONTRIBUTION WORKS</span>
+              </div>
+              <div style="border-top:2px solid #1b5e20; margin-bottom:12px;"></div>
+              <div style="background-color:#f6faf6; border-left:4px solid #1b5e20; border-radius:6px; padding:14px 16px; margin:0 0 24px;">
+                <p style="font-size:14px; line-height:1.6; margin:0 0 12px; color:#333333;">
+                  Your monthly dues and other approved contributions are <strong>deducted directly from your salary</strong> each month.
+                </p>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#333333;">
+                  These collections go to the <strong>ISUCauFA, Inc. Fund</strong> which supports the association's aid
+                  programs — <strong>Medical Aid</strong> and <strong>Death Aid</strong> — for members in need.
+                </p>
+              </div>
+
+              <!-- BENEFITS -->
+              <div style="margin:0 0 6px;">
+                <span style="font-size:14px; font-weight:700; color:#1b5e20;">🎁 BENEFITS</span>
+              </div>
+              <div style="border-top:2px solid #1b5e20; margin-bottom:12px;"></div>
+              <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="margin:0 0 24px;">
+                <tr>
+                  <td style="color:#333333; padding:4px 6px;">• Can file a Medical Aid once a year</td>
+                </tr>
+                <tr>
+                  <td style="color:#333333; padding:4px 6px;">• Death Aid</td>
+                </tr>
+              </table>
+
+              <p style="font-size:15px; font-weight:600; color:#1b5e20; margin:0 0 20px;">
+                Welcome to the ISUCauFA, Inc. family!
+              </p>
+
+              <p style="font-size:14px; color:#333333; margin:0;">
+                Warm regards,<br>
+                <strong>{{ treasurer_name }}</strong><br>
+                Treasurer, ISUCauFA, Inc.
+              </p>
+            
+{% endblock %}

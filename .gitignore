@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Django
+db.sqlite3
+*.sqlite3
+*.db
+*.sqlite
+db.sqlite3-journal
+# Uploaded content: ignore everything under media/ but keep folder structure
+media/*
+!media/.gitkeep
+!media/.htaccess
+!media/web.config
+!media/*/
+media/*/*
+!media/*/.gitkeep
+staticfiles/
+collectstatic/
+
+# Editors / tools
+.opencode/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude skills / agent tools
+claude-skills/
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Environment / secrets
+.env
+.env.*
+*.local
+
+# Local TLS certs (created by scripts/setup_local_tls.ps1 — per-machine)
+certs/
+*.pem
+*-key.pem
+
+# Screenshots / temp
+screenshots/
+temp_*
+tmp_*
+*.bak
+*.bak2
+*.bak3
+
+# Local backups / dumps / archives (never push — huge + sensitive)
+CAUFA-backups/
+_archive/
+*.log
+*.sql
+*.sql.gz
+*.dump
+*.tar.gz
+*.enc

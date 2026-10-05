@@ -1,0 +1,48 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}New Sign-In to Your Account - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Hi {{ full_name|default:"there" }} — just letting you know your account was signed in on {{ when|default:"a new session" }}.{% endblock %}
+{% block header_title %}You Signed In on a New Session{% endblock %}
+{% block header_sub %}Just a quick heads-up so you always know what's happening with your account{% endblock %}
+{% block content %}
+<p style="font-size:16px; margin:0 0 16px;">
+  Hi <strong>{{ full_name|default:"there" }}</strong>,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  Just letting you know that your ISUCauFA, Inc. account was signed in below.
+  If this was you, there's nothing to worry about — you can simply ignore this message.
+  Any older sessions were signed out automatically to keep your account safe.
+</p>
+
+<table role="presentation" width="100%" cellpadding="10" cellspacing="0" style="background-color:#f4f8f4; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-weight:700; color:#1b5e20; width:160px;">When</td>
+    <td>{{ when|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">IP Address</td>
+    <td>{{ ip_address|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Device</td>
+    <td>{{ device|default:"—" }}</td>
+  </tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#fff8e1; border-left:4px solid #d9a400; margin:0 0 20px;">
+  <tr>
+    <td>
+      <p style="font-size:15px; font-weight:700; margin:0 0 4px; color:#7a5c00;">
+        Wasn't you?
+      </p>
+      <p style="font-size:14px; margin:0; color:#7a5c00;">
+        If you don't recognize this sign-in, please change your password right away
+        and get in touch with the system administrator. We're here to help.
+      </p>
+    </td>
+  </tr>
+</table>
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  Thanks for being part of ISUCauFA, Inc. — keeping your account secure matters to us.
+</p>
+{% endblock %}

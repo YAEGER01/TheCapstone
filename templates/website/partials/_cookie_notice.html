@@ -1,0 +1,65 @@
+{# Zero-trust-safe cookie disclosure. Essential-only: session/CSRF/device #}
+{# binding are security controls and MUST NOT be opt-out-able. This banner #}
+{# is transparency only (PH DPA RA 10173) — no consent blocks login, no #}
+{# tracking cookies exist to toggle. Dismissal uses localStorage, not a #}
+{# cookie, so the notice itself adds zero cookies. #}
+{# NOTE: fully inline-styled (no Tailwind) so it renders on pages without #}
+{# the Tailwind CDN, e.g. website/login.html. #}
+<div id="caufa-cookie-notice" role="dialog" aria-live="polite" aria-label="Cookie notice"
+     style="display:none; position:fixed; bottom:16px; left:16px; right:16px; z-index:70; background:#ffffff; color:#1f2937; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.22); padding:16px; font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+  <p style="margin:0; font-size:14px; font-weight:800; color:#111827;">We use essential cookies only</p>
+  <p style="margin:6px 0 0; font-size:12.5px; line-height:1.55; color:#4b5563;">
+    Login, security check, and device protection. No analytics or ads.
+    These cannot be turned off without breaking sign-in.
+  </p>
+  <div id="caufa-cookie-details" style="display:none; margin-top:8px; font-size:12.5px; line-height:1.6; color:#4b5563;">
+    <ul style="margin:0; padding-left:18px;">
+      <li><strong>sessionid</strong> — keeps you signed in (8h max).</li>
+      <li><strong>csrftoken</strong> — protects forms from forgery.</li>
+      <li><strong>caufa_device_id</strong> — remembers this browser for zero-trust checks.</li>
+      <li><strong>caufa_device_proof</strong> — HttpOnly device secret, never readable by scripts.</li>
+    </ul>
+  </div>
+  <div style="margin-top:12px; display:flex; align-items:center; gap:10px;">
+    <button type="button" id="caufa-cookie-ok"
+            style="background:#1b5e20; color:#fff; border:none; border-radius:999px; padding:8px 18px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; cursor:pointer;">Got it</button>
+    <button type="button" id="caufa-cookie-toggle"
+            style="background:none; border:none; padding:8px 4px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; cursor:pointer;">Details</button>
+  </div>
+</div>
+<script>
+(function () {
+  var KEY = "caufa-cookie-ack-v1";
+  var box = document.getElementById("caufa-cookie-notice");
+  if (!box) return;
+  var details = document.getElementById("caufa-cookie-details");
+  function show() { box.style.display = "block"; }
+  function hide() { box.style.display = "none"; }
+  try {
+    if (!window.localStorage.getItem(KEY)) show();
+  } catch (e) { show(); }
+  // Keep desktop placement on wide screens (base.html is Tailwind; login is not).
+  function place() {
+    if (window.innerWidth >= 640) {
+      box.style.left = "auto"; box.style.right = "24px"; box.style.maxWidth = "380px";
+    } else {
+      box.style.left = "16px"; box.style.right = "16px"; box.style.maxWidth = "";
+    }
+  }
+  place();
+  window.addEventListener("resize", place);
+  document.getElementById("caufa-cookie-ok").addEventListener("click", function () {
+    try { window.localStorage.setItem(KEY, "1"); } catch (e) {}
+    hide();
+  });
+  document.getElementById("caufa-cookie-toggle").addEventListener("click", function () {
+    details.style.display = details.style.display === "none" ? "block" : "none";
+  });
+  // Footer "Cookie Notice" link re-opens this banner.
+  window.caufaShowCookies = function () {
+    if (details) details.style.display = "block";
+    show();
+    return false;
+  };
+})();
+</script>

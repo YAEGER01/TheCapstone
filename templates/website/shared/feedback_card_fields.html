@@ -1,0 +1,62 @@
+{% comment %}
+Question fields for the feedback modal. Expects:
+  fb_questions - iterable of FeedbackQuestion (ordered)
+  fb_max_text  - cap for freeform answers
+
+Every fieldset is a separate "page": the JS reveals one at a time. Because
+this modal only ever renders for an officer who has NOT responded yet, there
+is no previously-saved answer to restore here.
+{% endcomment %}
+{% for question in fb_questions %}
+  <fieldset class="fb-question fb-page" data-fb-question="{{ question.question_id_PK }}" hidden>
+    <legend class="fb-prompt">
+      <span class="fb-prompt-text">{{ question.prompt }}</span>
+      {% if question.is_required %}<span class="fb-required" title="Required">*</span>{% endif %}
+    </legend>
+
+    {% if question.help_text %}
+      <p class="fb-help">{{ question.help_text }}</p>
+    {% endif %}
+
+    {% if question.qtype == "likert" %}
+      <div class="fb-likert" data-fb-likert
+           data-fb-min="{{ question.scale_min }}"
+           data-fb-max="{{ question.scale_max }}">
+        {% for value, label in question.likert_labels.items %}
+          <label class="fb-likert-option">
+            <input type="radio" name="q_{{ question.question_id_PK }}" value="{{ value }}">
+            <span class="fb-likert-value">{{ value }}</span>
+            <span class="fb-likert-label">{{ label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+
+    {% elif question.qtype == "mc" %}
+      {% if question.max_choices > 1 %}
+        <p class="fb-hint">Select between {{ question.min_choices }} and {{ question.max_choices }}.</p>
+      {% endif %}
+      <div class="fb-options">
+        {% for option in question.option_labels %}
+          <label class="fb-option">
+            <input type="{% if question.max_choices > 1 %}checkbox{% else %}radio{% endif %}"
+                   name="q_{{ question.question_id_PK }}" value="{{ option }}">
+            <span>{{ option }}</span>
+          </label>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <textarea name="q_{{ question.question_id_PK }}"
+                class="fb-textarea"
+                rows="4"
+                maxlength="{{ fb_max_text }}"
+                data-fb-maxlength="{{ fb_max_text }}"
+                placeholder="Type your answer…"></textarea>
+      <p class="fb-counter" data-fb-counter hidden>
+        <span data-fb-count>0</span> / {{ fb_max_text }}
+      </p>
+    {% endif %}
+  </fieldset>
+{% empty %}
+  <p class="fb-empty">No questions have been set up on this form yet.</p>
+{% endfor %}

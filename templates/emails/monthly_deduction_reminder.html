@@ -1,0 +1,76 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Outstanding Balance Reminder{% endblock %}
+{% block header_title %}Outstanding Balance Reminder{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 8px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your <strong>{{ month_label }}</strong> monthly deduction has been reviewed by the Auditor.
+                You currently have an outstanding balance of
+                <strong style="color:#d32f2f;">&#x20B1;{{ outstanding_balance|floatformat:2 }}</strong>
+                {% if prior_remaining %}&mdash; &#x20B1;{{ prior_remaining|floatformat:2 }} of this is the unpaid balance
+                carried over from <strong>{{ prior_month_label }}</strong>, shown as its own row in the breakdown below.{% endif %}
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:180px;">Total Deduction:</td>
+                  <td style="font-weight:700;">&#x20B1;{{ standard_assessment|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Amount Deducted:</td>
+                  <td style="font-weight:700; color:#1b5e20;">&#x20B1;{{ actual_deducted|floatformat:2 }}</td>
+                </tr>
+                {% if prior_collected %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Applied to prior balance ({{ prior_month_label }}):</td>
+                  <td style="font-weight:700;">&#x20B1;{{ prior_collected|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Outstanding Balance:</td>
+                  <td style="font-weight:700; color:#d32f2f;">&#x20B1;{{ outstanding_balance|floatformat:2 }}</td>
+                </tr>
+              </table>
+
+              <h3 style="font-size:16px; margin:0 0 10px; color:#1b5e20;">Breakdown</h3>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin:0 0 20px; font-size:14px;">
+                <thead>
+                  <tr>
+                    <th style="background-color:#1b5e20; color:#ffffff; padding:10px 12px; text-align:left;">Purpose</th>
+                    <th style="background-color:#1b5e20; color:#ffffff; padding:10px 12px; text-align:right;">Required</th>
+                    <th style="background-color:#1b5e20; color:#ffffff; padding:10px 12px; text-align:right;">Applied</th>
+                    <th style="background-color:#1b5e20; color:#ffffff; padding:10px 12px; text-align:right;">Unpaid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in breakdown %}
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:10px 12px;">{{ row.purpose }}</td>
+                    <td style="padding:10px 12px; text-align:right;">&#x20B1;{{ row.required|floatformat:2 }}</td>
+                    <td style="padding:10px 12px; text-align:right; {% if row.applied > 0 %}color:#1b5e20;{% else %}color:#d32f2f;{% endif %}">&#x20B1;{{ row.applied|floatformat:2 }}</td>
+                    <td style="padding:10px 12px; text-align:right; {% if row.remaining > 0 %}color:#d32f2f; font-weight:600;{% else %}color:#1b5e20;{% endif %}">&#x20B1;{{ row.remaining|floatformat:2 }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+
+              
+
+              {% if custom_message %}
+              <table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; border-left:4px solid #1b5e20; margin:0 0 20px;">
+                <tr>
+                  <td>
+                    <p style="font-size:14px; line-height:1.6; margin:0; color:#333333;">{{ custom_message }}</p>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                Please coordinate with the ISUCauFA, Inc. Treasurer's Office to settle your balance.
+                If you believe this notice is in error, contact the Auditor's Office.
+              </p>
+            
+{% endblock %}

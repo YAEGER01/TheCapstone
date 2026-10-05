@@ -1,0 +1,53 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Membership Approved - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Membership Approved{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Congratulations! Your membership application to <strong>ISUCauFA, Inc.</strong> has been <strong>approved</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Member Name:</td>
+                  <td>{{ member_name }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Approval Date:</td>
+                  <td>{{ approval_date }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Status:</td>
+                  <td style="font-weight:700; color:#28a745;">Active Member</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#d4edda; border-left:4px solid #28a745; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#155724; font-size:16px; margin:0 0 10px;">Welcome to ISUCauFA, Inc.!</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#155724;">
+                  You are now an official member of the Isabela State University - Cauayan City University Faculty Association. You can now access member benefits, participate in association activities, and stay updated with ISUCauFA, Inc. news and announcements.
+                </p>
+              </div>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Next Steps</h3>
+              <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li>Log in to your Member Dashboard to complete your profile</li>
+                <li>Review the member handbook and association policies</li>
+                <li>Stay updated with upcoming events and activities</li>
+                <li>Contact the Secretary's Office for any membership-related questions</li>
+              </ul>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                We look forward to your active participation in ISUCauFA, Inc. and to serving you as a valued member of our association.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666;">
+                Once again, welcome to the ISUCauFA, Inc. family!
+              </p>
+            
+{% endblock %}

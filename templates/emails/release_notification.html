@@ -1,0 +1,50 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Release Completed - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Aid release completed: {{ aid_type|default:"aid" }} for {{ member_name|default:"a member" }} — ₱{{ total_collected|default:"0.00" }} collected.{% endblock %}
+{% block header_title %}Aid Release Completed{% endblock %}
+{% block header_sub %}{{ aid_type|default:"Aid" }} for <strong>{{ member_name|default:"a member" }}</strong> · released by {{ released_by|default:"the Treasurer" }}{% endblock %}
+{% block content %}
+<p style="font-size:15px; margin:0 0 20px;">
+  Hello,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  This is to confirm that an aid release has been completed successfully.
+  Below is the summary for your records:
+</p>
+
+<table role="presentation" width="100%" cellpadding="10" cellspacing="0" style="background-color:#f4f8f4; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-weight:700; color:#1b5e20; width:220px;">Aid Type</td>
+    <td>{{ aid_type|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Member</td>
+    <td>{{ member_name|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Total Collected</td>
+    <td style="font-weight:800; color:#1b5e20; font-size:17px;">&#x20B1;{{ total_collected|default:"0.00" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Members Paid</td>
+    <td>{{ paid_count|default:"0" }} out of {{ total_count|default:"0" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Skipped</td>
+    <td>{{ skipped_count|default:"0" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Released By</td>
+    <td>{{ released_by|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Released At</td>
+    <td>{{ released_at|default:"—" }}</td>
+  </tr>
+</table>
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  If you have any questions or concerns regarding this release, please feel free
+  to coordinate with the ISUCauFA, Inc. Treasurer's Office. Thank you.
+</p>
+{% endblock %}

@@ -1,0 +1,222 @@
+{% comment %}
+Member Dashboard — Transparency tab.
+
+Three panels, each with a deliberately different audience:
+
+  1. Financial Overview — organisation-wide and always unmasked. This is the
+     association's own position, which a member is entitled to read.
+  2. Cash Flow          — the member's OWN money in / money out.
+  3. My Records         — the member's OWN dues, contributions and payments.
+
+Collections has its own panel no longer: the member's monthly obligation was
+already reported twice over, once as a per-month table and again as movements in
+Cash Flow, and the two could be made to disagree. Cash Flow plus the Monthly
+Dues matrix in My Records say the same thing once.
+
+There is no disclosure bar, no masking and no reveal step: every figure on this
+tab is shown as recorded. Nothing is rendered server-side, so no financial value
+ever lands in the page context.
+{% endcomment %}
+<section class="view" id="view-transparency">
+  <div class="page-sub">
+    A transparent view of the association's funds and your own records.
+  </div>
+
+  <!-- ============ 1. FINANCIAL OVERVIEW — organisation-wide ============ -->
+  <div class="card">
+    <div class="card-title">Financial Overview</div>
+    <p class="setting-desc" style="margin:0 0 4px;">
+      Where the association's money stands right now.
+    </p>
+
+    <div class="ledger-summary" id="mtSummary">
+      <div class="stat">
+        <div class="stat-label">Current Fund Balance</div>
+        <div class="stat-value ok" id="mtBalance" style="font-size:clamp(18px,2.2vw,24px);">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Collections</div>
+        <div class="stat-value" id="mtCollections" style="font-size:clamp(18px,2.2vw,24px);">—</div>
+        <div class="stat-sub" id="mtCollectionsSub">Collected from members</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Cash Inflows</div>
+        <div class="stat-value ok" id="mtInflow" style="font-size:clamp(18px,2.2vw,24px);">—</div>
+        <div class="stat-sub" id="mtInflowSub">All money received</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Cash Outflows</div>
+        <div class="stat-value danger" id="mtOutflow" style="font-size:clamp(18px,2.2vw,24px);">—</div>
+        <div class="stat-sub" id="mtOutflowSub">All money disbursed</div>
+      </div>
+    </div>
+
+    <!--div class="mt-split">
+      <div class="mt-panel">
+        <div class="mt-panel-title">Monthly movement</div>
+        <div class="mt-chart" id="mtFlowChart"><span class="skeleton"></span></div>
+        <div class="mt-legend">
+          <span class="mt-key"><i class="mt-swatch mt-swatch-in"></i> Money in</span>
+          <span class="mt-key"><i class="mt-swatch mt-swatch-out"></i> Money out</span>
+        </div>
+      </div>
+      <div class="mt-panel">
+        <div class="mt-panel-title">Fund position over time</div>
+        <div class="mt-chart" id="mtBalanceChart"><span class="skeleton"></span></div>
+        <div class="mt-legend">
+          <span class="mt-key"><i class="mt-swatch mt-swatch-line"></i> Closing balance</span>
+        </div>
+      </div>
+    </div-->
+
+    <div class="mt-footnote" id="mtSummaryFoot">
+      As of —
+    </div>
+  </div>
+
+  <!-- ============ 2. CASH FLOW — member-only ============ -->
+  <div class="card" style="margin-top:16px;">
+    <div class="ledger-history-head">
+      <div class="ledger-history-title">
+        <div>
+          <h3>Cash Flow</h3>
+          <p>Your own money in and your own money out, month by month.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-tabs" style="margin-bottom:12px;">
+      <div class="filter-row" id="mtFlowTabs">
+        <button class="filter-tab active" data-direction="" type="button">All</button>
+        <button class="filter-tab" data-direction="in" type="button">Money In</button>
+        <button class="filter-tab" data-direction="out" type="button">Money Out</button>
+      </div>
+      <div class="filter-row">
+        <select class="filter-tab" id="mtFlowKind" aria-label="Movement type">
+          <option value="">All types</option>
+        </select>
+        <select class="filter-tab" id="mtFlowYear" aria-label="Year"></select>
+        <input class="filter-tab" id="mtFlowFrom" type="date" aria-label="From date" />
+        <input class="filter-tab" id="mtFlowTo" type="date" aria-label="To date" />
+        <button class="filter-tab" id="mtFlowApply" type="button">Apply</button>
+        <button class="filter-tab" id="mtFlowClear" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div class="ledger-summary" id="mtFlowTotals">
+      <div class="stat">
+        <div class="stat-label">Total In</div>
+        <div class="stat-value ok" id="mtFlowIn">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Out</div>
+        <div class="stat-value danger" id="mtFlowOut">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Net</div>
+        <div class="stat-value" id="mtFlowBal">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Outstanding</div>
+        <div class="stat-value" id="mtFlowOutstanding">—</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th style="width:110px;">Date</th>
+            <th>Description</th>
+            <th style="width:150px;">Type</th>
+            <th style="width:130px;">Running Total</th>
+            <th style="width:120px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="mtFlowBody">
+          <tr><td colspan="5"><span class="skeleton"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager" id="mtFlowPager" style="display:none;">
+      <button type="button" id="mtFlowPrev">← Newer</button>
+      <span id="mtFlowPageInfo"></span>
+      <button type="button" id="mtFlowNext">Older →</button>
+    </div>
+  </div>
+
+  <!-- ============ 3. MY RECORDS — member-only ============ -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">My Records</div>
+    <p class="setting-desc" style="margin:0 0 4px;">
+      Your own dues status, contributions and payments.
+    </p>
+
+    <div class="filter-tabs" style="margin:14px 0 12px;">
+      <div class="filter-row" id="mtRecTabs">
+        <button class="filter-tab active" data-panel="dues" type="button">Monthly Dues</button>
+        <button class="filter-tab" data-panel="contributions" type="button">Contributions</button>
+        <button class="filter-tab" data-panel="payments" type="button">Payments</button>
+      </div>
+    </div>
+
+    <!-- Dues matrix -->
+    <div class="mt-subpanel" id="mtPanelDues">
+      <div class="mt-strip" id="mtDuesStrip"></div>
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th style="width:130px;">Month</th>
+              <th style="width:150px;">Status</th>
+              <th style="width:140px;">Amount</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="mtDuesBody"><tr><td colspan="4"><span class="skeleton"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Contributions -->
+    <div class="mt-subpanel" id="mtPanelContributions" style="display:none;">
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th style="width:120px;">Date</th>
+              <th style="width:150px;">Aid Type</th>
+              <th style="width:120px;">Target</th>
+              <th style="width:120px;">Expected</th>
+              <th style="width:120px;">Paid</th>
+              <th style="width:120px;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="mtContribBody"><tr><td colspan="6"><span class="skeleton"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Payments -->
+    <div class="mt-subpanel" id="mtPanelPayments" style="display:none;">
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th style="width:120px;">Date</th>
+              <th style="width:150px;">Type</th>
+              <th style="width:110px;">Period</th>
+              <th style="width:120px;">Method</th>
+              <th style="width:120px;">Amount</th>
+              <th style="width:130px;">Treasurer</th>
+              <th style="width:120px;">Auditor</th>
+              <th style="width:120px;">President</th>
+            </tr>
+          </thead>
+          <tbody id="mtPayBody"><tr><td colspan="8"><span class="skeleton"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

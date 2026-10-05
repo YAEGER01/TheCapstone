@@ -1,0 +1,16 @@
+# MySQL server TLS snippet — append to /etc/mysql/my.cnf (or conf.d/caufa-tls.cnf),
+# then:  sudo systemctl restart mysql
+#
+# Paths must match where mysql_ssl_rsa_setup wrote the PEM files.
+
+[mysqld]
+ssl-ca   = /var/lib/mysql/ca.pem
+ssl-cert = /var/lib/mysql/server-cert.pem
+ssl-key  = /var/lib/mysql/server-key.pem
+
+# Refuse plaintext clients entirely (Django will fail fast with a clear TLS
+# error instead of silently sending DB_PASSWORD in the clear).
+require_secure_transport = ON
+
+# TLS 1.2+ only; drop legacy ciphers.
+tls_version = TLSv1.2,TLSv1.3

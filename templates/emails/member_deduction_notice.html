@@ -1,0 +1,35 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Account Deduction Notice{% endblock %}
+{% block header_title %}Account Deduction Notice{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                This is to inform you that an amount of <strong>&#x20B1;{{ deduction_amount }}</strong> has been deducted from your account for {{ deduction_type }}.
+              </p>
+              
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px; border-left:4px solid #ffc107;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Deduction Amount:</td>
+                  <td style="font-weight:700; color:#d32f2f;">&#x20B1;{{ deduction_amount }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Deduction Type:</td>
+                  <td>{{ deduction_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Reason:</td>
+                  <td>{{ aid_type }} request by {{ requesting_member_name }}</td>
+                </tr>
+              </table>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666;">
+                This deduction is part of our mutual aid system to support fellow members in need. Your contribution helps maintain the sustainability of our welfare programs.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions or concerns about this deduction, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

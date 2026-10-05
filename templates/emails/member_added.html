@@ -1,0 +1,114 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}{% if old_member %}ISUCauFA, Inc. – Your Member Account{% else %}Welcome to ISUCauFA, Inc.{% endif %}{% endblock %}
+{% block header_title %}{% if old_member %}Your Account{% else %}Welcome!{% endif %}{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              {% if old_member %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your member dashboard account for
+                <strong>ISUCauFA, Inc. (Isabela State University - Cauayan Faculty Association)</strong>
+                is now ready. You are already a valued part of the association.
+              </p>
+              {% else %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                We are pleased to inform you that you have been successfully registered as a member of
+                <strong>ISUCauFA, Inc. (Isabela State University - Cauayan Faculty Association)</strong>.
+              </p>
+              {% endif %}
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">ISU Email Address:</td>
+                  <td><strong>{{ email }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Username:</td>
+                  <td>{{ username }}</td>
+                </tr>
+                {% if not old_member %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Date Joined:</td>
+                  <td>{{ date_joined }}</td>
+                </tr>
+                {% endif %}
+                {% if department %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Department:</td>
+                  <td>{{ department }}</td>
+                </tr>
+                {% endif %}
+              </table>
+
+              {% if not old_member %}
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Membership Highlights</h3>
+              <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li><strong>Monthly Dues:</strong> ₱{{ monthly_dues_amount|floatformat:2 }} per month</li>
+                <li><strong>Membership Fee:</strong> ₱{{ membership_fee_amount|floatformat:2 }} (one-time)</li>
+                <li><strong>Benefits:</strong> Can file a Medical Aid once a year, and Death Aid.</li>
+              </ul>
+              {% endif %}
+
+              <div style="background-color:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#856404; font-size:16px; margin:0 0 10px;">Important: Your Account Credentials</h4>
+                {% if generated_password %}
+                <p style="font-size:14px; line-height:1.6; margin:0 0 10px; color:#856404;">
+                  Password has been automatically generated for your account. Please save it securely:
+                </p>
+                <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#ffffff; border-radius:4px; margin:0;">
+                  <tr>
+                    <td style="font-weight:600; color:#1b5e20;">Username:</td>
+                    <td style="font-family:'Courier New',monospace; font-size:15px; color:#333333;">{{ username }}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600; color:#1b5e20;">Password:</td>
+                    <td style="font-family:'Courier New',monospace; font-size:15px; color:#d32f2f; font-weight:700;">{{ generated_password }}</td>
+                  </tr>
+                </table>
+                <p style="font-size:12px; line-height:1.5; margin:10px 0 0 0; color:#856404;">
+                  Log in anytime using your <strong>username</strong> together with the password shown above.
+                </p>
+                {% else %}
+                <p style="font-size:14px; line-height:1.6; margin:0 0 10px; color:#856404;">
+                  Use your <strong>username</strong> to log in to your dashboard:
+                </p>
+                <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#ffffff; border-radius:4px; margin:0;">
+                  <tr>
+                    <td style="font-weight:600; color:#1b5e20;">Username:</td>
+                    <td style="font-family:'Courier New',monospace; font-size:15px; color:#333333;">{{ username }}</td>
+                  </tr>
+                </table>
+                {% endif %}
+              </div>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Member Obligations</h3>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px;">
+                As a member, you are expected to pay your monthly dues regularly to remain in good standing
+                and to continue enjoying the benefits and services of the association.
+              </p>
+
+              {% if login_url %}
+              <div style="text-align:center; margin:0 0 20px;">
+                <a href="{{ login_url }}" style="display:inline-block; background-color:#1b5e20; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:12px 32px; border-radius:24px;">
+                  Log In to the Member Portal
+                </a>
+                <p style="font-size:12px; line-height:1.5; margin:10px 0 0 0; color:#888888;">
+                  {{ login_url }}
+                </p>
+              </div>
+              {% endif %}
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions or concerns regarding your membership, please contact the
+                ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

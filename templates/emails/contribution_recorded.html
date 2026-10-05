@@ -1,0 +1,45 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Contribution Recorded - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Aid Contribution Recorded{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your contribution to the <strong>{{ aid_type }}</strong> for <strong>{{ requesting_member }}</strong> has been <strong>recorded successfully</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Aid Type:</td>
+                  <td>{{ aid_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Requesting Member:</td>
+                  <td>{{ requesting_member }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Amount:</td>
+                  <td>₱{{ amount }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Target Month:</td>
+                  <td>{{ target_month }}</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#e8f5e9; border-left:4px solid #1b5e20; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#1b5e20; font-size:16px; margin:0 0 10px;">Contribution Confirmed</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#1b5e20;">
+                  Your contribution has been recorded and will be reflected in your monthly deductions history. Thank you for supporting your fellow ISUCauFA members.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions about this contribution, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

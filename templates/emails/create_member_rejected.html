@@ -1,0 +1,29 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Membership Profile Status - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Membership Profile Status{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                We regret to inform you that your membership profile submission to the
+                <strong>Isabela State University &ndash; Cauayan Faculty Association (ISUCauFA)</strong> was not approved.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#c62828; width:160px;">Reason:</td>
+                  <td>{{ reason }}</td>
+                </tr>
+              </table>
+
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                For clarification or to address the stated reason, please coordinate with the
+                ISUCauFA, Inc. Treasurer who submitted your profile.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                For inquiries, please contact the ISUCauFA, Inc. Treasurer.
+              </p>
+            
+{% endblock %}

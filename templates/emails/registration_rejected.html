@@ -1,0 +1,36 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Registration Status - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Registration Status{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                After careful review, your membership registration with
+                <strong>ISUCauFA, Inc. (Isabela State University - Cauayan Faculty Association)</strong>
+                has been <strong style="color:#c62828;">not approved</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                {% if reason %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Reason:</td>
+                  <td><em>{{ reason }}</em></td>
+                </tr>
+                {% endif %}
+              </table>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px;">
+                If you believe this is an error or would like further clarification, please contact
+                the ISUCauFA, Inc. Treasurer's Office or the Office of the President.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                Thank you for your interest in ISUCauFA, Inc..
+              </p>
+            
+{% endblock %}

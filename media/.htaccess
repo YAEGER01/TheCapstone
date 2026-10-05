@@ -1,0 +1,9 @@
+# CAUFASYSTEM: never serve raw dumps / databases from the webroot.
+# New uploads live under secure_uploads/ with random names; new backups live
+# OUTSIDE the webroot (SECURE_BACKUP_ROOT). These rules are the backstop for
+# legacy files (media/backups/*.sql, *.sql.gz, *.zip, *.json, *.enc).
+<FilesMatch "\.(sql|db|sqlite3|sqlite|sqlite-journal|bak|env|gz|zip|tar|json|enc)$">
+  Require all denied
+</FilesMatch>
+# Legacy database dumps must never be URL-addressable.
+RedirectMatch 404 "(^|/)backups(/|$)"

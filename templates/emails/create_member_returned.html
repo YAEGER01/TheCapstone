@@ -1,0 +1,28 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Membership Profile Returned for Revision - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Profile Returned for Revision{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your membership profile has been returned for revision by the
+                <strong>Isabela State University &ndash; Cauayan Faculty Association (ISUCauFA)</strong> reviewers.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#e65100; width:160px;">Reason:</td>
+                  <td>{{ reason }}</td>
+                </tr>
+              </table>
+
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                The Treasurer will coordinate with you to correct the details and resubmit your profile.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                For inquiries, please contact the ISUCauFA, Inc. Treasurer.
+              </p>
+            
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Certificate of Attendance - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Your Certificate of Attendance is Ready{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name|default:"Member" }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Thank you for attending:
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px; border-left:4px solid #1b5e20;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Event:</td>
+                  <td style="font-weight:600; color:#333333;">{{ event_title }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Date:</td>
+                  <td>{{ event_date }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Venue:</td>
+                  <td>{{ event_venue }}</td>
+                </tr>
+              </table>
+
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#fff9e6; border-radius:6px; margin:0 0 20px; border:1px solid #ffd54f;">
+                <tr>
+                  <td style="font-weight:600; color:#f57c00; width:140px;">Certificate No.:</td>
+                  <td style="font-weight:600; color:#f57c00; font-size:16px;">{{ certificate_number }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#f57c00;">Issued:</td>
+                  <td>{{ issue_date }}</td>
+                </tr>
+              </table>
+
+              <p style="font-size:15px; line-height:1.6; margin:0 0 20px;">
+                {% if certificate_number == "Processing" %}
+                  Your certificate is currently being generated and will be sent to your email shortly. You will receive another notification once it's ready.
+                {% elif has_pdf_attachment %}
+                  Your certificate PDF is attached to this email. Please save it for your records.
+                {% else %}
+                  Your certificate is available for download from your Member Dashboard.
+                {% endif %}
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions or concerns regarding your certificate, please contact the
+                ISUCauFA, Inc. Secretariat.
+              </p>
+            
+{% endblock %}

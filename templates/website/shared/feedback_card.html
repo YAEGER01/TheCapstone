@@ -1,0 +1,13 @@
+{% load static %}
+<!-- Shared officer feedback mount point. One include per officer dashboard.
+     The dashboard only supplies this fetch trigger plus the assets; the toast
+     and modal themselves are mounted under <body> by feedback_card.js so the
+     overlay is not trapped inside the dashboard's overflow:hidden shell.
+
+     The content is fetched lazily, so a Superadmin can publish or retire a
+     form without any dashboard template changing. The endpoint returns an
+     empty body unless there is an open form for this officer's role AND the
+     officer has not already responded. -->
+<div id="fb-card-root" class="fb-root" data-fb-endpoint="{% url 'feedback_card' %}" hidden></div>
+<link rel="stylesheet" href="{% static 'css/feedback_card.css' %}?v=20260930fb4" />
+<script src="{% static 'js/shared/feedback_card.js' %}?v=20260930fb4" defer></script>

@@ -1,0 +1,30 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Notice of Active Member Contribution{% endblock %}
+{% block header_title %}Notice of Active Member Contribution{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear Member,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                A fellow member has filed an aid request. As part of our mutual aid system, a contribution of <strong>&#x20B1;{{ contribution_amount }}</strong> will be collected from each active member for the following:
+              </p>
+              
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px; border-left:4px solid #1b5e20;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Requesting Member:</td>
+                  <td>{{ requesting_member_name }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Aid Type:</td>
+                  <td>{{ aid_type }}</td>
+                </tr>
+              </table>
+              
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your cooperation and solidarity are greatly appreciated.
+              </p>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions or concerns, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

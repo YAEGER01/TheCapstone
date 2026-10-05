@@ -1,0 +1,32 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Monthly Deduction Update - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Hi {{ member_name|default:"there" }} — here's an update on your monthly deduction.{% endblock %}
+{% block header_title %}Monthly Deduction Update{% endblock %}
+{% block header_sub %}Your ISUCauFA, Inc. salary deduction at a glance{% endblock %}
+{% block content %}
+<p style="font-size:16px; margin:0 0 16px;">
+  Hi <strong>{{ member_name|default:"there" }}</strong>,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  Here's an update regarding your monthly deduction:
+</p>
+
+<table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#f4f8f4; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-size:14px; color:#2f3a30;">
+      {{ message|linebreaksbr }}
+    </td>
+  </tr>
+</table>
+
+{% if receipt_number %}
+<p style="font-size:14px; margin:0 0 16px; color:#5b6b5c;">
+  Reference number: <strong>{{ receipt_number }}</strong>
+</p>
+{% endif %}
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  You can view the full breakdown anytime on your member dashboard.
+  If anything looks off, just coordinate with the Treasurer's Office — we're happy to help. Thank you!
+</p>
+{% endblock %}

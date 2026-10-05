@@ -1,0 +1,84 @@
+{% load static %}
+{% comment %}
+Officer feedback prompt + modal. Returned by feedback_views.feedback_card
+and injected by static/js/shared/feedback_card.js.
+
+Rendered only when the officer has NOT yet responded to the active form, so
+this whole fragment is naturally one-shot per form.
+
+All text goes through Django autoescaping - no |safe on any officer-supplied
+value - so a response can never inject markup back into this template.
+{% endcomment %}
+<div class="fb-shell" data-fb-shell data-fb-form="{{ fb_form.form_id_PK }}">
+
+  {# ------------------------------------------------------------------ #}
+  {# Top-centre prompt toast. Opens the locked modal on click.           #}
+  {# ------------------------------------------------------------------ #}
+  <div class="fb-toast" data-fb-toast role="status" aria-live="polite">
+    <span class="fb-toast-icon" aria-hidden="true">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+           viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        <path d="M8 9h8M8 13h5"/>
+      </svg>
+    </span>
+    <span class="fb-toast-text">Care to give a feedback??</span>
+    <button type="button" class="fb-toast-btn" data-fb-open>Yeah, Sure</button>
+    <button type="button" class="fb-toast-x" data-fb-dismiss-toast
+            title="Dismiss" aria-label="Dismiss">&times;</button>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# The modal itself. No close button, no backdrop click, no ESC - it  #}
+  {# stays up until the form is submitted.                              #}
+  {# ------------------------------------------------------------------ #}
+  <div class="fb-overlay" data-fb-overlay hidden>
+    <div class="fb-modal" role="dialog" aria-modal="true"
+         aria-labelledby="fb-modal-title">
+
+      <div class="fb-modal-head">
+        <h3 class="fb-title" id="fb-modal-title">
+          {{ fb_form.section_title|default:fb_form.title }}
+        </h3>
+        {% if fb_form.title != fb_form.section_title %}
+          <p class="fb-subtitle">{{ fb_form.title }}</p>
+        {% endif %}
+      </div>
+
+      {% if fb_form.description %}
+        <p class="fb-description">{{ fb_form.description }}</p>
+      {% endif %}
+
+      {# Progress: one question per page. #}
+      <div class="fb-progress">
+        <div class="fb-progress-bar" data-fb-progress-bar></div>
+      </div>
+      <p class="fb-progress-label">
+        Question <span data-fb-current>1</span> of {{ fb_question_count }}
+      </p>
+
+      <form class="fb-form" data-fb-form-el novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="form_id" value="{{ fb_form.form_id_PK }}">
+
+        <div class="fb-pages" data-fb-pages>
+          {% include "website/shared/feedback_card_fields.html" with fb_questions=fb_questions fb_max_text=fb_max_text %}
+        </div>
+
+        <div class="fb-error" data-fb-error role="alert" hidden></div>
+
+        <div class="fb-actions">
+          <button type="button" class="fb-btn fb-btn-ghost" data-fb-back disabled>
+            Back
+          </button>
+          <button type="button" class="fb-btn fb-btn-primary" data-fb-next>
+            Next
+          </button>
+          <button type="submit" class="fb-btn fb-btn-primary" data-fb-submit hidden>
+            Submit Feedback
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

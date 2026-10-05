@@ -1,0 +1,88 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Aid Contribution Reminder - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}&#10084; Aid Contribution Reminder{% endblock %}
+{% block header_sub %}A little help goes a long way for a fellow member{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 10px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 16px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:15px; line-height:1.7; margin:0 0 16px;">
+                We hope this message finds you well. This is a gentle reminder from the
+                ISUCauFA, Inc. Auditor's Office regarding your share of the
+                <strong>{{ aid_label }}</strong> extended to
+                <strong>{{ beneficiary_name }}</strong>{% if beneficiary_name %}'s aid request{% endif %}.
+                Your contribution keeps our mutual-aid promise alive — thank you for being part of it.
+              </p>
+
+              {% if custom_message %}
+              <div style="background-color:#f1f8e9; border-left:4px solid #7cb342; padding:14px 16px; margin:0 0 20px; border-radius:6px;">
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#33691e;">
+                  <strong>Message from the Auditor:</strong><br />
+                  {{ custom_message }}
+                </p>
+              </div>
+              {% endif %}
+
+              <!-- Aid details card -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0; border-radius:10px; overflow:hidden; margin:0 0 22px;">
+                <tr>
+                  <td style="background-color:#f8f9fa; padding:12px 18px; border-bottom:1px solid #e0e0e0;">
+                    <span style="display:inline-block; background-color:#ffebee; color:#c62828; font-size:12px; font-weight:700; letter-spacing:1px; padding:4px 12px; border-radius:20px;">
+                      {{ aid_label|upper }}
+                    </span>
+                    <span style="color:#777777; font-size:13px; margin-left:8px;">Tracking period: {{ target_month }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px;">
+                    <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#333333;">
+                      <tr>
+                        <td style="color:#1b5e20; font-weight:600; width:190px;">Aid Recipient:</td>
+                        <td>{{ beneficiary_name }}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#1b5e20; font-weight:600;">Your Expected Contribution:</td>
+                        <td>&#8369;{{ expected_amount }}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#1b5e20; font-weight:600;">Amount You've Paid:</td>
+                        <td>&#8369;{{ paid_amount }}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#1b5e20; font-weight:600;">Outstanding Balance:</td>
+                        <td style="color:#c62828; font-weight:700; font-size:16px;">&#8369;{{ outstanding_amount }}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="background-color:#fff8e1; border-left:4px solid #ffc107; padding:15px 16px; margin:0 0 20px; border-radius:6px;">
+                <h4 style="color:#8a6d3b; font-size:15px; margin:0 0 8px;">How to Settle</h4>
+                <p style="font-size:14px; line-height:1.7; margin:0; color:#8a6d3b;">
+                  You may settle your outstanding contribution of
+                  <strong>&#8369;{{ outstanding_amount }}</strong> through the Treasurer's Office or via the
+                  salary deduction arrangement. If you have already paid, please disregard this notice —
+                  or reach out to us so we can update our records.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.7; margin:0 0 16px;">
+                Every contribution, big or small, directly helps a colleague in their time of need.
+                Thank you for your continued generosity and support of our association's mission.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:18px;">
+                If you have any questions or concerns about this contribution, please don't hesitate to
+                contact the ISUCauFA, Inc. Treasurer's or Auditor's Office — we're always happy to help.
+              </p>
+              <p style="font-size:14px; margin:0 0 8px;">
+                Warm regards,<br />
+                <strong>{{ auditor_name }}</strong><br />
+                <span style="color:#888888; font-size:13px;">Auditor, ISUCauFA, Inc.</span>
+              </p>
+            
+{% endblock %}

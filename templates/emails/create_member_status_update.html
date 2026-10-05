@@ -1,0 +1,50 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Membership Profile Update - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Membership Profile Update{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your membership profile has reached a new stage in the review process of the
+                <strong>Isabela State University &ndash; Cauayan Faculty Association (ISUCauFA)</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:160px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                {% if department %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Department:</td>
+                  <td>{{ department }}</td>
+                </tr>
+                {% endif %}
+                {% if position %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Position / Rank:</td>
+                  <td>{{ position }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Membership Type:</td>
+                  <td>{{ membership_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Current Status:</td>
+                  <td><strong style="color:#2e7d32;">{{ new_status }}</strong></td>
+                </tr>
+              </table>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">What Happens Next?</h3>
+              <p style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                Your membership profile will now proceed to <strong>{{ next_stage }}</strong>.
+                You will receive another email notification once it has been processed.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                For inquiries, please contact the ISUCauFA, Inc. Treasurer.
+              </p>
+            
+{% endblock %}

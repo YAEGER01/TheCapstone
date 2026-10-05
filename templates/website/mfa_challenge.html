@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ISUCauFA | MFA Verification</title>
+    <link
+      rel="icon"
+      type="image/png"
+      href="{% static 'img/isu_caufa_official.png' %}"
+    />
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}" />
+    <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/login.css' %}" />
+  </head>
+  <body>
+    <section class="login-shell">
+      <div class="brand">
+        <img src="{% static 'img/isu_caufa_official.png' %}" alt="CAUFA logo" />
+        <div>
+          <strong>CAUFA</strong>
+          <span>Two-Factor Authentication</span>
+        </div>
+      </div>
+
+      <form id="mfaForm" novalidate>
+        {% csrf_token %}
+        <p class="mfa-intro">
+          Enter the 6-digit verification code sent to your registered email address:
+          {% if mfa_email_masked %}<strong>{{ mfa_email_masked }}</strong>{% endif %}
+        </p>
+
+        <div id="mfaError" class="error-note" style="display: none;">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="mfaErrorText"></span>
+        </div>
+
+        <p id="mfaDeliveryStatus" class="mfa-footer" style="margin-top: 6px;" aria-live="polite">
+          <i class="fa-solid fa-circle-notch fa-spin"></i> Sending code to your email…
+        </p>
+
+        <div>
+          <label for="otp">Verification Code</label>
+          <div class="input-wrap">
+            <i class="fa-solid fa-shield-halved field-icon" aria-hidden="true"></i>
+            <input
+              id="otp"
+              name="otp"
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
+              pattern="[0-9]*"
+              placeholder="000000"
+              required
+              autofocus
+            />
+          </div>
+        </div>
+
+        <input type="hidden" id="preAuthToken" value="{{ pre_auth_token|default:'' }}" />
+        <input type="hidden" id="mfaUsername" value="{{ username|default:'' }}" />
+
+        <div class="mfa-actions">
+          <button class="btn-slim btn-primary" type="submit" id="mfaSubmitBtn">
+            <i class="fa-solid fa-check"></i> Verify
+          </button>
+          <button
+            class="btn-slim btn-secondary"
+            type="button"
+            id="resendBtn"
+          >
+            <i class="fa-solid fa-rotate-right"></i> Resend Code
+          </button>
+        </div>
+
+        <p class="mfa-footer">
+          Didn't receive it? Check your email.
+        </p>
+      </form>
+    </section>
+
+    <script src="{% static 'js/login.js' %}"></script>
+    <script>
+      (function () {
+        var form = document.getElementById("mfaForm");
+        var errorBox = document.getElementById("mfaError");
+        var errorText = document.getElementById("mfaErrorText");
+        var preAuthToken = document.getElementById("preAuthToken").value;
+        var username = document.getElementById("mfaUsername").value;
+        var otpInput = document.getElementById("otp");
+
+        function showError(msg) {
+          errorText.textContent = msg;
+          errorBox.style.display = "block";
+        }
+
+        function hideError() {
+          errorBox.style.display = "none";
+        }
+
+        function setLoading(loading) {
+          var btn = document.getElementById("mfaSubmitBtn");
+          btn.disabled = loading;
+          btn.innerHTML = loading
+            ? '<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying...'
+            : '<i class="fa-solid fa-check"></i> Verify';
+        }
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          hideError();
+          setLoading(true);
+
+          var otp = otpInput.value.trim();
+          if (!otp || otp.length !== 6) {
+            showError("Please enter the 6-digit code.");
+            setLoading(false);
+            return;
+          }
+
+          fetch("/api/auth/mfa/verify/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+            },
+            body: new URLSearchParams({
+              otp: otp,
+              pre_auth_token: preAuthToken,
+            }),
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              setLoading(false);
+              if (data && data.ok && data.redirect_url) {
+                window.location.href = data.redirect_url;
+              } else {
+                showError((data && data.error) || "Verification failed.");
+              }
+            })
+            .catch(function () {
+              setLoading(false);
+              showError("Network error. Please try again.");
+            });
+        });
+
+        var resendBtn = document.getElementById("resendBtn");
+        var resendTimer = null;
+
+        function resetResendButton() {
+          if (resendTimer) {
+            clearInterval(resendTimer);
+            resendTimer = null;
+          }
+          resendBtn.disabled = false;
+          resendBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Resend Code';
+        }
+
+        function startResendCountdown(seconds) {
+          var remaining = Math.max(1, parseInt(seconds, 10) || 300);
+          resendBtn.disabled = true;
+          function renderCountdown() {
+            var minutes = Math.ceil(remaining / 60);
+            var secs = remaining % 60;
+            resendBtn.innerHTML = '<i class="fa-solid fa-clock"></i> Resend in ' + minutes + 'm ' + String(secs).padStart(2, "0") + 's';
+            if (remaining <= 0) {
+              resetResendButton();
+              return;
+            }
+            remaining -= 1;
+          }
+          renderCountdown();
+          resendTimer = setInterval(renderCountdown, 1000);
+        }
+
+        resendBtn.addEventListener("click", function () {
+          hideError();
+          resendBtn.disabled = true;
+          resendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Sending...';
+          setDeliveryStatus("sending");
+
+          var formData = new FormData();
+          formData.append("username", username);
+
+          fetch("/api/auth/mfa/challenge/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+            },
+            body: formData,
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data && data.rate_limited) {
+                startResendCountdown(data.retry_after);
+                showError((data && data.error) || "Please wait before requesting another code.");
+                return;
+              }
+              resetResendButton();
+              if (data && data.ok) {
+                alert("Verification code resent via email.");
+                setDeliveryStatus("sending");
+                pollCount = 0;
+                setTimeout(pollDelivery, 2000);
+              } else {
+                showError((data && data.error) || "Failed to resend code.");
+              }
+            })
+            .catch(function () {
+              resetResendButton();
+              showError("Network error. Please try again.");
+            });
+        });
+
+        // Delivery poll: show the REAL queue status (sending/sent/failed)
+        // so nobody stares at an empty inbox. Stops on sent/failed or 90s.
+        var deliveryEl = document.getElementById("mfaDeliveryStatus");
+        var pollCount = 0;
+        function setDeliveryStatus(state, message) {
+          if (!deliveryEl) return;
+          if (state === "sent") {
+            deliveryEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Code sent — check your inbox (and spam folder).';
+          } else if (state === "failed") {
+            deliveryEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Delivery failed — tap Resend Code.';
+          } else if (state === "rate_limited") {
+            deliveryEl.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> ' + (message || "A code was already emailed recently — check your inbox for the earlier message. Codes work for 5 minutes.");
+          } else {
+            deliveryEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Sending code to your email…';
+          }
+        }
+        function pollDelivery() {
+          pollCount += 1;
+          fetch("/api/auth/mfa/status/", { method: "GET" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var delivery = data && data.delivery;
+              if (delivery === "sent" || delivery === "failed" || delivery === "rate_limited") {
+                setDeliveryStatus(delivery, data && data.message);
+                return; // stop polling
+              }
+              if (pollCount < 30) {
+                setTimeout(pollDelivery, 3000);
+              } else {
+                setDeliveryStatus("failed");
+              }
+            })
+            .catch(function () {
+              if (pollCount < 30) {
+                setTimeout(pollDelivery, 3000);
+              }
+            });
+        }
+        setTimeout(pollDelivery, 2000);
+
+        if (otpInput.value.length === 6) {
+          form.dispatchEvent(new Event("submit"));
+        }
+      })();
+    </script>
+  </body>
+</html>

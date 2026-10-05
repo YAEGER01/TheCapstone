@@ -1,0 +1,216 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback Forms &middot; CAUFA System</title>
+  <link rel="stylesheet" href="{% static 'css/feedback_admin.css' %}?v=20260929fb1">
+  <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20260930zt6">
+</head>
+<body class="fbadmin">
+  <header class="fbadmin-top">
+    <a class="fbadmin-back" href="{% url 'superadmin_dashboard' %}">&larr; Superadmin Dashboard</a>
+    <h1>Officer Feedback Forms</h1>
+    <p class="fbadmin-tagline">
+      Build the form that appears on the President, Treasurer and Auditor dashboards.
+      Officers answer once; you review and export.
+    </p>
+  </header>
+
+  <div class="fbadmin-grid">
+    <!-- ============================ FORM LIST ============================ -->
+    <section class="fbadmin-panel">
+      <div class="fbadmin-panel-head">
+        <h2>Forms</h2>
+        <button type="button" class="fb-btn" id="fb-new">+ New form</button>
+      </div>
+
+      {% if fb_forms %}
+        <ul class="fb-form-list" id="fb-form-list">
+          {% for f in fb_forms %}
+            <li class="fb-form-item {% if fb_selected and f.form_id_PK == fb_selected.form_id_PK %}is-selected{% endif %}">
+              <a class="fb-form-link" href="?form={{ f.form_id_PK }}">
+                <span class="fb-form-title">{{ f.title }}</span>
+                <span class="fb-form-meta">
+                  {{ f.n_questions }} question{{ f.n_questions|pluralize }} &middot;
+                  {{ f.n_responses }} response{{ f.n_responses|pluralize }}
+                </span>
+                <span class="fb-badges">
+                  {% if f.is_archived %}<span class="fb-badge is-archived">archived</span>
+                  {% elif f.is_active %}<span class="fb-badge is-on">active</span>
+                  {% else %}<span class="fb-badge is-off">hidden</span>{% endif %}
+                  {% if f.is_open %}<span class="fb-badge is-open">open</span>
+                  {% else %}<span class="fb-badge is-closed">closed</span>{% endif %}
+                </span>
+              </a>
+              <div class="fb-form-actions">
+                <button type="button" class="fb-mini" data-fb-toggle="is_active"
+                        data-fb-form="{{ f.form_id_PK }}"
+                        data-fb-state="{% if f.is_active %}1{% else %}0{% endif %}">
+                  {% if f.is_active %}Hide{% else %}Activate{% endif %}
+                </button>
+                <button type="button" class="fb-mini" data-fb-toggle="is_open"
+                        data-fb-form="{{ f.form_id_PK }}"
+                        data-fb-state="{% if f.is_open %}1{% else %}0{% endif %}">
+                  {% if f.is_open %}Close responses{% else %}Open responses{% endif %}
+                </button>
+                <button type="button" class="fb-mini is-danger" data-fb-delete
+                        data-fb-form="{{ f.form_id_PK }}"
+                        data-fb-title="{{ f.title }}"
+                        data-fb-responses="{{ f.n_responses }}">
+                  {% if f.n_responses %}Archive{% else %}Delete{% endif %}
+                </button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="fbadmin-empty">No feedback forms yet. Create one to get started.</p>
+      {% endif %}
+    </section>
+
+    <!-- ============================= EDITOR ============================= -->
+    <section class="fbadmin-panel fbadmin-editor">
+      <h2>{% if fb_selected %}Edit &ldquo;{{ fb_selected.title }}&rdquo;{% else %}New form{% endif %}</h2>
+
+      <form id="fb-editor-form" class="fb-editor">
+        <input type="hidden" name="form_id" value="{% if fb_selected %}{{ fb_selected.form_id_PK }}{% endif %}">
+
+        <label class="fb-field">
+          <span class="fb-label">Form title <em>(internal)</em></span>
+          <input type="text" name="title" maxlength="200" required
+                 value="{% if fb_selected %}{{ fb_selected.title }}{% endif %}"
+                 placeholder="Q3 Officer Effectiveness Review">
+        </label>
+
+        <label class="fb-field">
+          <span class="fb-label">Card title bar <em>(shown on dashboards)</em></span>
+          <input type="text" name="section_title" maxlength="200"
+                 value="{% if fb_selected %}{{ fb_selected.section_title }}{% endif %}"
+                 placeholder="Help us improve &mdash; share your feedback">
+        </label>
+
+        <label class="fb-field">
+          <span class="fb-label">Description</span>
+          <textarea name="description" rows="2"
+                    placeholder="Optional intro shown under the title bar.">{% if fb_selected %}{{ fb_selected.description }}{% endif %}</textarea>
+        </label>
+
+        <fieldset class="fb-field">
+          <span class="fb-label">Show on dashboards for</span>
+          <div class="fb-role-grid">
+            {% for role in fb_roles %}
+              <label class="fb-role">
+                <input type="checkbox" name="show_on_roles" value="{{ role }}"
+                       {% if fb_selected and role in fb_selected.show_on_roles %}checked{% endif %}>
+                <span>{{ role }}</span>
+              </label>
+            {% endfor %}
+          </div>
+          <p class="fb-hint">Leave all unchecked to hide the card everywhere.</p>
+        </fieldset>
+
+        <div class="fb-field fb-field-row">
+          <label class="fb-toggle">
+            <input type="checkbox" name="is_active" {% if not fb_selected or fb_selected.is_active %}checked{% endif %}>
+            <span>Show the card</span>
+          </label>
+          <label class="fb-toggle">
+            <input type="checkbox" name="is_open" {% if not fb_selected or fb_selected.is_open %}checked{% endif %}>
+            <span>Accepting responses</span>
+          </label>
+        </div>
+
+        <fieldset class="fb-field">
+          <span class="fb-label">Questions</span>
+          <div id="fb-questions" class="fb-q-list"></div>
+          <div class="fb-q-adders">
+            <button type="button" class="fb-mini" data-fb-add="mc">+ Multiple choice</button>
+            <button type="button" class="fb-mini" data-fb-add="likert">+ Likert scale</button>
+            <button type="button" class="fb-mini" data-fb-add="text">+ Freeform text</button>
+          </div>
+        </fieldset>
+
+        <div class="fb-editor-actions">
+          <button type="submit" class="fb-btn" id="fb-save">Save form</button>
+          <span class="fb-editor-msg" id="fb-editor-msg"></span>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- ============================ RESPONSES ============================ -->
+  {% if fb_selected %}
+    <section class="fbadmin-panel fbadmin-responses">
+      <div class="fbadmin-panel-head">
+        <h2>Responses &mdash; {{ fb_selected.title }}</h2>
+        <div class="fb-export-links">
+          <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=csv">Export CSV</a>
+          <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=pdf">Export PDF</a>
+          <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=txt">Export TXT</a>
+        </div>
+      </div>
+
+      {% if fb_response_rows %}
+        <div class="fb-resp-scroll">
+          <table class="fb-resp-table">
+            <thead>
+              <tr>
+                <th>Officer</th>
+                <th>Role</th>
+                <th>Submitted</th>
+                {% for q in fb_selected_questions %}
+                  <th title="{{ q.prompt }}">Q{{ forloop.counter }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in fb_response_rows %}
+                <tr>
+                  <td class="fb-strong">{{ row.officer }}</td>
+                  <td>{{ row.role }}</td>
+                  <td class="fb-nowrap">{{ row.submitted|date:"M j, Y g:i A" }}</td>
+                  {% for cell in row.cells %}
+                    <td class="fb-cell-text">{{ cell|default:"&mdash;" }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="fbadmin-empty">No responses have been submitted yet.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <script>
+    window.FB_ENDPOINTS = {
+      save:   "{% url 'feedback_admin_save' %}",
+      toggle: "{% url 'feedback_admin_toggle' %}",
+      delete: "{% url 'feedback_admin_delete' %}",
+      list:   "{% url 'feedback_admin' %}"
+    };
+    window.FB_TOKENS = { csrf: "{{ csrf_token }}" };
+    window.FB_CURRENT = {
+      formId: "{% if fb_selected %}{{ fb_selected.form_id_PK }}{% endif %}",
+      questions: [
+        {% for q in fb_selected_questions %}
+          {
+            qtype: "{{ q.qtype }}",
+            prompt: "{{ q.prompt|escapejs }}",
+            help_text: "{{ q.help_text|escapejs }}",
+            options: [{% for o in q.option_labels %}"{{ o|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+            scale_min: {{ q.scale_min }},
+            scale_max: {{ q.scale_max }},
+            min_choices: {{ q.min_choices }},
+            max_choices: {{ q.max_choices }},
+            is_required: {% if q.is_required %}true{% else %}false{% endif %}
+          }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ]
+    };
+  </script>
+  <script src="{% static 'js/Superadmin/feedback_admin.js' %}?v=20260929fb1" defer></script>
+</body>
+</html>

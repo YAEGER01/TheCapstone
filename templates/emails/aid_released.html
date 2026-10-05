@@ -1,0 +1,50 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Aid Released - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Good news, {{ member_name|default:"member" }} — your {{ aid_type|default:"aid" }} assistance has been released.{% endblock %}
+{% block header_title %}Your Aid Has Been Released{% endblock %}
+{% block header_sub %}The {{ aid_type|default:"aid" }} assistance for <strong>{{ member_name|default:"you" }}</strong> is on its way{% endblock %}
+{% block content %}
+<p style="font-size:16px; margin:0 0 16px;">
+  Hi <strong>{{ member_name|default:"there" }}</strong>,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  Good news — your <strong>{{ aid_type|default:"aid" }} claim has been released</strong>.
+  The funds have been disbursed successfully. Here are the details:
+</p>
+
+<table role="presentation" width="100%" cellpadding="10" cellspacing="0" style="background-color:#f1f8e9; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-weight:700; color:#1b5e20; width:220px;">Aid Type</td>
+    <td>{{ aid_type|default:"—" }}</td>
+  </tr>
+  {% if payout_amount %}
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Total Payout Released</td>
+    <td style="font-weight:800; color:#1b5e20; font-size:17px;">₱{{ payout_amount }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Release Date</td>
+    <td>{{ release_date|default:"—" }}</td>
+  </tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#e8f5e9; border-left:4px solid #1b5e20; margin:0 0 20px;">
+  <tr>
+    <td>
+      <p style="font-size:15px; font-weight:700; margin:0 0 4px; color:#1b5e20;">
+        What to do next
+      </p>
+      <p style="font-size:14px; margin:0; color:#1b5e20;">
+        Please coordinate with the Treasurer's Office to receive your assistance.
+        Kindly bring a valid ID for verification. We're happy to help if you have any questions.
+      </p>
+    </td>
+  </tr>
+</table>
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  Thank you for your patience throughout the process. ISUCauFA, Inc. is always here
+  to support our members in times of need.
+</p>
+{% endblock %}

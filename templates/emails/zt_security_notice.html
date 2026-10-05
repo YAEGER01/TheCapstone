@@ -1,0 +1,27 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Quick Security Notice - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Hi {{ member_name|default:"there" }} — just a quick heads-up about your account.{% endblock %}
+{% block header_title %}Just a Quick Heads-Up{% endblock %}
+{% block header_sub %}A short notification about your ISUCauFA, Inc. account — no action needed unless noted below{% endblock %}
+{% block content %}
+<p style="font-size:16px; margin:0 0 16px;">
+  Hi <strong>{{ member_name|default:"there" }}</strong>,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  This is just a notification to let you know about something related to your account.
+  In most cases there's nothing you need to do — but please take a quick look at the details below.
+</p>
+
+<table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#f4f8f4; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-size:14px; color:#2f3a30;">
+      {{ message|linebreaksbr }}
+    </td>
+  </tr>
+</table>
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  If anything here doesn't look right, please change your password and reach out to the
+  system administrator right away. Otherwise, you're all good — thanks!
+</p>
+{% endblock %}

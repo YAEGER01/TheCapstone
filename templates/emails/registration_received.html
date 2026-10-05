@@ -1,0 +1,44 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Registration Received - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Registration Received{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Thank you for submitting your membership registration to
+                <strong>ISUCauFA, Inc. (Isabela State University - Cauayan Faculty Association)</strong>.
+                We have received your application and it is now pending review.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                {% if include_employee_id %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Username:</td>
+                  <td>{{ employee_id }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Current Status:</td>
+                  <td><strong style="color:#f57c00;">Pending Treasurer Review</strong></td>
+                </tr>
+              </table>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">What Happens Next?</h3>
+              <ol style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li><strong>Treasurer Review</strong> &mdash; The Treasurer will verify your payment and submitted details.</li>
+                <li><strong>Auditor Verification</strong> &mdash; The Auditor will confirm the accuracy of the records.</li>
+                <li><strong>President Approval</strong> &mdash; The President will give the final approval to activate your membership.</li>
+              </ol>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                You will receive email notifications as your application progresses through each stage.
+                You may also check your status by attempting to log in at the
+                <strong>CAUFA System Portal</strong>.
+              </p>
+            
+{% endblock %}

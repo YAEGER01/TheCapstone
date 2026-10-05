@@ -1,0 +1,36 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Monthly Dues Reminder - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Monthly Dues Reminder{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                This is a friendly reminder that your monthly dues for <strong>{{ month_label }}</strong> are overdue.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="12" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px; border-left:4px solid #1b5e20;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Covered Month:</td>
+                  <td style="font-weight:700;">{{ month_label }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Days Overdue:</td>
+                  <td>{{ days_overdue }} day(s)</td>
+                </tr>
+              </table>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666;">
+                {{ message }}
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666;">
+                Please settle your monthly dues to remain in good standing. Per policy, accounts
+                beyond the grace period are subject to deactivation.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have already paid, please disregard this message. For questions, contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

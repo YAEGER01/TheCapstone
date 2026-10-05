@@ -1,0 +1,75 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Claim Update - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Claim Update{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your <strong>{{ aid_type }}</strong> claim has been <strong>{{ status }}</strong> by the {{ actor|default:"Auditor" }}.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Claim Type:</td>
+                  <td>{{ aid_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Status:</td>
+                  <td>
+                    {% if status == "Verified" %}
+                      <span style="color:#1b5e20; font-weight:700;">Verified</span>
+                    {% elif status == "Returned for Revision" %}
+                      <span style="color:#f57c00; font-weight:700;">Returned for Revision</span>
+                    {% elif status == "Verified - Sent to President" %}
+                      <span style="color:#1565c0; font-weight:700;">Verified — Sent to President</span>
+                    {% else %}
+                      {{ status }}
+                    {% endif %}
+                  </td>
+                </tr>
+                {% if remarks %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Remarks:</td>
+                  <td><em>{{ remarks }}</em></td>
+                </tr>
+                {% endif %}
+                {% if next_step %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Next Step:</td>
+                  <td>{{ next_step }}</td>
+                </tr>
+                {% endif %}
+              </table>
+
+              {% if status == "Verified - Sent to President" %}
+              <div style="background-color:#e8f5e9; border-left:4px solid #1b5e20; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#1b5e20; font-size:16px; margin:0 0 10px;">What happens next?</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#1b5e20;">
+                  Your claim has been verified by the Auditor and forwarded to the President for final approval. You will be notified once the President takes action.
+                </p>
+              </div>
+              {% elif status == "Returned for Revision" %}
+              <div style="background-color:#fff3e0; border-left:4px solid #f57c00; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#e65100; font-size:16px; margin:0 0 10px;">Action Required</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#e65100;">
+                  Please review the remarks above, correct the required information, and resubmit your claim through the Treasurer's Office.
+                </p>
+              </div>
+              {% elif status == "Verified" %}
+              <div style="background-color:#e3f2fd; border-left:4px solid #1565c0; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#0d47a1; font-size:16px; margin:0 0 10px;">What happens next?</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#0d47a1;">
+                  Your claim has been verified by the Auditor. If this is a finish request, it will be sent to the President for final approval.
+                </p>
+              </div>
+              {% endif %}
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions about this update, please contact the ISUCauFA, Inc. Auditor's Office.
+              </p>
+            
+{% endblock %}

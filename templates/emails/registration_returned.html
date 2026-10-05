@@ -1,0 +1,36 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Registration Returned - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Registration Returned{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your membership registration with
+                <strong>ISUCauFA, Inc. (Isabela State University - Cauayan Faculty Association)</strong>
+                has been <strong style="color:#f57c00;">returned for revision</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Reason:</td>
+                  <td><em>{{ reason }}</em></td>
+                </tr>
+              </table>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Next Step</h3>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px;">
+                Please review the remarks above, correct the required information, and resubmit your
+                application through the registration page. You may contact the Treasurer's Office
+                for further assistance.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

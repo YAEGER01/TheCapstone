@@ -1,0 +1,45 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Exemption Request Received - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Exemption Request Received{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                We have received your salary deduction exemption request for <strong>{{ month_covered }}</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Month:</td>
+                  <td>{{ month_covered }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Request Date:</td>
+                  <td>{{ request_date }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Status:</td>
+                  <td style="font-weight:700; color:#ffc107;">Pending Review</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#d1ecf1; border-left:4px solid #17a2b8; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#0c5460; font-size:16px; margin:0 0 10px;">Next Steps</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#0c5460;">
+                  Your request is now being reviewed by the Treasurer. You will receive a notification once a decision has been made.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions about your exemption request, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666;">
+                Thank you for your submission.
+              </p>
+            
+{% endblock %}

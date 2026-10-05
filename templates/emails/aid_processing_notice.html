@@ -1,0 +1,21 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Notice of Aid Processing{% endblock %}
+{% block header_title %}Notice of Aid Processing{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              {% if excluded %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                We are pleased to inform you that your <strong>{{ aid_type|default:"aid" }} request</strong> has been approved.
+              </p>
+              {% else %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                We wish to inform you that your aid request is in progress. Rest assured, the cooperative is attending to it with the utmost care and diligence. We will keep you informed of any updates.
+              </p>
+              {% endif %}
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions or concerns, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

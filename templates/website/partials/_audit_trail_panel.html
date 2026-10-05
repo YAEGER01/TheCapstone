@@ -1,0 +1,56 @@
+{% comment %}
+Shared Audit Trail panel. Include on any dashboard; the shared
+static/js/shared/audit_trail.js renders it and the /api/audit/trail/ API is
+role-scoped server-side. Requires pager.js + simple_modal.js to be loaded.
+{% endcomment %}
+<div class="audit-trail" data-audit-trail data-endpoint="/api/audit/trail/">
+  <div class="at-head">
+    <div>
+      <h2 class="at-title">Audit Trail</h2>
+      <p class="at-subtitle">System activity and accountability log.</p>
+    </div>
+  </div>
+
+  <div class="at-filters">
+    <input class="at-input at-search" type="text" placeholder="Search user, action, or notes..." />
+    <select class="at-input at-module"><option value="">All Modules</option></select>
+    <select class="at-input at-action"><option value="">All Actions</option></select>
+    <select class="at-input at-role">
+      <option value="">All Roles</option>
+      <option value="Treasurer">Treasurer</option>
+      <option value="Auditor">Auditor</option>
+      <option value="President">President</option>
+      <option value="Superadmin">Superadmin</option>
+      <option value="Anonymous">Anonymous</option>
+    </select>
+    <select class="at-input at-status">
+      <option value="">All Status</option>
+      <option value="Success">Success</option>
+      <option value="Failed">Failed</option>
+      <option value="Pending">Pending</option>
+    </select>
+    <input class="at-input at-date-from" type="date" title="From date" />
+    <input class="at-input at-date-to" type="date" title="To date" />
+    <button type="button" class="at-btn at-apply">Apply</button>
+  </div>
+
+  <div class="at-table-wrap">
+    <table class="at-table">
+      <thead>
+        <tr>
+          <th>Date &amp; Time</th>
+          <th>User</th>
+          <th>Role</th>
+          <th>Action</th>
+          <th>Module</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody class="at-body">
+        <tr><td colspan="6" class="at-empty">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="at-pager"></div>
+</div>

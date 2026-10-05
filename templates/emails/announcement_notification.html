@@ -1,0 +1,58 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}New Announcement - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}New Announcement{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name|default:"Member" }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                ISUCauFA, Inc. has posted a new announcement for all members.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Announcement:</td>
+                  <td>{{ announcement_title }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Category:</td>
+                  <td>{{ announcement_category }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Posted Date:</td>
+                  <td>{{ posted_date }}</td>
+                </tr>
+                {% if expiry_date %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Expiry Date:</td>
+                  <td>{{ expiry_date }}</td>
+                </tr>
+                {% endif %}
+              </table>
+
+              <div style="background-color:#e7f3ff; border-left:4px solid:#7c3aed; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#491057; font-size:16px; margin:0 0 10px;">Announcement Details</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#491057;">
+                  {{ announcement_description }}
+                </p>
+              </div>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Action Required</h3>
+              <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li>Read the full announcement details in your member dashboard</li>
+                <li>Stay updated with the latest ISUCauFA, Inc. news and events</li>
+                <li>Share important announcements with fellow members</li>
+              </ul>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                ISUCauFA, Inc. is committed to keeping all members informed about important news, events, and opportunities. Thank you for being an active member of our community.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666;">
+                If you have any questions about this announcement, please contact the ISUCauFA, Inc. Public Information Office.
+              </p>
+            
+{% endblock %}

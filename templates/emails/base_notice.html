@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+{% comment %}ISUCauFA uniform action-email theme: 100% full-width bands, no narrow
+   container. Child templates override email_title / preheader /
+   header_title / header_sub and fill the content block with their body.
+   Every variable is optional so rendering never fails on thin contexts.{% endcomment %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block email_title %}ISUCauFA, Inc.{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#e9f0ea; font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">{% block preheader %}ISUCauFA, Inc. notice{% endblock %}</div>
+  <!-- ============ FULL-WIDTH HEADER ============ -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 60%,#43a047 100%);">
+    <tr>
+      <td style="padding:32px 6%;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td valign="middle" style="padding-right:20px;">
+              <div style="color:#ffffff; font-size:34px; line-height:1.2; font-weight:800; letter-spacing:1px; margin:0 0 8px;">ISUCauFA, Inc.</div>
+              <h1 style="color:#ffffff; font-size:20px; line-height:1.3; margin:0 0 8px; font-weight:600;">{% block header_title %}Notice{% endblock %}</h1>
+              <div style="color:#dcedc8; font-size:15px; line-height:1.5;">{% block header_sub %}{% endblock %}</div>
+            </td>
+            <td valign="middle" align="right" width="180" style="width:180px;">
+              <img src="cid:logo_cid" alt="ISUCauFA, Inc." width="160" height="157" style="display:block; margin-left:auto; border:0; width:160px; height:157px;" />
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  <!-- ============ FULL-WIDTH BODY ============ -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;">
+    <tr>
+      <td style="padding:34px 6% 30px; color:#2f3a30; font-size:15px; line-height:1.7;">
+        {% block content %}{% endblock %}
+      </td>
+    </tr>
+  </table>
+  <!-- ============ FULL-WIDTH FOOTER ============ -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1b5e20;">
+    <tr>
+      <td style="padding:22px 6%; text-align:center;">
+        <p style="color:#ffffff; font-size:12px; line-height:1.7; margin:0;">
+          &copy; {% now "Y" %} ISUCauFA, Inc. &mdash; Isabela State University &bull; Cauayan City, Philippines<br />
+          <span style="color:#b9d6bc;">This is an automated message. Please do not reply directly to this email.</span>
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

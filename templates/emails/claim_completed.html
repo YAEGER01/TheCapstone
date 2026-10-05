@@ -1,0 +1,42 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Claim Completed - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Claim Completed{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your <strong>{{ aid_type }}</strong> claim has been <strong>completed</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Aid Type:</td>
+                  <td>{{ aid_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Completion Date:</td>
+                  <td>{{ completion_date }}</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#d4edda; border-left:4px solid #28a745; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#155724; font-size:16px; margin:0 0 10px;">Action Required</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#155724;">
+                  Please contact the Treasurer to receive your assistance. Make sure to bring any required documentation for verification.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                Thank you for your patience throughout the claim process. ISUCauFA, Inc. is committed to supporting our members in times of need.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666;">
+                If you have any questions or concerns regarding this claim, please contact the
+                ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

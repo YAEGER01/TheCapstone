@@ -1,0 +1,1249 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SUPERADMIN DASHBOARD</title>
+    {% if not nav_header_strip_enabled %}
+    <style>#headerNavStrip, .header-nav-strip { display: none !important; }</style>
+    {% endif %}
+    <script src="{% static 'vendor/js/sweetalert2-11.26.25.all.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
+    <style>
+
+      :root {
+        --sa-green-950: #0f3513;
+        --sa-green: #1b5e20;
+        --sa-green-2: #2e7d32;
+        --sa-accent: #a5d6a7;
+        --sa-bg: #edf3ed;
+        --sa-card: #ffffff;
+        --sa-ink: #263238;
+        --sa-muted: #64748b;
+        --sa-line: #e1eae1;
+        --sa-danger: #dc2626;
+        --sa-danger-dark: #b91c1c;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Inter", sans-serif; }
+      body, html { height: 100%; width: 100%; overflow: hidden; background: var(--sa-bg); color: var(--sa-ink); }
+      .app-container { display: flex; width: 100vw; height: 100vh; }
+      /* ---- Sidebar ---- */
+      .sidebar { width: 272px; height: 100%; background: linear-gradient(180deg, #175a1d 0%, var(--sa-green) 42%, var(--sa-green-950) 100%); color: #ffffff; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 4px 0 24px rgba(15, 53, 19, 0.25); transition: width 0.28s ease, margin 0.28s ease; z-index: 30; }
+      .sidebar.collapsed { width: 78px; }
+      .sidebar-brand { padding: 20px 18px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
+      .brand-title-wrapper { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .logo-mark { width: 42px; height: 42px; border-radius: 12px; background: rgba(255, 255, 255, 0.16); flex-shrink: 0; padding: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18); }
+      .logo-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+      .brand-name { font-size: 0.95rem; font-weight: 700; color: #ffffff; display: block; line-height: 1.2; white-space: nowrap; }
+      .role-tag { display: inline-block; margin-top: 3px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255, 255, 255, 0.16); padding: 2px 8px; border-radius: 999px; }
+      .sidebar-scroller { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px 0 10px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent; }
+      .nav-label { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); padding: 14px 24px 6px; white-space: nowrap; }
+      .menu-item { position: relative; margin: 2px 12px; padding: 11px 14px; color: #ffffff; font-weight: 500; font-size: 0.9rem; display: flex; align-items: center; gap: 12px; cursor: pointer; text-decoration: none; border-radius: 10px; transition: background 0.18s ease, transform 0.18s ease; white-space: nowrap; }
+      .menu-item:hover { background: rgba(255, 255, 255, 0.09); }
+      .menu-item.active, .menu-item.child-active { background: rgba(255, 255, 255, 0.15); font-weight: 600; }
+      .menu-item.active::before, .menu-item.child-active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--sa-accent); }
+      .menu-item:focus-visible, .menu-subitem:focus-visible { outline: 2px solid var(--sa-accent); outline-offset: 2px; }
+      .menu-icon { flex-shrink: 0; display: flex; align-items: center; justify-content: center; opacity: 0.92; }
+      .menu-subitem { margin: 2px 12px 2px 24px; padding: 9px 12px; color: rgba(255, 255, 255, 0.8); font-weight: 400; font-size: 0.86rem; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 9px; transition: background 0.18s ease, color 0.18s ease; white-space: nowrap; }
+      .menu-subitem:hover { background: rgba(255, 255, 255, 0.09); color: #ffffff; }
+      .menu-subitem.active { background: #ffffff; color: var(--sa-green); font-weight: 600; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+      .menu-subitem:hover { background: rgba(255, 255, 255, 0.08); }
+      .menu-subitem.active { background: rgba(255, 255, 255, 0.12); color: #ffffff; border-left: 4px solid #a5d6a7; }
+      .sub-icon { flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+      .menu-chevron { margin-left: auto; transition: transform 0.3s; opacity: 0.8; }
+      .menu-chevron.rotated { transform: rotate(180deg); }
+      .submenu { display: none; padding-bottom: 2px; }
+      .submenu.open { display: block; animation: saFade 0.22s ease; }
+      .panel-section { display: none; }
+      .panel-section.active { display: block; animation: saFadeSlide 0.28s ease; }
+      @keyframes saFadeSlide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes saFade { from { opacity: 0; } to { opacity: 1; } }
+      .sidebar.collapsed .brand-text { display: none; }
+      .sidebar.collapsed .menu-item span { display: none; }
+      .sidebar.collapsed .menu-subitem span { display: none; }
+      .sidebar.collapsed .menu-chevron { display: none; }
+      .sidebar.collapsed .nav-label { display: none; }
+      .sidebar.collapsed .submenu { display: none !important; }
+      .sidebar.collapsed .menu-item { justify-content: center; padding: 12px 0; margin: 2px 10px; }
+      .sidebar.collapsed .menu-item.active::before, .sidebar.collapsed .menu-item.child-active::before { left: -10px; }
+      .sidebar.collapsed .menu-subitem { justify-content: center; padding: 12px 0; }
+      .sidebar.collapsed .menu-icon { margin: 0; }
+      .sidebar.collapsed .sidebar-brand { justify-content: center; padding: 18px 0 14px; }
+      .sidebar.collapsed .sidebar-footer { display: flex; justify-content: center; padding: 12px 0; border-top: none; }
+      .sidebar-footer { padding: 14px 16px 16px; border-top: 1px solid rgba(255, 255, 255, 0.14); }
+      .logout-btn { width: 100%; padding: 11px 16px; background: #ffffff; color: var(--sa-green); border: none; border-radius: 10px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
+      .logout-btn:hover { background: var(--sa-accent); color: var(--sa-green-950); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+      .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      .toolbar { min-height: 68px; background: #ffffff; border-bottom: 1px solid var(--sa-line); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px; box-shadow: 0 2px 12px rgba(27, 94, 32, 0.06); }
+      .toolbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+      .menu-toggle-btn { background: #e8f5e9; border: none; color: var(--sa-green); padding: 9px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.18s ease, transform 0.18s ease; }
+      .menu-toggle-btn:hover { background: var(--sa-accent); transform: scale(1.05); }
+      .page-title { font-size: 1.1rem; font-weight: 700; color: var(--sa-green); line-height: 1.2; white-space: nowrap; }
+      .page-crumb { font-size: 0.76rem; color: var(--sa-muted); margin-top: 2px; }
+      .toolbar-user { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+      .toolbar-user .avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--sa-green-2), var(--sa-green)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 8px rgba(27,94,32,0.3); }
+      .toolbar-user .who { line-height: 1.25; }
+      .toolbar-user .who strong { display: block; font-size: 0.82rem; color: var(--sa-ink); }
+      .toolbar-user .who small { display: block; font-size: 0.7rem; color: var(--sa-muted); }
+      .content-viewport { flex: 1; overflow-y: auto; padding: 26px 28px 40px; background: var(--sa-bg); }
+      .dashboard-panel { background: var(--sa-card); border-radius: 16px; padding: 26px; box-shadow: 0 6px 20px rgba(27, 94, 32, 0.06); border: 1px solid var(--sa-line); margin-bottom: 20px; }
+      .panel-header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; border-bottom: 2px solid #f0f6f0; padding-bottom: 12px; }
+      .panel-title { font-size: 1.02rem; font-weight: 700; color: var(--sa-green); }
+      .form-group { margin-bottom: 16px; }
+      .form-label { display: block; font-size: 0.84rem; font-weight: 600; color: var(--sa-ink); margin-bottom: 6px; }
+      .form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--sa-line); border-radius: 10px; font-size: 0.9rem; background: #fbfdfb; transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+      .form-input:focus { outline: none; border-color: var(--sa-green-2); box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15); background: #ffffff; }
+      .btn { padding: 10px 20px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 0.85rem; transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+      .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14); }
+      .btn:active { transform: translateY(0); box-shadow: none; }
+      .btn:focus-visible { outline: 2px solid var(--sa-green-2); outline-offset: 2px; }
+      .btn-primary { background: var(--sa-green); color: #ffffff; }
+      .btn-primary:hover { background: var(--sa-green-2); }
+      .btn-secondary { background: #e8f5e9; color: var(--sa-green); }
+      .btn-secondary:hover { background: #d3e8d5; }
+      .btn-danger { background: var(--sa-danger); color: #ffffff; }
+      .btn-danger:hover { background: var(--sa-danger-dark); }
+      .status-badge { padding: 4px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; display: inline-block; }
+      .status-badge.active { background: #e8f5e9; color: var(--sa-green); border: 1px solid var(--sa-accent); }
+      .status-badge.inactive { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+      /* Consolidated System Settings view: cards grid, pill toggles, badges */
+      .sa-view-head { margin-bottom: 18px; }
+      .sa-view-head h2 { font-size: 1.15rem; font-weight: 700; color: var(--sa-green); }
+      .sa-view-head p { font-size: 0.85rem; color: var(--sa-muted); margin-top: 4px; }
+      .sa-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 18px; margin-bottom: 18px; align-items: start; grid-auto-flow: dense; }
+      .sa-cards .dashboard-panel { margin-bottom: 0; display: flex; flex-direction: column; min-width: 0; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+      /* Landing card holds a 2-up toggle list, so it takes two tracks (collapses
+         back to one on narrow screens) instead of squeezing and overflowing. */
+      #sa-card-landing { grid-column: span 2; }
+      @media (max-width: 640px) {
+        #sa-card-landing { grid-column: span 1; }
+      }
+      .sa-cards .dashboard-panel:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(27, 94, 32, 0.1); }
+      .sa-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; border-bottom: 2px solid #f0f6f0; padding-bottom: 12px; }
+      .sa-card-head .panel-title { margin-bottom: 2px; }
+      .sa-card-desc { font-size: 0.8rem; color: var(--sa-muted); line-height: 1.5; }
+      .sa-card-body { flex: 1; }
+      .sa-card-foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eef3ee; }
+      .sa-card-foot.split { justify-content: space-between; align-items: center; }
+      .sa-toggle-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px dashed #e6efe6; }
+      .sa-toggle-row:last-child { border-bottom: none; }
+      .sa-toggle-text { flex: 1; min-width: 0; }
+      .sa-toggle-text strong { display: block; font-size: 0.86rem; color: var(--sa-ink); }
+      .sa-toggle-text small { display: block; font-size: 0.75rem; color: var(--sa-muted); margin-top: 2px; line-height: 1.45; }
+      .sa-switch { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; cursor: pointer; }
+      .sa-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+      .sa-switch .sa-track { position: absolute; inset: 0; border-radius: 999px; background: #cbd5e1; transition: background 0.22s ease; pointer-events: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); }
+      .sa-switch .sa-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: left 0.22s cubic-bezier(0.34, 1.4, 0.64, 1); }
+      .sa-switch input:checked + .sa-track { background: var(--sa-green-2); }
+      .sa-switch input:checked + .sa-track::after { left: 27px; }
+      .sa-switch input:focus-visible + .sa-track { outline: 2px solid var(--sa-green); outline-offset: 2px; }
+      .sa-state-badge { display: inline-block; min-width: 52px; text-align: center; padding: 4px 12px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; flex-shrink: 0; }
+      .sa-state-badge.on { background: #e8f5e9; color: var(--sa-green); border: 1px solid var(--sa-accent); }
+      .sa-state-badge.off { background: #f1f5f9; color: var(--sa-muted); border: 1px solid #cbd5e1; }
+      /* Two-column toggle lists (e.g. Landing Page Sections card) */
+      .sa-card-body.sa-two-col { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; min-width: 0; }
+      .sa-card-body.sa-two-col .sa-toggle-row { min-width: 0; }
+      @media (max-width: 640px) {
+        .sa-card-body.sa-two-col { grid-template-columns: 1fr; }
+      }
+      .sa-card-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; flex-shrink: 0; }
+      .sa-card-badge.is-default { background: #f1f5f9; color: var(--sa-muted); border: 1px solid #cbd5e1; }
+      .sa-card-badge.is-custom { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
+      /* Email STOP card: theme-fitting — quiet card, green status, red reserved for the action button only */
+      #sa-card-email-kill { background: #ffffff; }
+      #sa-card-email-kill .sa-stop-icon { width: 40px; height: 40px; border-radius: 12px; background: #e8f5e9; color: var(--sa-green); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+      .sa-updatebar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: linear-gradient(135deg, #ffffff 0%, #f0f7f0 100%); border: 1px solid var(--sa-accent); border-radius: 14px; padding: 14px 18px; box-shadow: 0 -4px 18px rgba(27,94,32,0.1); }
+      .sa-updatebar p { font-size: 0.78rem; color: var(--sa-muted); margin: 0; }
+      .btn-sm { padding: 7px 14px; font-size: 0.78rem; }
+      .alert { padding: 12px 16px; border-radius: 12px; margin-bottom: 18px; font-size: 0.86rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+      .alert.success { background: #ecfdf5; color: #166534; border: 1px solid #a7f3d0; }
+      .alert.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+      /* ---- Settings tables (Zero Trust card) ---- */
+      .sa-table-title { font-size: 0.9rem; font-weight: 700; color: var(--sa-green); margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
+      .sa-table-title:first-child { margin-top: 0; }
+      .sa-table-title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--sa-green-2); flex-shrink: 0; }
+      .sa-table-wrap { overflow-x: auto; border: 1px solid var(--sa-line); border-radius: 12px; background: #fff; }
+      .sa-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 560px; }
+      .sa-table thead th { text-align: left; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #ffffff; background: var(--sa-green); padding: 10px 16px; }
+      .sa-table thead th:first-child { border-top-left-radius: 0; }
+      .sa-table tbody td { padding: 12px 16px; border-bottom: 1px solid #edf3ed; vertical-align: middle; }
+      .sa-table tbody tr:last-child td { border-bottom: none; }
+      .sa-table tbody tr:nth-child(even) { background: #f7faf7; }
+      .sa-table tbody tr:hover { background: #edf6ed; }
+      .sa-table td strong { display: block; font-size: 0.86rem; color: var(--sa-ink); }
+      .sa-table td small { display: block; font-size: 0.75rem; color: var(--sa-muted); margin-top: 3px; line-height: 1.45; }
+      .sa-value-cell { display: flex; align-items: center; gap: 8px; }
+      .sa-value-cell .form-input { width: 104px; flex-shrink: 0; text-align: center; font-weight: 700; }
+      .sa-unit { font-size: 0.74rem; font-weight: 600; color: var(--sa-muted); white-space: nowrap; }
+      .sa-range { font-size: 0.75rem; color: var(--sa-muted); white-space: nowrap; }
+      .sa-table .sa-text-input { width: 100%; min-width: 200px; text-align: left; font-weight: 400; }
+      @media (max-width: 960px) {
+        .content-viewport { padding: 16px 14px 32px; }
+        .sa-cards { grid-template-columns: 1fr; }
+        .toolbar-user .who { display: none; }
+        .page-title { font-size: 0.95rem; }
+      }
+    </style>
+    <link rel="stylesheet" href="{% static 'css/audit_trail.css' %}?v=20260918at1" />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar Navigation -->
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-title-wrapper">
+            <div class="logo-mark">
+              <img src="/static/img/isu_caufa_official.png" alt="ISUCauFA, Inc. Logo">
+            </div>
+            <div class="brand-text">
+              <span class="brand-name">ISUCauFA, Inc.</span>
+              <span class="role-tag">SuperAdmin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-scroller">
+          <nav>
+            <div class="nav-label">Accounts</div>
+            <div class="menu-item" onclick="toggleSubmenu('account-submenu', this)">
+              <svg class="menu-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                <path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+              <span>Account Management</span>
+              <svg class="menu-chevron" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </div>
+            <div class="submenu open" id="account-submenu">
+              <div class="menu-subitem active" onclick="showPanel('superadmin-panel', this)">
+                <svg class="sub-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>Superadmin Account</span>
+              </div>
+              <div class="menu-subitem" onclick="showPanel('president-panel', this)">
+                <svg class="sub-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>President Account</span>
+              </div>
+              <div class="menu-subitem" onclick="showPanel('system-backfill-panel', this)">
+                <svg class="sub-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>System Backfill Account</span>
+              </div>
+            </div>
+            <div class="nav-label">System</div>
+            <div class="menu-item" onclick="showPanel('system-settings-view', this)">
+              <svg class="menu-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              <span>System Settings</span>
+            </div>
+            <div class="menu-item" onclick="showPanel('audit-trail-panel', this)">
+              <svg class="menu-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <path d="M9 12h6M9 16h6"/>
+              </svg>
+              <span>Audit Trail</span>
+            </div>
+            <div class="menu-item" onclick="showPanel('backup-panel', this)">
+              <svg class="menu-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Backup Management</span>
+            </div>
+            <a class="menu-item" href="{% url 'feedback_admin' %}">
+              <svg class="menu-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                <path d="M8 9h8M8 13h5"/>
+              </svg>
+              <span>Officer Feedback Forms</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="logout-btn" onclick="logout()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Toolbar -->
+        <header class="toolbar">
+          <div class="toolbar-left">
+            <button class="menu-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12h18M3 6h18M3 18h18"/>
+              </svg>
+            </button>
+            <div>
+              <h1 class="page-title">SuperAdmin Dashboard</h1>
+              <div class="page-crumb" id="sa-crumb">Accounts &rsaquo; Superadmin Account</div>
+            </div>
+          </div>
+          <div class="toolbar-user">
+            <div class="who"><strong>{{ superadmin_account.full_name }}</strong><small>System Administrator</small></div>
+            <div class="avatar">{{ superadmin_account.full_name|slice:":1"|upper }}</div>
+          </div>
+        </header>
+
+        <!-- Content Viewport -->
+        <div class="content-viewport">
+          {% if form_feedback %}
+            <div class="alert {{ form_feedback.level }}">{{ form_feedback.message }}</div>
+          {% endif %}
+
+          <!-- Superadmin Account Panel -->
+          <div class="dashboard-panel panel-section active" id="superadmin-panel">
+            <div class="panel-header-row">
+              <div>
+                <h2 class="panel-title">Superadmin Account</h2>
+                <span class="status-badge {{ superadmin_account.status|lower }}">{{ superadmin_account.status }}</span>
+              </div>
+            </div>
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="account_update">
+              <input type="hidden" name="account_key" value="superadmin">
+              <div class="form-group">
+                <label class="form-label">Full name</label>
+                <input class="form-input" name="account_full_name" type="text" value="{{ superadmin_account.full_name }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input" name="account_username" type="text" value="{{ superadmin_account.username }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" name="account_password" type="password" placeholder="Leave blank to keep current password" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" name="account_email" type="email" value="{{ superadmin_account.email }}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-input" name="account_status">
+                  <option value="Active" {% if superadmin_account.status == "Active" %}selected{% endif %}>Active</option>
+                  <option value="Inactive" {% if superadmin_account.status == "Inactive" %}selected{% endif %}>Inactive</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="confirmFormSubmit(this, 'Save Superadmin Account')">Save Superadmin Account</button>
+            </form>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="toggle_account_status">
+              <input type="hidden" name="account_key" value="superadmin">
+              {% if superadmin_account.status == "Active" %}
+                <button type="button" class="btn btn-danger" onclick="confirmFormSubmit(this, 'Deactivate Superadmin')">Deactivate Superadmin</button>
+              {% else %}
+                <button type="button" class="btn btn-secondary" onclick="confirmFormSubmit(this, 'Activate Superadmin')">Activate Superadmin</button>
+              {% endif %}
+            </form>
+          </div>
+
+          <!-- President Account Panel -->
+          <div class="dashboard-panel panel-section" id="president-panel">
+            <div class="panel-header-row">
+              <div>
+                <h2 class="panel-title">President Account</h2>
+                <span class="status-badge {{ president_account.status|lower }}">{{ president_account.status }}</span>
+              </div>
+            </div>
+            {% if president_exists %}
+              <p style="margin-bottom:12px; color: #64748b; font-size: 0.85rem;">A president account already exists.</p>
+            {% endif %}
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="account_update">
+              <input type="hidden" name="account_key" value="president">
+              <div class="form-group">
+                <label class="form-label">Full name</label>
+                <input class="form-input" name="account_full_name" type="text" value="{{ president_account.full_name }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input" name="account_username" type="text" value="{{ president_account.username }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" name="account_password" type="password" placeholder="Leave blank to keep current password" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" name="account_email" type="email" value="{{ president_account.email }}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-input" name="account_status">
+                  <option value="Active" {% if president_account.status == "Active" %}selected{% endif %}>Active</option>
+                  <option value="Inactive" {% if president_account.status == "Inactive" %}selected{% endif %}>Inactive</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="confirmFormSubmit(this, 'Save President Account')">Save President Account</button>
+            </form>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="toggle_account_status">
+              <input type="hidden" name="account_key" value="president">
+              {% if president_account.status == "Active" %}
+                <button type="button" class="btn btn-danger" onclick="confirmFormSubmit(this, 'Deactivate President')">Deactivate President</button>
+              {% else %}
+                <button type="button" class="btn btn-secondary" onclick="confirmFormSubmit(this, 'Activate President')">Activate President</button>
+              {% endif %}
+            </form>
+          </div>
+
+          <!-- System Backfill Account Panel -->
+          <div class="dashboard-panel panel-section" id="system-backfill-panel">
+            <div class="panel-header-row">
+              <div>
+                <h2 class="panel-title">System Backfill Account</h2>
+                <span class="status-badge {{ system_backfill_account.status|lower }}">{{ system_backfill_account.status }}</span>
+              </div>
+            </div>
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="account_update">
+              <input type="hidden" name="account_key" value="system_backfill">
+              <div class="form-group">
+                <label class="form-label">Full name</label>
+                <input class="form-input" name="account_full_name" type="text" value="{{ system_backfill_account.full_name }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input" name="account_username" type="text" value="{{ system_backfill_account.username }}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" name="account_password" type="password" placeholder="Leave blank to keep current password" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" name="account_email" type="email" value="{{ system_backfill_account.email }}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-input" name="account_status">
+                  <option value="Active" {% if system_backfill_account.status == "Active" %}selected{% endif %}>Active</option>
+                  <option value="Inactive" {% if system_backfill_account.status == "Inactive" %}selected{% endif %}>Inactive</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="confirmFormSubmit(this, 'Save System Backfill Account')">Save System Backfill Account</button>
+            </form>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+            <form method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="toggle_account_status">
+              <input type="hidden" name="account_key" value="system_backfill">
+              {% if system_backfill_account.status == "Active" %}
+                <button type="button" class="btn btn-danger" onclick="confirmFormSubmit(this, 'Deactivate System Backfill')">Deactivate System Backfill</button>
+              {% else %}
+                <button type="button" class="btn btn-secondary" onclick="confirmFormSubmit(this, 'Activate System Backfill')">Activate System Backfill</button>
+              {% endif %}
+            </form>
+          </div>
+
+          <!-- Consolidated System Settings view: every rule card in one place,
+               one Update button, per-card reset to default. -->
+          <div class="panel-section" id="system-settings-view">
+            <div class="sa-view-head">
+              <h2>System Settings</h2>
+              <p>Flip the pill toggles or edit the values, then press <strong>Update All Settings</strong> once. Each card can be restored to its default independently.</p>
+            </div>
+            <form id="sa-settings-form" method="post" action="" onsubmit="event.preventDefault();">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_save_all">
+              <div class="sa-cards">
+                <!-- Card 1: Navigation Modules -->
+                <div class="dashboard-panel sa-card" id="sa-card-navigation">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Navigation Modules</h2>
+                      <p class="sa-card-desc">Which site navigations are visible system-wide. Keep at least one on.</p>
+                    </div>
+                    <span class="sa-card-badge {% if nav_is_default %}is-default{% else %}is-custom{% endif %}">{% if nav_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Sidebar navigation</strong><small>Left module menu on officer dashboards.</small></div>
+                      <span class="sa-state-badge {% if nav_sidebar_enabled %}on{% else %}off{% endif %}">{% if nav_sidebar_enabled %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="nav_sidebar" value="on" {% if nav_sidebar_enabled %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Header strip navigation</strong><small>Top category dropdown strip under the page header.</small></div>
+                      <span class="sa-state-badge {% if nav_header_strip_enabled %}on{% else %}off{% endif %}">{% if nav_header_strip_enabled %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="nav_header_strip" value="on" {% if nav_header_strip_enabled %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-navigation" onclick="confirmFormSubmit(this, 'Reset Navigation Modules to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 1b: Landing Page Sections -->
+                <div class="dashboard-panel sa-card" id="sa-card-landing">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Landing Page Sections</h2>
+                      <p class="sa-card-desc">Which homepage cards and header menus are visible on the public site. All-off allowed.</p>
+                    </div>
+                    <span class="sa-card-badge {% if landing_is_default %}is-default{% else %}is-custom{% endif %}">{% if landing_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body sa-two-col">
+                    {% for s in landing_admin_cards %}
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>{{ s.label }}</strong><small>{{ s.desc }}</small></div>
+                      <span class="sa-state-badge {% if s.on %}on{% else %}off{% endif %}">{% if s.on %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="landing_{{ s.key }}" value="on" {% if s.on %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-landing" onclick="confirmFormSubmit(this, 'Reset Landing Page Sections to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 2: ISU Email Guard -->
+                <div class="dashboard-panel sa-card" id="sa-card-email-guard">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">ISU Email Guard</h2>
+                      <p class="sa-card-desc">Member emails must be <strong>@isu.edu.ph</strong> when on; any valid email when off.</p>
+                    </div>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Require ISU email</strong><small>Applies to Treasurer, public registration, and member email changes.</small></div>
+                      <span class="sa-state-badge {% if isu_email_guard_enabled %}on{% else %}off{% endif %}">{% if isu_email_guard_enabled %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="isu_email_guard" value="on" {% if isu_email_guard_enabled %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-email-guard" onclick="confirmFormSubmit(this, 'Reset ISU Email Guard to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 3: Member Duplicate Emails -->
+                <div class="dashboard-panel sa-card" id="sa-card-duplicate-email">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Member Duplicate Emails</h2>
+                      <p class="sa-card-desc">Whether enrollment may reuse an email already on file.</p>
+                    </div>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Accept duplicate emails</strong><small>Treasurer and public member registration may reuse an email already on file.</small></div>
+                      <span class="sa-state-badge {% if membership_allow_duplicate_email %}on{% else %}off{% endif %}">{% if membership_allow_duplicate_email %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="membership_duplicate_email" value="on" {% if membership_allow_duplicate_email %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-duplicate-email" onclick="confirmFormSubmit(this, 'Reset Member Duplicate Emails to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 4: Mid-Year Back-Dues Chase -->
+                <div class="dashboard-panel sa-card" id="sa-card-back-dues">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Mid-Year Back-Dues Chase</h2>
+                      <p class="sa-card-desc">ON: joiners after January owe Jan-to-join dues. OFF: current and future dues only.</p>
+                    </div>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Require back dues from January</strong><small>When off, no catch-up rows are created and the Unpaid column excludes back dues.</small></div>
+                      <span class="sa-state-badge {% if dues_require_back_dues_on_join %}on{% else %}off{% endif %}">{% if dues_require_back_dues_on_join %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="dues_require_back_dues_on_join" value="on" {% if dues_require_back_dues_on_join %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-back-dues" onclick="confirmFormSubmit(this, 'Reset Back-Dues Chase to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 4b: Outgoing Email STOP (momentary) -->
+                <div class="dashboard-panel sa-card" id="sa-card-email-kill">
+                  <div class="sa-card-head">
+                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                      <div class="sa-stop-icon">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      </div>
+                      <div>
+                        <h2 class="panel-title">Outgoing Email STOP</h2>
+                        <p class="sa-card-desc">Momentary emergency stop for <strong>all</strong> SMTP: deduction notices, dues reminders, announcements, OTP / Zero Trust codes, certificates, fund reports. One press blocks everything, wipes the whole queue, then automatically turns email back ON fresh — nothing pending, nothing stuck, nothing resumes. In-app dashboard notices and Web Push keep working.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>System status</strong><small>Live queue: {{ email_queue_pending }} pending, {{ email_queue_sending }} stuck/sending.{% if email_last_stop_at %} Last STOP: {{ email_last_stop_at }} ({{ email_last_stop_cancelled }} wiped).{% else %} STOP has never been pressed.{% endif %}</small></div>
+                      <span class="sa-state-badge {% if email_sending_enabled %}on{% else %}off{% endif %}">{% if email_sending_enabled %}FLOWING{% else %}HELD OFF{% endif %}</span>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot split">
+                    <button type="button" class="btn btn-danger btn-sm" form="sa-email-stop" onclick="confirmFormSubmit(this, 'STOP ALL outgoing email now? Everything queued is wiped and email restarts fresh.')">STOP ALL EMAIL NOW</button>
+                    <button type="button" class="btn btn-secondary btn-sm" form="sa-reset-email-kill" onclick="confirmFormSubmit(this, 'Reset Outgoing Email to default (ON)')">Reset to default</button>
+                  </div>
+                </div>
+
+                <!-- Card 5: Zero Trust & Lockout Timers -->
+                <div class="dashboard-panel sa-card" id="sa-card-zt-timers" style="grid-column: 1 / -1;">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Zero Trust &amp; Lockout Timers</h2>
+                      <p class="sa-card-desc">How aggressively the Zero Trust layer locks and challenges officer sessions. Applies within seconds of saving.</p>
+                    </div>
+                    <span class="sa-card-badge {% if zt_is_default %}is-default{% else %}is-custom{% endif %}">{% if zt_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <h3 class="sa-table-title">Screen lock</h3>
+                    <div class="sa-table-wrap">
+                      <table class="sa-table">
+                        <thead>
+                          <tr><th style="width:55%;">Setting</th><th style="width:28%;">Value</th><th style="width:17%;">Allowed</th></tr>
+                        </thead>
+                        <tbody>
+                          {% for f in zt_lock_fields %}
+                          <tr>
+                            <td><strong>{{ f.label }}</strong><small>{{ f.help }}</small></td>
+                            <td>
+                              <div class="sa-value-cell">
+                                <input class="form-input" id="id_{{ f.key }}" name="{{ f.key }}" type="number"
+                                       min="{{ f.min }}" max="{{ f.max }}" step="1" data-default="{{ f.default }}"
+                                       value="{{ f.value }}" required />
+                                <span class="sa-unit">{{ f.unit }}</span>
+                              </div>
+                            </td>
+                            <td class="sa-range">{{ f.min }} – {{ f.max }} {{ f.unit }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <h3 class="sa-table-title">Zero Trust checks</h3>
+                    <div class="sa-table-wrap">
+                      <table class="sa-table">
+                        <thead>
+                          <tr><th style="width:55%;">Setting</th><th style="width:28%;">Value</th><th style="width:17%;">Allowed</th></tr>
+                        </thead>
+                        <tbody>
+                          {% for f in zt_check_fields %}
+                          <tr>
+                            <td><strong>{{ f.label }}</strong><small>{{ f.help }}</small></td>
+                            <td>
+                              <div class="sa-value-cell">
+                                <input class="form-input" id="id_{{ f.key }}" name="{{ f.key }}" type="number"
+                                       min="{{ f.min }}" max="{{ f.max }}" step="1" data-default="{{ f.default }}"
+                                       value="{{ f.value }}" required />
+                                <span class="sa-unit">{{ f.unit }}</span>
+                              </div>
+                            </td>
+                            <td class="sa-range">{{ f.min }} – {{ f.max }} {{ f.unit }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <h3 class="sa-table-title">Session</h3>
+                    <div class="sa-table-wrap">
+                      <table class="sa-table">
+                        <thead>
+                          <tr><th style="width:55%;">Setting</th><th style="width:28%;">Value</th><th style="width:17%;">Allowed</th></tr>
+                        </thead>
+                        <tbody>
+                          {% for f in zt_session_fields %}
+                          <tr>
+                            <td><strong>{{ f.label }}</strong><small>{{ f.help }}</small></td>
+                            <td>
+                              <div class="sa-value-cell">
+                                <input class="form-input" id="id_{{ f.key }}" name="{{ f.key }}" type="number"
+                                       min="{{ f.min }}" max="{{ f.max }}" step="1" data-default="{{ f.default }}"
+                                       value="{{ f.value }}" required />
+                                <span class="sa-unit">{{ f.unit }}</span>
+                              </div>
+                            </td>
+                            <td class="sa-range">{{ f.min }} – {{ f.max }} {{ f.unit }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <h3 class="sa-table-title">Unlock policy</h3>
+                    <div class="sa-table-wrap">
+                      <table class="sa-table">
+                        <thead>
+                          <tr><th style="width:35%;">Setting</th><th>Value</th></tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><strong>{{ zt_roles_field.label }}</strong><small>{{ zt_roles_field.help }}</small></td>
+                            <td>
+                              <input class="form-input sa-text-input" id="id_{{ zt_roles_field.key }}" name="{{ zt_roles_field.key }}"
+                                     type="text" value="{{ zt_roles_field.value }}" placeholder="e.g. president, treasurer" />
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-zt-timers" onclick="confirmFormSubmit(this, 'Reset Zero Trust timers to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 6: Fund Safety Threshold -->
+                <div class="dashboard-panel sa-card" id="sa-card-threshold">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Fund Safety Threshold</h2>
+                      <p class="sa-card-desc">Minimum fund balance. Operations that would drop below it are blocked.</p>
+                    </div>
+                    <span class="sa-card-badge {% if threshold_is_default %}is-default{% else %}is-custom{% endif %}">{% if threshold_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="form-group">
+                      <label class="form-label">Safety Threshold Amount (₱)</label>
+                      <input class="form-input" name="safety_threshold_amount" type="number" step="0.01" min="0" value="{{ safety_threshold|default:'0.00' }}" required />
+                    </div>
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Enable Safety Threshold</strong><small>Block operations that would breach the threshold.</small></div>
+                      <span class="sa-state-badge {% if safety_threshold_enabled == 'true' %}on{% else %}off{% endif %}">{% if safety_threshold_enabled == 'true' %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="safety_threshold_enabled" value="on" {% if safety_threshold_enabled == 'true' %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-threshold" onclick="confirmFormSubmit(this, 'Reset Fund Safety Threshold to default')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 7: Notification Banner Timer -->
+                <div class="dashboard-panel sa-card" id="sa-card-banner">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Notification Banner Timer</h2>
+                      <p class="sa-card-desc">How long the top-center banner shows before fading out. Default is 6 seconds.</p>
+                    </div>
+                    <span class="sa-card-badge {% if banner_is_default %}is-default{% else %}is-custom{% endif %}">{% if banner_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <label class="form-label">Banner display time (seconds)</label>
+                      <input class="form-input" name="banner_duration_seconds" type="number" step="1" min="2" max="60" value="{{ banner_duration_seconds|default:'6' }}" required />
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-banner" onclick="confirmFormSubmit(this, 'Reset Banner Timer to default')">Reset to default</button></div>
+                </div>
+              </div><!-- /sa-cards -->
+              <div class="sa-updatebar">
+                <p>One update saves <strong>all 9 cards</strong>. A card with invalid input is skipped and reported.</p>
+                <button type="button" class="btn btn-primary" onclick="confirmFormSubmit(this, 'Update all system settings')">Update All Settings</button>
+              </div>
+            </form>
+            <form id="sa-reset-navigation" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="navigation">
+            </form>
+            <form id="sa-reset-landing" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="landing_page">
+            </form>
+            <form id="sa-reset-email-guard" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="email_guard">
+            </form>
+            <form id="sa-reset-duplicate-email" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="duplicate_email">
+            </form>
+            <form id="sa-reset-back-dues" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="back_dues">
+            </form>
+            <form id="sa-reset-email-kill" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="email_kill">
+            </form>
+            <form id="sa-email-stop" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="email_stop_now">
+            </form>
+            <form id="sa-reset-zt-timers" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="zt_timers">
+            </form>
+            <form id="sa-reset-threshold" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="safety_threshold">
+            </form>
+            <form id="sa-reset-banner" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="banner">
+            </form>
+          </div><!-- /system-settings-view -->
+
+          <!-- Audit Trail Panel (security / system events) -->
+          <div class="dashboard-panel panel-section" id="audit-trail-panel">
+            <div class="panel-header-row">
+              <div>
+                <h2 class="panel-title">Audit Trail</h2>
+              </div>
+            </div>
+            {% include 'website/partials/_audit_trail_panel.html' %}
+          </div>
+
+          <!-- Backup Management Panel (manual backups + job details + restore) -->
+          <div class="dashboard-panel panel-section" id="backup-panel">
+            <style>
+              #backup-panel .bk-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 18px; }
+              #backup-panel .bk-card { border: 1px solid #dfe9df; border-radius: 12px; padding: 16px; background: #f6fbf6; display: flex; flex-direction: column; gap: 8px; }
+              #backup-panel .bk-card h3 { font-size: 0.92rem; color: #1b5e20; font-weight: 700; }
+              #backup-panel .bk-card p { font-size: 0.8rem; color: #607d8b; line-height: 1.45; flex: 1; }
+              #backup-panel .bk-card .btn { align-self: flex-start; }
+              #backup-panel .bk-card .btn[disabled] { opacity: 0.6; cursor: wait; }
+              #backup-panel .bk-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+              #backup-panel .bk-table th, #backup-panel .bk-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f6fbf6; font-size: 0.85rem; }
+              #backup-panel .bk-table th { font-size: 0.76rem; font-weight: 600; color: #757575; background: #f6fbf6; }
+              #backup-panel .bk-detail-row td { background: #fbfdfb; }
+              #backup-panel .bk-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; padding: 6px 0; }
+              #backup-panel .bk-file { border: 1px solid #e4ece4; border-radius: 8px; padding: 10px 12px; font-size: 0.78rem; background: #fff; }
+              #backup-panel .bk-file .bk-path { font-family: monospace; word-break: break-all; color: #374151; }
+              #backup-panel .bk-meta { font-size: 0.75rem; color: #607d8b; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+              #backup-panel .bk-ok { color: #1b5e20; font-weight: 700; }
+              #backup-panel .bk-missing { color: #c62828; font-weight: 700; }
+              #backup-panel .bk-actions-row { display: flex; gap: 6px; flex-wrap: wrap; }
+              #backup-panel .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+            </style>
+            <div class="panel-header-row">
+              <div>
+                <h2 class="panel-title">Backup Management</h2>
+                <p style="font-size:0.82rem;color:#757575;margin-top:4px;">Manual system &amp; database backups, backup details, and restore.</p>
+              </div>
+              <div>
+                <span class="status-badge {% if scheduler_running %}active{% else %}inactive{% endif %}">
+                  {% if scheduler_running %}Scheduler running{% else %}Scheduler not running{% endif %}
+                </span>
+              </div>
+            </div>
+            {% if next_db_backup %}
+            <p style="font-size:0.8rem;color:#757575;margin-bottom:14px;">Next automatic DB backup: {{ next_db_backup }}</p>
+            {% endif %}
+
+            <div class="bk-actions">
+              <div class="bk-card">
+                <h3>System Codebase</h3>
+                <p>Zip the project code (excludes virtualenv, caches and old backups) into <code>media\backups\system\</code>.</p>
+                <button class="btn btn-primary btn-sm" id="bk-codebase-btn" onclick="saBackupCodebase()">Back Up System Now</button>
+              </div>
+              <div class="bk-card">
+                <h3>Database</h3>
+                <p>Dump the MySQL database (mysqldump) into <code>media\backups\db\</code>. The database is also backed up automatically every day at 12:00 AM.</p>
+                <button class="btn btn-primary btn-sm" id="bk-db-btn" onclick="saBackupDatabase()">Back Up Database Now</button>
+              </div>
+              <div class="bk-card">
+                <h3>Full Backup</h3>
+                <p>Database dump + uploaded media archive + system settings snapshot, in one run.</p>
+                <button class="btn btn-primary btn-sm" id="bk-full-btn" onclick="saBackupFull()">Run Full Backup Now</button>
+              </div>
+            </div>
+
+            <div class="panel-header-row" style="border-bottom:none;padding-bottom:0;">
+              <div>
+                <h2 class="panel-title">Backup Jobs</h2>
+              </div>
+              <div>
+                <button class="btn btn-secondary btn-sm" onclick="saLoadBackups()">Refresh</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="bk-table">
+                <thead>
+                  <tr>
+                    <th>Job</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="bk-jobs-body">
+                  <tr><td colspan="6" style="text-align:center;color:#757575;">Loading backup jobs…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+
+    <script>
+      function logout() {
+        Swal.fire({
+          icon: 'question',
+          title: 'Logout?',
+          text: 'Are you sure you want to sign out?',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, logout',
+          cancelButtonText: 'Cancel',
+          confirmButtonColor: '#c62828'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.location.href = '/logout/';
+          }
+        });
+      }
+
+      function toggleSidebar() {
+        document.querySelector('.sidebar').classList.toggle('collapsed');
+      }
+
+      function toggleSubmenu(submenuId, menuItem) {
+        const submenu = document.getElementById(submenuId);
+        const chevron = menuItem.querySelector('.menu-chevron');
+        
+        if (submenu.classList.contains('open')) {
+          submenu.classList.remove('open');
+          chevron.classList.remove('rotated');
+        } else {
+          submenu.classList.add('open');
+          chevron.classList.add('rotated');
+        }
+      }
+
+      // Single source of truth for sidebar highlighting: exactly ONE nav
+      // entry is ever marked active. Clicking a top-level item clears any
+      // lingering subitem highlight (and vice versa); an open submenu whose
+      // child is active keeps its header softly highlighted via child-active.
+      const SA_PANEL_CRUMBS = {
+        'superadmin-panel': 'Accounts › Superadmin Account',
+        'president-panel': 'Accounts › President Account',
+        'system-backfill-panel': 'Accounts › System Backfill Account',
+        'system-settings-view': 'System › System Settings',
+        'audit-trail-panel': 'System › Audit Trail',
+        'backup-panel': 'System › Backup Management',
+      };
+
+      function saSetActiveNav(clicked) {
+        document.querySelectorAll('.menu-item, .menu-subitem').forEach(el => {
+          el.classList.remove('active', 'child-active');
+        });
+        if (!clicked || !clicked.classList) return;
+        clicked.classList.add('active');
+        if (clicked.classList.contains('menu-subitem')) {
+          const submenu = clicked.closest('.submenu');
+          const header = submenu ? submenu.previousElementSibling : null;
+          if (header && header.classList.contains('menu-item')) {
+            header.classList.add('child-active');
+          }
+        }
+      }
+
+      function showPanel(panelId, navEl) {
+        // Hide all panels
+        document.querySelectorAll('.panel-section').forEach(panel => {
+          panel.classList.remove('active');
+        });
+
+        // Show selected panel
+        const target = document.getElementById(panelId);
+        if (target) target.classList.add('active');
+
+        // Move the highlight to whatever was just clicked — never leave a
+        // stale highlight on a different nav entry.
+        saSetActiveNav(navEl || null);
+
+        // Breadcrumb + remember the section across reloads (POST-redirect-GET
+        // resets to the first panel otherwise).
+        const crumb = document.getElementById('sa-crumb');
+        if (crumb && SA_PANEL_CRUMBS[panelId]) crumb.textContent = SA_PANEL_CRUMBS[panelId];
+        try { sessionStorage.setItem('sa-active-panel', panelId); } catch (e) {}
+      }
+
+      // Restore the last-viewed section after a settings save reload.
+      (function saRestorePanel() {
+        let panelId = null;
+        try { panelId = sessionStorage.getItem('sa-active-panel'); } catch (e) {}
+        if (!panelId || !document.getElementById(panelId)) return;
+        document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
+        document.getElementById(panelId).classList.add('active');
+        const crumb = document.getElementById('sa-crumb');
+        if (crumb && SA_PANEL_CRUMBS[panelId]) crumb.textContent = SA_PANEL_CRUMBS[panelId];
+        // Re-highlight the nav entry that owns this panel.
+        let navEl = null;
+        document.querySelectorAll('[onclick]').forEach(el => {
+          const fn = el.getAttribute('onclick') || '';
+          if (fn.indexOf("'" + panelId + "'") !== -1 && el.classList.contains('menu-subitem')) navEl = el;
+        });
+        if (!navEl) {
+          document.querySelectorAll('[onclick]').forEach(el => {
+            const fn = el.getAttribute('onclick') || '';
+            if (fn.indexOf("'" + panelId + "'") !== -1 && el.classList.contains('menu-item')) navEl = el;
+          });
+        }
+        saSetActiveNav(navEl);
+      })();
+
+      // Consolidated System Settings: keep each pill's ON/OFF badge in sync.
+      function saSyncBadge(checkbox) {
+        const row = checkbox.closest('.sa-toggle-row');
+        const badge = row ? row.querySelector('.sa-state-badge') : null;
+        if (!badge) return;
+        const on = checkbox.checked;
+        badge.textContent = on ? 'ON' : 'OFF';
+        badge.classList.toggle('on', on);
+        badge.classList.toggle('off', !on);
+      }
+
+      function confirmFormSubmit(button, actionName) {
+        Swal.fire({
+          title: 'Confirm Action',
+          text: `Are you sure you want to ${actionName.toLowerCase()}?`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonColor: '#1b5e20',
+          cancelButtonColor: '#dc2626',
+          confirmButtonText: 'Yes, proceed'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Use AJAX to submit form to prevent resubmission on refresh
+            const form = button.form;
+            const formData = new FormData(form);
+            
+            fetch(form.action, {
+              method: 'POST',
+              body: formData,
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+              }
+            }).then(response => {
+              if (response.ok) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Success',
+                  text: `${actionName} completed successfully`,
+                  timer: 2000,
+                  showConfirmButton: false
+                }).then(() => {
+                  // Redirect to same page with GET to prevent resubmission dialog
+                  window.location.href = window.location.pathname;
+                });
+              } else {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: 'Failed to complete the action'
+                });
+              }
+            }).catch(error => {
+              // Fallback to normal form submission if AJAX fails
+              form.submit();
+            });
+          }
+        });
+      }
+
+      /* ---------------- Backup Management (Superadmin) ---------------- */
+      const SA_CSRF_TOKEN = "{{ csrf_token }}";
+      const SA_TYPE_LABELS = { db: 'Database', media: 'Media Files', config: 'Config', system: 'System Codebase' };
+      const SA_RESTORE_WARNING = {
+        db: 'This will REPLACE the entire database with the data saved in this backup. A safety snapshot of the current data is taken first, so you can undo this restore.',
+        media: 'This will REPLACE all uploaded files (IDs, receipts, documents) with the copy saved in this backup.',
+        config: 'This will overwrite current system settings with the values saved in this backup.',
+        system: 'The codebase zip will be extracted to a separate folder next to the live project for review — nothing on the live server is overwritten.',
+      };
+
+      function saFormatSize(bytes) {
+        if (!bytes && bytes !== 0) return '—';
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        return Math.max(bytes === 0 ? 0 : 1, Math.round(bytes / 1024)) + ' KB';
+      }
+
+      function saEsc(v) {
+        return String(v == null ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function saStatusBadge(status) {
+        const cls = (status || '').toLowerCase();
+        const color = cls === 'completed' ? '#1b5e20' : (cls === 'failed' ? '#c62828' : '#e65100');
+        const bg = cls === 'completed' ? '#e8f5e9' : (cls === 'failed' ? '#ffebee' : '#fff3e0');
+        return '<span class="status-badge" style="color:' + color + ';background:' + bg + ';">' + saEsc(status) + '</span>';
+      }
+
+      async function saLoadBackups() {
+        const tbody = document.getElementById('bk-jobs-body');
+        try {
+          const response = await fetch('/api/president/backups/');
+          const result = await response.json();
+          if (!result.ok) throw new Error(result.error || 'Failed to load backup jobs.');
+          if (!result.jobs.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#757575;">No backups yet — run a manual backup above.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = result.jobs.map(job => `
+            <tr>
+              <td>#${job.job_id}</td>
+              <td>${saEsc(SA_TYPE_LABELS[job.backup_type] || job.backup_type)}${job.note ? ' <span style="color:#607d8b;font-size:0.75rem;">(' + saEsc(job.note) + ')</span>' : ''}</td>
+              <td>${saStatusBadge(job.backup_status)}</td>
+              <td>${job.created_at ? new Date(job.created_at).toLocaleString() : '—'}</td>
+              <td id="bk-size-${job.job_id}">${saFormatSize(job.size_bytes)}</td>
+              <td>
+                <div class="bk-actions-row">
+                  <button class="btn btn-secondary btn-sm" onclick="saToggleDetails(${job.job_id}, this)">Details</button>
+                  ${job.backup_status === 'Completed' ? `<button class="btn btn-secondary btn-sm" onclick="saRestoreBackup(${job.job_id}, '${saEsc(job.backup_type)}')">Restore</button>` : ''}
+                </div>
+              </td>
+            </tr>
+            <tr class="bk-detail-row" id="bk-detail-${job.job_id}" style="display:none;"><td colspan="6">Loading…</td></tr>
+          `).join('');
+        } catch (error) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#c62828;">' + saEsc(error.message || 'Could not load backup jobs.') + '</td></tr>';
+        }
+      }
+
+      async function saToggleDetails(jobId, btn) {
+        const row = document.getElementById('bk-detail-' + jobId);
+        if (!row) return;
+        if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+        row.style.display = '';
+        try {
+          const response = await fetch('/api/president/backups/' + jobId + '/');
+          const result = await response.json();
+          if (!result.ok) throw new Error(result.error || 'Failed to load backup details.');
+          const job = result.job;
+          const files = [
+            ['Database dump', job.db_dump],
+            ['Media archive', job.media_archive],
+            ['System archive', job.system_archive],
+          ].filter(([, f]) => f && f.path);
+          let totalBytes = 0;
+          const cards = files.length ? files.map(([label, f]) => {
+            if (f.exists) totalBytes += (f.size_bytes || 0);
+            return '<div class="bk-file"><div><strong>' + label + '</strong> — ' +
+              (f.exists
+                ? '<span class="bk-ok">on disk (' + saFormatSize(f.size_bytes) + ')</span>'
+                : '<span class="bk-missing">MISSING from disk</span>') +
+              '</div><div class="bk-path">' + saEsc(f.path) + '</div></div>';
+          }).join('') : '<p style="font-size:0.8rem;color:#757575;">No files recorded for this job.</p>';
+          const meta = job.metadata && Object.keys(job.metadata).length
+            ? '<div class="bk-meta">' + saEsc(JSON.stringify(job.metadata, null, 2)) + '</div>' : '';
+          row.innerHTML = '<td colspan="6"><div class="bk-detail-grid">' + cards + '</div>' + meta + '</td>';
+          const sizeCell = document.getElementById('bk-size-' + jobId);
+          if (sizeCell && totalBytes) sizeCell.textContent = saFormatSize(totalBytes);
+        } catch (error) {
+          row.innerHTML = '<td colspan="6" style="color:#c62828;font-size:0.82rem;">' + saEsc(error.message || 'Could not load details.') + '</td>';
+        }
+      }
+
+      async function saRunBackup(url, body, btnId, busyLabel, doneTitle, doneText) {
+        const btn = document.getElementById(btnId);
+        const original = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = busyLabel; }
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': SA_CSRF_TOKEN },
+            body: body,
+          });
+          const result = await response.json();
+          if (result.ok) {
+            Swal.fire({ icon: 'success', title: doneTitle, text: doneText, timer: 3000, showConfirmButton: false });
+            saLoadBackups();
+          } else {
+            Swal.fire({ icon: 'error', title: 'Backup Failed', text: result.error || 'Failed to run backup.' });
+          }
+        } catch (error) {
+          Swal.fire({ icon: 'error', title: 'Backup Failed', text: 'Failed to run backup.' });
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = original; }
+        }
+      }
+
+      function saBackupCodebase() {
+        const body = new FormData();
+        saRunBackup('/api/system/backups/codebase/', body, 'bk-codebase-btn', 'Zipping codebase…', 'Codebase Backed Up', 'The project code was zipped and stored under media\\backups\\system\\.');
+      }
+
+      function saBackupDatabase() {
+        const body = new FormData();
+        body.append('scope', 'db');
+        saRunBackup('/api/president/backups/manual/', body, 'bk-db-btn', 'Dumping database…', 'Database Backed Up', 'The MySQL database was dumped under media\\backups\\db\\.');
+      }
+
+      function saBackupFull() {
+        const body = new FormData();
+        saRunBackup('/api/president/backups/manual/', body, 'bk-full-btn', 'Backing up…', 'Backup Complete', 'Database, media and config backups were created.');
+      }
+
+      async function saRestoreBackup(jobId, backupType) {
+        const warning = SA_RESTORE_WARNING[backupType] || 'This will restore this backup.';
+        const { isConfirmed } = await Swal.fire({
+          icon: 'warning',
+          title: 'Restore this backup?',
+          html: saEsc(warning) + '<br><br><strong>This action cannot be undone (except via the safety snapshot).</strong>',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, restore it',
+          cancelButtonText: 'Cancel',
+          confirmButtonColor: '#c62828'
+        });
+        if (!isConfirmed) return;
+        Swal.fire({ title: 'Restoring…', text: 'Please wait, do not close this page.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+          const response = await fetch('/api/president/backups/' + jobId + '/restore/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': SA_CSRF_TOKEN }
+          });
+          const result = await response.json();
+          if (result.ok) {
+            let text = 'Backup has been restored successfully.';
+            if (result.safety_job_id) text += ` A pre-restore safety snapshot was saved as job #${result.safety_job_id}.`;
+            if (result.restore_target) text += ` Codebase extracted to: ${result.restore_target}`;
+            Swal.fire({ icon: 'success', title: 'Backup Restored', text });
+            saLoadBackups();
+          } else {
+            Swal.fire({ icon: 'error', title: 'Restore Failed', text: result.error || 'Failed to restore backup.' });
+          }
+        } catch (error) {
+          Swal.fire({ icon: 'error', title: 'Restore Failed', text: 'Failed to restore backup.' });
+        }
+      }
+
+      // Load jobs whenever the Backup panel is opened (and on first paint if visible).
+      const _saShowPanel = window.showPanel;
+      window.showPanel = function (panelId, subMenuItem) {
+        _saShowPanel(panelId, subMenuItem);
+        if (panelId === 'backup-panel') saLoadBackups();
+      };
+    </script>
+    <script src="{% static 'js/shared/pager.js' %}?v=20260906b"></script>
+    <script src="{% static 'js/shared/simple_modal.js' %}?v=20260905bust2"></script>
+    <script src="{% static 'js/shared/audit_trail.js' %}?v=20260918at1"></script>
+    <script src="{% static 'js/shared/sidebar_peek.js' %}?v=20260928sp2"></script>
+    <!-- CAUFA Zero Trust: screen lock, badge, hard-check interception -->
+    <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20260930zt6" />
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20260927zt5"></script>
+    {% include "website/shared/zt_badge.html" %}
+  </body>
+</html>

@@ -1,0 +1,78 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Membership Approved - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Membership Approved{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Congratulations! Your membership in the
+                <strong>ISUCauFA, Inc. (Isabela State University &ndash; Cauayan Faculty Association)</strong>
+                has been approved by the President and is now officially recorded.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:160px;">Full Name:</td>
+                  <td>{{ full_name }}</td>
+                </tr>
+                {% if department %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Department:</td>
+                  <td>{{ department }}</td>
+                </tr>
+                {% endif %}
+                {% if position %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Position / Rank:</td>
+                  <td>{{ position }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Membership Type:</td>
+                  <td>{{ membership_type }}</td>
+                </tr>
+              </table>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">As a Member, You Are Now Covered By</h3>
+              <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li><strong>Monthly Dues</strong> &mdash; Monthly dues are collected and recorded by the Treasurer.</li>
+                <li><strong>Medical Aid</strong> &mdash; Medical assistance requests may be filed through the Treasurer.</li>
+                <li><strong>Death Aid</strong> &mdash; Death aid assistance may be filed through the Treasurer.</li>
+              </ul>
+
+              <div style="background-color:#fff8e1; border-left:4px solid #f9a825; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#7a5c00; font-size:15px; margin:0 0 10px;">Member Contribution Obligation</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0 0 8px; color:#7a5c00;">
+                  Whenever a fellow member files for <strong>Medical Aid</strong> or <strong>Death Aid</strong>,
+                  all members are required to contribute:
+                </p>
+                <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 8px; color:#7a5c00;">
+                  <li><strong>Medical Aid</strong> &mdash; &#8369; {{ medical_aid_contribution }} per member</li>
+                  <li><strong>Death Aid</strong> &mdash; the contribution depends on the deceased's relationship to the requesting member:</li>
+                </ul>
+                <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="background-color:#ffffff; border:1px solid #f0e0a0; border-radius:4px; margin:0 0 8px;">
+                  <tr style="background-color:#fdf3d0;">
+                    <td style="font-weight:700; color:#7a5c00; padding:6px 10px;">Deceased's Relationship to the Member</td>
+                    <td style="font-weight:700; color:#7a5c00; padding:6px 10px; text-align:right; white-space:nowrap;">Contribution per Member</td>
+                  </tr>
+                  {% for label, amount in death_aid_table %}
+                  <tr>
+                    <td style="color:#7a5c00; padding:6px 10px; border-top:1px solid #f0e0a0;">{{ label }}</td>
+                    <td style="color:#7a5c00; padding:6px 10px; border-top:1px solid #f0e0a0; text-align:right; white-space:nowrap;">&#8369; {{ amount }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#7a5c00;">
+                  You will be notified through this email address whenever a contribution is required.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                <strong>Note:</strong> No username, password, or login account was created for this membership.
+                All notifications regarding your membership, monthly dues payments, medical aid claims,
+                death aid claims, and other transactions will be sent to this registered email address.
+                For any transaction or inquiry, please contact the ISUCauFA, Inc. Treasurer.
+              </p>
+            
+{% endblock %}

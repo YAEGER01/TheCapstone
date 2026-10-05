@@ -1,0 +1,56 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Security Check: Did You Change Networks? - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}Hi {{ full_name|default:"there" }} — we noticed {{ what_changed|default:"a network change" }} on your signed-in session.{% endblock %}
+{% block header_title %}Did You Do This?{% endblock %}
+{% block header_sub %}Your session was paused as a precaution — a quick check keeps your account safe{% endblock %}
+{% block content %}
+<p style="font-size:16px; margin:0 0 16px;">
+  Hi <strong>{{ full_name|default:"there" }}</strong>,
+</p>
+<p style="font-size:15px; margin:0 0 20px;">
+  While you were signed in to the ISUCauFA, Inc. portal, we detected
+  <strong>{{ what_changed|default:"a change in your connection" }}</strong>.
+  Your screen has been locked as a precaution — simply type your password on
+  the unlock screen to confirm it was you and continue where you left off.
+  If this was you (for example, you switched WiFi or moved to a hotspot),
+  there is nothing more to do.
+</p>
+
+<table role="presentation" width="100%" cellpadding="10" cellspacing="0" style="background-color:#f4f8f4; border-left:4px solid #2e7d32; margin:0 0 20px;">
+  <tr>
+    <td style="font-weight:700; color:#1b5e20; width:160px;">When</td>
+    <td>{{ when|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Previous network</td>
+    <td>{{ from_net|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">New network</td>
+    <td>{{ to_net|default:"—" }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:700; color:#1b5e20;">Device</td>
+    <td>{{ device|default:"—" }}</td>
+  </tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="14" cellspacing="0" style="background-color:#fdecea; border-left:4px solid #c62828; margin:0 0 20px;">
+  <tr>
+    <td>
+      <p style="font-size:15px; font-weight:700; margin:0 0 4px; color:#8e1b1b;">
+        Wasn't you?
+      </p>
+      <p style="font-size:14px; margin:0; color:#8e1b1b;">
+        Please do not unlock the screen. Sign out instead, change your password
+        right away using Forgot Password, and contact the system administrator.
+        Our team takes it from there.
+      </p>
+    </td>
+  </tr>
+</table>
+
+<p style="font-size:14px; margin:0; color:#5b6b5c;">
+  Thanks for being part of ISUCauFA, Inc. — keeping your account secure matters to us.
+</p>
+{% endblock %}

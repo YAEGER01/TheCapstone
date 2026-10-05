@@ -1,0 +1,194 @@
+/* Audit Trail — shared across Treasurer / Auditor / President / SuperAdmin. */
+
+.audit-trail {
+  background: #ffffff;
+  border: 1px solid #dfe9df;
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+.audit-trail .at-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid #f6fbf6;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.audit-trail .at-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1b5e20;
+}
+
+.audit-trail .at-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.audit-trail .at-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.audit-trail .at-input {
+  padding: 8px 10px;
+  border: 1px solid #dfe9df;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: #263238;
+  background: #fff;
+}
+
+.audit-trail .at-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.audit-trail .at-btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1b5e20 0%, #14521b 100%);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.audit-trail .at-table-wrap {
+  overflow-x: auto;
+}
+
+.audit-trail .at-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.audit-trail .at-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  background: #f1f8f1;
+  color: #1b5e20;
+  font-weight: 700;
+  border-bottom: 1px solid #dfe9df;
+  white-space: nowrap;
+}
+
+.audit-trail .at-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef2ee;
+  color: #33413a;
+  vertical-align: middle;
+}
+
+.audit-trail .at-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.audit-trail .at-row:hover {
+  background: #f6fbf6;
+}
+
+.audit-trail .at-empty {
+  text-align: center;
+  color: #8a9a8a;
+  padding: 26px 12px !important;
+}
+
+.audit-trail .at-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.audit-trail .at-badge.success {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.audit-trail .at-badge.failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.audit-trail .at-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.audit-trail .at-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 16px;
+}
+
+.audit-trail .uni-pg-btn {
+  padding: 6px 11px;
+  border: 1px solid #dfe9df;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1b5e20;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.audit-trail .uni-pg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.audit-trail .uni-pg-btn.uni-pg-active {
+  background: linear-gradient(135deg, #1b5e20 0%, #14521b 100%);
+  color: #ffffff;
+  border-color: #1b5e20;
+  font-weight: 700;
+}
+
+/* Activity Details modal content */
+.at-details {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.at-details th,
+.at-details td {
+  border: 1px solid #e2e8e2;
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.at-details th {
+  background: #f5f8f5;
+  font-weight: 600;
+  color: #33413a;
+  width: 34%;
+}
+
+.at-detail-h {
+  margin: 12px 0 6px 0;
+  font-size: 0.92rem;
+  color: #1b5e20;
+}
+
+.at-details tr.at-changed td {
+  background: #fffdf0;
+}

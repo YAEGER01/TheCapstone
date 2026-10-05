@@ -1,0 +1,32 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}ISUCauFA Email Change Verification{% endblock %}
+{% block header_title %}Email Change Verification{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                You requested to change your email address in the <strong>CAUFA System Portal</strong>.
+                Use the following verification code to confirm your current email address.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+                <tr>
+                  <td align="center">
+                    <span style="display:inline-block; background-color:#f8f9fa; border-radius:8px; padding:20px 40px; font-size:32px; font-weight:700; letter-spacing:8px; color:#1b5e20;">
+                      {{ otp_code }}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666;">
+                This code will expire in <strong>{{ expiry_minutes }} minutes</strong>. If you did not request this email change,
+                please ignore this email or contact the system administrator immediately.
+              </p>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                For security reasons, never share this code with anyone.
+              </p>
+            
+{% endblock %}

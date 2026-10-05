@@ -1,0 +1,54 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Payment Item Returned - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}{% if is_rejected %}Payment Item Rejected{% else %}Returned for Revision{% endif %}{% endblock %}
+{% block content %}
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ full_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Your <strong>{{ item_label }}</strong> has been
+                {% if is_rejected %}
+                  <strong style="color:#c62828;">rejected</strong>.
+                {% else %}
+                  <strong style="color:#f57c00;">returned for revision</strong>.
+                {% endif %}
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Item:</td>
+                  <td>{{ item_label }}</td>
+                </tr>
+                {% if details %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Details:</td>
+                  <td>{{ details }}</td>
+                </tr>
+                {% endif %}
+                {% if remarks %}
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Remarks:</td>
+                  <td><em>{{ remarks }}</em></td>
+                </tr>
+                {% endif %}
+              </table>
+
+              {% if is_rejected %}
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Next Step</h3>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px;">
+                Your payment item could not be processed at this time. Please review the remarks above and
+                contact the ISUCauFA, Inc. Treasurer's Office if you believe this is an error or need further assistance.
+              </p>
+              {% else %}
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Next Step</h3>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px;">
+                Please review the remarks above, correct the required information, and resubmit your
+                {{ item_label }} for processing. You may contact the Treasurer's Office for further assistance.
+              </p>
+              {% endif %}
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                If you have any questions, please contact the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

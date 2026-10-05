@@ -1,0 +1,47 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Not Found | ISUCauFA Security</title>
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}" />
+    <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/error_pages.css' %}" />
+  </head>
+  <body>
+    <div class="error-container">
+      <div class="security-shield-icon">
+        <i class="fa-solid fa-link-slash"></i>
+        <div class="lock-bolt"></div>
+      </div>
+
+      <h1 class="error-code">404</h1>
+      <h2 class="error-title">Link Not Recognized</h2>
+
+      <p class="error-message">
+        The address you opened is not a valid system link. Links in this
+        portal are encrypted — editing, retyping, or sharing a modified
+        address will not open. Please return to your workspace and use the
+        on-screen buttons and menus instead.
+      </p>
+
+      <div class="context-alert-box">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span
+          >This invalid-link event has been recorded in the central system
+          audit log.</span
+        >
+      </div>
+
+      <div class="action-button-group">
+        <button onclick="window.history.back()" class="btn-error-back">
+          <i class="fa-solid fa-arrow-left-long"></i> Go Back to Workspace
+        </button>
+        <a href="/" class="btn-error-switch">
+          <i class="fa-solid fa-house"></i> Go to Home
+        </a>
+      </div>
+    </div>
+  </body>
+</html>

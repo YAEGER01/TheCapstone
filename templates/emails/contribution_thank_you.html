@@ -1,0 +1,44 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Contribution Received - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Contribution Received{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Thank you for contributing to the <strong>{{ aid_type }}</strong> of
+                <strong>{{ requesting_member_name }}</strong>. Your contribution has been officially recorded
+                by the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Aid Type:</td>
+                  <td>{{ aid_type }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Aid Beneficiary:</td>
+                  <td>{{ requesting_member_name }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Contribution Amount:</td>
+                  <td style="font-weight:700; color:#1b5e20;">₱{{ amount }}</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#e8f5e9; border-left:4px solid #1b5e20; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#1b5e20;">
+                  Your contribution is really appreciated. Through your generosity, our association continues
+                  to uphold its mission of helping fellow members in their time of need.
+                </p>
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                This is an official receipt of your contribution. For questions or assistance, please contact
+                the ISUCauFA, Inc. Treasurer's Office.
+              </p>
+            
+{% endblock %}

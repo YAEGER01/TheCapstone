@@ -1,0 +1,60 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Attendance Completed - ISUCauFA, Inc.{% endblock %}
+{% block header_title %}Attendance Completed{% endblock %}
+{% block content %}
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px 30px 20px; color:#333333;">
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Dear <strong>{{ member_name|default:"Member" }}</strong>,
+              </p>
+              <p style="font-size:16px; line-height:1.6; margin:0 0 20px;">
+                Thank you for participating in our event <strong>{{ event_title }}</strong>!
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 20px;">
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20; width:140px;">Event:</td>
+                  <td>{{ event_title }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Event Date:</td>
+                  <td>{{ event_date }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Certificate Number:</td>
+                  <td>{{ certificate_number }}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:600; color:#1b5e20;">Issue Date:</td>
+                  <td>{{ issue_date }}</td>
+                </tr>
+              </table>
+
+              <div style="background-color:#d4edda; border-left:4px solid #28a745; padding:15px; margin:0 0 20px; border-radius:4px;">
+                <h4 style="color:#155724; font-size:16px; margin:0 0 10px;">Certificate Generated</h4>
+                <p style="font-size:14px; line-height:1.6; margin:0; color:#155724;">
+                  {% if certificate_number == "Processing" %}
+                    Your certificate of attendance is being generated and will be sent to your email shortly. Please save it for your records once received.
+                  {% else %}
+                    Your certificate of attendance has been generated and sent to your email as a PDF attachment. Please save it for your records.
+                  {% endif %}
+                </p>
+              </div>
+
+              <h3 style="color:#1b5e20; font-size:18px; margin:0 0 10px;">Next Steps</h3>
+              <ul style="font-size:14px; line-height:1.8; padding-left:20px; margin:0 0 20px;">
+                <li>Download and save your certificate of attendance</li>
+                <li>Check your member dashboard for event updates</li>
+                <li>Stay tuned for upcoming ISUCauFA, Inc. events</li>
+              </ul>
+
+              <p style="font-size:14px; line-height:1.6; margin:0 0 20px; color:#666666; border-top:1px solid #eeeeee; padding-top:20px;">
+                We appreciate your participation in ISUCauFA, Inc. events. Your attendance helps strengthen our community and connections.
+              </p>
+              
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#666666;">
+                If you have any questions about your certificate or the event, please contact the ISUCauFA, Inc. Secretary's Office.
+              </p>
+            
+{% endblock %}

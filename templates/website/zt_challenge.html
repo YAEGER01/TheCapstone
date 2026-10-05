@@ -1,0 +1,174 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Additional Verification — CAUFA System</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f4f4f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 16px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+      padding: 32px 28px 24px;
+      width: 400px;
+      max-width: 100%;
+      text-align: center;
+    }
+    .icon { font-size: 36px; }
+    h1 { font-size: 19px; color: #1b5e20; margin: 8px 0 10px; }
+    .reason { color: #e65100; font-weight: 600; font-size: 13.5px; margin: 0 0 10px; word-break: break-word; }
+    .sent { color: #555; font-size: 13.5px; margin: 0 0 18px; }
+    .otp {
+      width: 180px;
+      padding: 10px 12px;
+      font-size: 22px;
+      letter-spacing: 8px;
+      text-align: center;
+      border: 2px solid #1b5e20;
+      border-radius: 8px;
+      outline: none;
+      font-weight: 700;
+    }
+    .error { color: #c62828; font-weight: 600; font-size: 13px; margin: 12px 0 0; min-height: 16px; }
+    .actions { margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .btn-primary {
+      background: #1b5e20; color: #fff; border: none; cursor: pointer;
+      padding: 10px 28px; border-radius: 8px; font-size: 13.5px; font-weight: 600; font-family: inherit;
+    }
+    .btn-primary:disabled { background: #9e9e9e; cursor: default; }
+    .btn-link {
+      background: transparent; color: #1b5e20; border: none; cursor: pointer;
+      padding: 6px 4px; font-size: 13px; font-weight: 600; text-decoration: underline; font-family: inherit;
+    }
+    .btn-link:disabled { color: #9e9e9e; cursor: default; text-decoration: none; }
+    .footer { margin-top: 22px; font-size: 11.5px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🛡</div>
+    <h1>Additional verification required</h1>
+    <p class="reason">For your protection, we need to confirm it's really you.</p>
+    <p class="sent">We sent a 6-digit code to <strong>{{ masked_email }}</strong>. Enter it below to continue.</p>
+    <form id="zt-form" method="post" action="{% url 'zero_trust_verify' %}">
+      {% csrf_token %}
+      <input class="otp" name="otp" id="zt-otp" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="6" placeholder="••••••" autofocus />
+      <div class="error" id="zt-error"></div>
+      <div class="actions">
+        <button type="submit" class="btn-primary" id="zt-verify-btn">Verify</button>
+        <button type="button" class="btn-link" id="zt-resend-btn">Resend code</button>
+      </div>
+    </form>
+    <div class="footer">CAUFA Zero Trust protection{% if next_url and next_url != "/" %} &middot; you'll be returned to your page afterwards{% endif %}</div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var CHALLENGE_URL = "{% url 'zero_trust_challenge' %}";
+      var VERIFY_URL = "{% url 'zero_trust_verify' %}";
+      var NEXT_URL = "{{ next_url|escapejs }}";
+
+      function csrf() {
+        var el = document.querySelector("[name=csrfmiddlewaretoken]");
+        return el ? el.value : "";
+      }
+
+      function setError(msg) {
+        document.getElementById("zt-error").textContent = msg || "";
+      }
+
+      function startCooldown(seconds) {
+        var btn = document.getElementById("zt-resend-btn");
+        var left = seconds || 60;
+        var timer = setInterval(function () {
+          if (left <= 0) { btn.disabled = false; btn.textContent = "Resend code"; clearInterval(timer); return; }
+          btn.disabled = true;
+          btn.textContent = "Resend in " + left + "s";
+          left -= 1;
+        }, 1000);
+      }
+
+      async function requestChallenge() {
+        setError("");
+        try {
+          var resp = await fetch(CHALLENGE_URL, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrf(),
+              "X-Requested-With": "XMLHttpRequest"
+            },
+            credentials: "same-origin"
+          });
+          var data = await resp.json();
+          if (data.ok) {
+            startCooldown(data.cooldown || 60);
+            if (!data.sent) setError(data.message || "A code was already sent - please check your inbox.");
+          } else {
+            setError(data.error || "Could not send the verification email.");
+          }
+        } catch (e) {
+          setError("Network error while requesting the code.");
+        }
+      }
+
+      document.getElementById("zt-form").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var code = document.getElementById("zt-otp").value.trim();
+        if (!code) { setError("Enter the 6-digit code from your email."); return; }
+        var btn = document.getElementById("zt-verify-btn");
+        btn.disabled = true;
+        btn.textContent = "Verifying…";
+        try {
+          var resp = await fetch(VERIFY_URL, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrf(),
+              "X-Requested-With": "XMLHttpRequest",
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: "otp=" + encodeURIComponent(code),
+            credentials: "same-origin"
+          });
+          var data = await resp.json();
+          if (data.ok) {
+            window.location.href = NEXT_URL;
+            return;
+          }
+          if (data.session_revoked) {
+            setError(data.error || "Session revoked.");
+            setTimeout(function () { window.location.href = "{{ session_expired_url|default:'/?session_expired=1'|escapejs }}"; }, 1500);
+            return;
+          }
+          setError(data.error || "Invalid verification code.");
+          document.getElementById("zt-otp").value = "";
+          document.getElementById("zt-otp").focus();
+        } catch (err) {
+          setError("Network error while verifying the code.");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Verify";
+        }
+      });
+
+      document.getElementById("zt-resend-btn").addEventListener("click", requestChallenge);
+
+      // NOTE: Do NOT auto-send the OTP on page load. The unlock/challenge page
+      // can be reloaded by the browser for many reasons; an explicit user
+      // action ("Resend code") is required to avoid spamming OTP emails.
+    })();
+  </script>
+</body>
+</html>
