@@ -16535,7 +16535,13 @@
           /* ========== LEDGER REPORT ==========
              Fund ledger grouped by account (source type) with debit/credit. */
           case "ledger-report": {
-            const lAll = (RPT.cache.ledger || []).filter(e => rptInPeriod(String(e.recorded_at || "").slice(0, 10), range));
+            /* Same covered-month rule as the Fund Overview Summary: dues /
+               set-aside / aid rows carry their covered month in the
+               description ("Monthly dues for February 2026 — Juan Dela
+               Cruz"), so February dues booked in October filter into
+               February. Other movements stay on recorded date. Row dates
+               still show the true booking date. */
+            const lAll = (RPT.cache.ledger || []).filter(e => fosEntryInPeriod(e));
             const lRows = lAll.map(e => ({
               date: String(e.recorded_at || "").slice(0, 10),
               reference: e.reference_number || ("GL-" + (e.id || "")),
@@ -16673,86 +16679,12 @@
               other_expense: "Other Expenses",
             };
             const srcLabel = (s) => FUND_SOURCE_LABELS[String(s || "").toLowerCase()] || s || "Other";
-            /* Selected reporting period — read RPT.range directly because this
-               report is all-time by nature (rptDateRange() returns null for it),
-               but the preview must still answer the Day/Week/Month/Quarter/
-               Year/All bar instead of always showing the current calendar
-               month's "This Month" totals. */
-            const pr = (RPT.range && (RPT.range.from || RPT.range.to))
-              ? { from: (RPT.range.from || "0000-01-01").slice(0, 10), to: (RPT.range.to || "9999-12-31").slice(0, 10) }
-              : null;
+            /* Period identity + covered-month matching come from the shared
+               fos* helpers above rptRowsFor's switch (this report is all-time
+               by nature — rptDateRange() returns null for it — but the
+               preview still answers the Day/Week/Month/Quarter/Year/All bar
+               instead of always showing the current calendar month). */
             const periodLabel = (typeof rptPeriodLabel === "function") ? rptPeriodLabel() : "All Time";
-            const periodMonths = (typeof rptPeriodMonths === "function") ? (rptPeriodMonths() || []) : [];
-            /* "February 2026" (covered-month labels) → "2026-02". Full month
-               names come from strftime("%B %Y"); abbreviations accepted too. */
-            const fosYM = (label) => {
-              const m = String(label || "").match(/^([A-Za-z]+)\s+(\d{4})/);
-              if (!m) return "";
-              const names = (typeof RPT_MONTHS !== "undefined") ? RPT_MONTHS : [];
-              let idx = names.findIndex(n => String(n).toLowerCase() === m[1].toLowerCase());
-              if (idx < 0) {
-                const abbr = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-                idx = abbr.indexOf(m[1].slice(0, 3).toLowerCase());
-              }
-              if (idx < 0) return "";
-              return m[2] + "-" + String(idx + 1).padStart(2, "0");
-            };
-            /* "Oct 04, 2026" (recorded display dates) → "2026-10-04". */
-            const MON3 = { jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06", jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12" };
-            const fosISO = (ds) => {
-              const m = String(ds || "").match(/^([A-Za-z]{3})\s+(\d{1,2}),\s*(\d{4})/);
-              if (!m) return "";
-              return m[3] + "-" + (MON3[m[1].toLowerCase()] || "01") + "-" + String(m[2]).padStart(2, "0");
-            };
-            /* Covered month of ONE fund movement — the same "X for <Month> —
-               member <id>" descriptions the /api/fund/overview/ buckets use
-               (e.g. "Monthly dues for February 2026 — member 12"), so dues
-               recorded late (February dues booked in October) still belong to
-               February. Movements without such a description (donations,
-               withdrawals, aid releases) stay on recorded date. */
-            const FOS_MONTH_IN = ["monthly_dues", "aid_setaside_medical", "aid_setaside_death"];
-            const FOS_MONTH_OUT = ["medical_aid", "death_aid"];
-            const fosCovered = (e) => {
-              const st = String(e.source_type || "").toLowerCase();
-              const dir = String(e.direction || "").toLowerCase();
-              const okType = (dir === "inflow" && FOS_MONTH_IN.indexOf(st) !== -1)
-                || (dir === "outflow" && FOS_MONTH_OUT.indexOf(st) !== -1);
-              if (!okType) return "";
-              const m = String(e.description || "").match(/^(.*) for (.+) — member (\d+)$/);
-              if (!m) return "";
-              return fosYM(m[2]);
-            };
-            const fosEntryInPeriod = (e) => {
-              if (!pr) return true;
-              const cov = fosCovered(e);
-              if (cov) return periodMonths.length ? periodMonths.indexOf(cov) !== -1 : true;
-              const iso = String(e.recorded_at || "").slice(0, 10);
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return true;
-              return iso >= pr.from && iso <= pr.to;
-            };
-            const fosEntryBeforePeriod = (e) => {
-              if (!pr) return false;
-              const cov = fosCovered(e);
-              if (cov) return !!periodMonths.length && cov < periodMonths[0];
-              const iso = String(e.recorded_at || "").slice(0, 10);
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
-              return iso < pr.from;
-            };
-            /* Month buckets (dues/set-asides booked per covered month) match by
-               their COVERED month; solo/release rows match by recorded date.
-               Unparseable dates are kept — reports must never silently drop
-               money. */
-            const fosBucketInPeriod = (g) => {
-              if (!pr) return true;
-              if (g.row_type === "month") {
-                const cov = fosYM(g.month);
-                if (!cov) return true;
-                return periodMonths.length ? periodMonths.indexOf(cov) !== -1 : true;
-              }
-              const iso = fosISO(g.date);
-              if (!iso) return true;
-              return iso >= pr.from && iso <= pr.to;
-            };
             /* Period money in/out + opening balance from the fund ledger, so
                opening + in − out always reconciles to the closing balance
                shown. Every movement is attributed EXACTLY once (covered month
