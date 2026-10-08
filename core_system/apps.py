@@ -15,6 +15,18 @@ class CoreSystemConfig(AppConfig):
         # Register the FundTransaction live-update broadcasts.
         from core_system import signals  # noqa: F401
 
+        # START.ps1 live-reload: watch *.html/*.js/*.css and auto-refresh
+        # the browser WITHOUT restarting the server. Dev-only: needs
+        # DEBUG + CAUFA_DEV_WATCH=1 (set by START.ps1) + runserver command,
+        # so Passenger/prod and all management commands are unaffected.
+        try:
+            if sys.argv[1:2] == ["runserver"]:
+                from core_system.dev_reload_watcher import maybe_start_dev_watcher
+
+                maybe_start_dev_watcher()
+        except Exception:
+            logger.exception("dev reload watcher failed to start")
+
         # Start the backup scheduler inside the web process so the daily
         # 12:00 AM DB backup — and the OTP/email queue drains — fire with a
         # plain `runserver` AND under Passenger/cPanel, with no second

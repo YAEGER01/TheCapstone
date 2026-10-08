@@ -784,3 +784,37 @@ class FundBalanceContractTests(TransparencyTestBase):
         data = self.client.get("/api/fund-balance/", **AJAX).json()
         for key in ("month_in", "month_out", "safety_threshold", "available"):
             self.assertIn(key, data)
+
+
+class MovementPaginationTests(TransparencyTestBase):
+    """Top-5 card default vs full Transactions view paging (limit/offset)."""
+
+    def setUp(self):
+        self.member_user = self._officer("Member", "mp_member")
+        self.recorder = self._officer("Treasurer", "mp_treasurer")
+        self.member = self._member(self.member_user)
+        self._login(self.member_user)
+        for i in range(7):
+            self._tx("inflow", "100.00", "other_transaction", f"Donation {i}",
+                     2031, 1, source_id=100 + i, ref=f"PAG-{i:03d}")
+
+    def test_default_is_top_five_with_total(self):
+        data = self.client.get("/api/member/fund/movements/", **AJAX).json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["movements"]), 5)
+        self.assertEqual(data["total"], 7)
+
+    def test_limit_and_offset_page_through_all(self):
+        first = self.client.get("/api/member/fund/movements/?limit=2&offset=0", **AJAX).json()
+        second = self.client.get("/api/member/fund/movements/?limit=2&offset=2", **AJAX).json()
+        third = self.client.get("/api/member/fund/movements/?limit=2&offset=6", **AJAX).json()
+        self.assertEqual([m["reference"] for m in first["movements"]], ["PAG-006", "PAG-005"])
+        self.assertEqual([m["reference"] for m in second["movements"]], ["PAG-004", "PAG-003"])
+        self.assertEqual(len(third["movements"]), 1)
+        self.assertEqual(first["total"], 7)
+
+    def test_limit_clamped_and_bad_values_safe(self):
+        data = self.client.get("/api/member/fund/movements/?limit=9999", **AJAX).json()
+        self.assertEqual(len(data["movements"]), 7)
+        data = self.client.get("/api/member/fund/movements/?limit=abc&offset=-5", **AJAX).json()
+        self.assertEqual(len(data["movements"]), 5)

@@ -187,6 +187,11 @@ class AssociationReportsTests(TestCase):
         self.assertNotIn("Ann Santos", names)  # only 200
         all_rows = self._preview("delinquency", min_amount="0")
         self.assertEqual(len(all_rows["rows"]), 2)
+        by_name = {r["member"]: r for r in all_rows["rows"]}
+        # Status is payment standing: latest owed month per member.
+        self.assertEqual(by_name["Bob Reyes"]["status"], "Still Unpaid as of January 2026")
+        self.assertEqual(by_name["Bob Reyes"]["oldest_month"], "December 2025")
+        self.assertEqual(by_name["Ann Santos"]["status"], "Still Unpaid as of February 2026")
 
     def test_collection_efficiency(self):
         report = self._preview("collection_efficiency", months="12")

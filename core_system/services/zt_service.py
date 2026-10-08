@@ -48,6 +48,50 @@ LEVEL_ORDER = {"none": 0, "soft": 1, "medium": 2, "hard": 3}
 # Signal extraction (server-observed + client-attested)
 # ---------------------------------------------------------------------------
 
+def get_client_ip(request) -> str:
+    """Best-effort client IP behind proxies (nginx / Cloudflare / Passenger).
+
+    Why this exists: the old code read only REMOTE_ADDR. Behind nginx
+    (deploy/nginx*.conf proxies to Daphne) REMOTE_ADDR is always 127.0.0.1,
+    and on local runserver it is 127.0.0.1 too — so a WiFi/hotspot move was
+    invisible and the network lock could never fire. Nginx overwrites
+    X-Real-IP with $remote_addr and appends to X-Forwarded-For, so prefer
+    the headers the proxy controls and fall back to REMOTE_ADDR.
+    NOTE: only trustworthy when a proxy you control sets/strips these
+    (same caveat as SECURE_PROXY_SSL_HEADER in settings.py). Never expose
+    Daphne/runserver directly to clients while trusting these headers.
+    """
+    try:
+        meta = getattr(request, "META", {}) or {}
+    except Exception:
+        return "0.0.0.0"
+
+    def _clean(value: str) -> str:
+        v = (value or "").strip()
+        if not v:
+            return ""
+        v = v.split(",")[0].strip()
+        if not v:
+            return ""
+        v = v.split()[0].strip()
+        # strip port ("1.2.3.4:1234", "[::1]:1234") and zone ("fe80::1%eth0")
+        if v.startswith("[") and "]" in v:
+            v = v[1:v.index("]")]
+        elif v.count(":") == 1 and v.count(".") == 3:
+            v = v.split(":")[0]
+        return v.split("%")[0].strip()
+
+    for header in ("HTTP_CF_CONNECTING_IP", "HTTP_TRUE_CLIENT_IP", "HTTP_X_REAL_IP"):
+        cleaned = _clean(meta.get(header, ""))
+        if cleaned and cleaned not in ("unknown", "undefined"):
+            return cleaned
+    xff = meta.get("HTTP_X_FORWARDED_FOR") or ""
+    for part in xff.split(","):
+        cleaned = _clean(part)
+        if cleaned and cleaned not in ("unknown", "undefined"):
+            return cleaned
+    return _clean(meta.get("REMOTE_ADDR", "")) or "0.0.0.0"
+
 _UA_BROWSERS = [
     ("Edg/", "Edge"),
     ("OPR/", "Opera"),
@@ -97,7 +141,7 @@ def baseline_fingerprint(request) -> dict:
     """Snapshot of server-observed signals, taken at login (and re-taken on
     successful hard verification or after a notified medium event)."""
     ua = parse_ua_family(request.META.get("HTTP_USER_AGENT", ""))
-    ip = request.META.get("REMOTE_ADDR") or "0.0.0.0"
+    ip = get_client_ip(request)
     lang = (request.META.get("HTTP_ACCEPT_LANGUAGE") or "").split(",")[0][:35]
     return {
         "ua_family": ua["family"],
@@ -225,7 +269,7 @@ def evaluate_zero_trust(session, request) -> dict:
         raise_to("hard", f"Device platform changed from {snapshot['ua_platform']}")
 
     # 2. Network drift (server-observed IP prefix)
-    ip_now = request.META.get("REMOTE_ADDR") or "0.0.0.0"
+    ip_now = get_client_ip(request)
     ip_net_now = ip_network_key(ip_now)
     ip_baseline = policy.get("zt_ip_baseline") or snapshot.get("ip_net")
     network_changed = bool(ip_baseline and ip_net_now and ip_net_now != ip_baseline)
@@ -370,7 +414,7 @@ def track_network_drift(session, request) -> dict:
     policy = _policy(session)
     snapshot = policy.get("zt_snapshot") or {}
     baseline = policy.get("zt_ip_baseline") or snapshot.get("ip_net")
-    ip_now = request.META.get("REMOTE_ADDR") or "0.0.0.0"
+    ip_now = get_client_ip(request)
     ip_net_now = ip_network_key(ip_now)
     out = {"state": "none", "from_net": baseline or "", "to_net": ip_net_now, "changes": []}
     if not baseline or not ip_net_now or ip_net_now == baseline:
@@ -578,7 +622,7 @@ def clear_lock(session, request, method: str) -> None:
         # The officer just proved identity on the NEW network: adopt it as
         # the baseline or the next request would lock the screen again.
         try:
-            ip_now = (request.META.get("REMOTE_ADDR") if request else None) or "0.0.0.0"
+            ip_now = (get_client_ip(request) if request else None) or "0.0.0.0"
         except Exception:
             ip_now = "0.0.0.0"
         policy["zt_ip_baseline"] = ip_network_key(ip_now)
@@ -656,7 +700,7 @@ def get_session_fingerprint(request, session) -> dict:
     IP address, device, and session duration.
     """
     return {
-        "ip": request.META.get("REMOTE_ADDR", "0.0.0.0"),
+        "ip": get_client_ip(request),
         "device": request.META.get("HTTP_USER_AGENT", "Unknown")[:255],
         "logged_in_since": session.issued_at.isoformat(),
         "session_id": session.token_id[:12] + "...",

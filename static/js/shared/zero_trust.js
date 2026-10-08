@@ -120,9 +120,15 @@
     if (typeof data.masked_email === "string") state.maskedEmail = data.masked_email;
     if (typeof data.lock_note === "string") state.lockNote = data.lock_note;
     if (data.lock_idle_seconds > 0) {
-      // Superadmin-editable: rearm the idle timer with the current setting.
-      IDLE_LOCK_MS = data.lock_idle_seconds * 1000;
-      resetIdleTimer();
+      // Superadmin-editable: adopt a CHANGED setting without re-arming the
+      // countdown on every poll. Re-arming here pushed the idle lock out
+      // forever while the dashboard kept polling (30s poll vs 2-min lock),
+      // so an open dashboard could never lock. Input events still re-arm.
+      var idleMs = data.lock_idle_seconds * 1000;
+      if (idleMs !== IDLE_LOCK_MS) {
+        IDLE_LOCK_MS = idleMs;
+        resetIdleTimer();
+      }
     }
     if (data.lock_auto_signout_seconds > 0) {
       // Superadmin-editable: how long a locked screen gets before sign-out.

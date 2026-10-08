@@ -2979,12 +2979,14 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
     """Treasurer 'Other Transaction' deposit/withdraw feature: booking,
     Fund Overview reflection, proof receipt storage/serving, role guard."""
 
-    def _record(self, amount, action, description="", proof=None):
+    def _record(self, amount, action, description="", proof=None, purpose=""):
         data = {"amount": amount, "action": action}
         if description:
             data["description"] = description
         if proof is not None:
             data["proof_receipt"] = proof
+        if purpose:
+            data["purpose"] = purpose
         return self.client.post(
             "/api/treasurer/other-transactions/record/",
             data=data,
@@ -3033,6 +3035,64 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
         self.assertIn("other_transaction", sources)
         other_row = next(r for r in ov["outflow_breakdown"] if r["source"] == "other_transaction")
         self.assertEqual(float(other_row["total"]), 250.5)
+
+    def test_withdraw_purpose_folds_into_description(self):
+        self._login_treasurer()
+        res = self._record("100.00", "withdraw", description="Lunch meeting", purpose="Meal")
+        self.assertEqual(res.status_code, 200, res.content)
+        tx = FundTransaction.objects.get(source_type="other_transaction")
+        self.assertIn("[Meal]", tx.description)
+        self.assertIn("Lunch meeting", tx.description)
+        # Counterparty parsing still works alongside the purpose tag.
+        res = self.client.post(
+            "/api/treasurer/other-transactions/record/",
+            data={"amount": "50.00", "action": "withdraw", "recipient": "Echague aid", "purpose": "Emergency"},
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        d = res.json()["transaction"]
+        self.assertEqual(d["recipient"], "Echague aid")
+        self.assertIn("[Emergency]", d["description"])
+
+    def test_purpose_rejected_for_deposit_or_bad_value(self):
+        self._login_treasurer()
+        res = self._record("100.00", "deposit", purpose="Meal")
+        self.assertEqual(res.status_code, 400)
+        res = self._record("100.00", "withdraw", purpose="[Hacked]")
+        self.assertEqual(res.status_code, 400)
+        res = self._record("100.00", "withdraw", purpose="x" * 61)
+        self.assertEqual(res.status_code, 400)
+
+    def test_aid_type_folds_medical_death(self):
+        self._login_treasurer()
+        res = self.client.post(
+            "/api/treasurer/other-transactions/record/",
+            data={"amount": "500.00", "action": "withdraw", "recipient": "Juan Cruz (EMP-001)",
+                  "purpose": "Aid", "aid_type": "Medical", "description": "Hospital bill"},
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        d = res.json()["transaction"]
+        self.assertEqual(d["recipient"], "Juan Cruz (EMP-001)")
+        self.assertIn("[Aid - Medical]", d["description"])
+        res = self.client.post(
+            "/api/treasurer/other-transactions/record/",
+            data={"amount": "300.00", "action": "withdraw", "recipient": "Other Campus family",
+                  "purpose": "Aid", "aid_type": "Death"},
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertIn("[Aid - Death]", res.json()["transaction"]["description"])
+        # Aid type without Aid purpose, or a bad value, is rejected.
+        res = self._record("100.00", "withdraw", purpose="Meal", )
+        self.assertEqual(res.status_code, 200)
+        res = self.client.post(
+            "/api/treasurer/other-transactions/record/",
+            data={"amount": "100.00", "action": "withdraw", "purpose": "Meal", "aid_type": "Medical"},
+        )
+        self.assertEqual(res.status_code, 400)
+        res = self.client.post(
+            "/api/treasurer/other-transactions/record/",
+            data={"amount": "100.00", "action": "withdraw", "purpose": "Aid", "aid_type": "Surgery"},
+        )
+        self.assertEqual(res.status_code, 400)
 
     def test_proof_receipt_uploaded_and_served(self):
         self._login_treasurer()

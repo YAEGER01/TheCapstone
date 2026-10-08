@@ -1,0 +1,253 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ISUCauFA | Sign-in Backup Options</title>
+    <link rel="icon" type="image/png" href="{% static 'img/isu_caufa_official.png' %}" />
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}" />
+    <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/login-improved.css' %}" />
+    <style>
+      .sec-page { max-width: 640px; margin: 32px auto; padding: 0 16px 48px; }
+      .sec-card { background: #fff; border: 1px solid #e3e8e3; border-radius: 14px; padding: 20px; margin-top: 16px; box-shadow: 0 2px 10px rgba(27,94,32,.06); }
+      .sec-card h2 { margin: 0 0 6px; font-size: 16px; color: #1b5e20; }
+      .sec-card p { margin: 6px 0; font-size: 13.5px; color: #37474f; line-height: 1.55; }
+      .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+      .pill.on { background: #e8f5e9; color: #1b5e20; }
+      .pill.off { background: #f5f5f5; color: #757575; }
+      .sec-qr { max-width: 220px; border: 1px solid #dfe5df; border-radius: 10px; margin: 12px 0; }
+      .manual-key { font-family: monospace; font-size: 15px; background: #f1f5f1; padding: 8px 12px; border-radius: 8px; word-break: break-all; }
+      .backup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-family: monospace; font-size: 14px; margin: 10px 0; }
+      .sec-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .btn-sec { font-size: 13px; font-weight: 700; padding: 9px 18px; border-radius: 10px; cursor: pointer; border: 1px solid #1b5e20; }
+      .btn-sec.primary { background: #1b5e20; color: #fff; }
+      .btn-sec.ghost { background: #fff; color: #1b5e20; }
+      .btn-sec.danger { border-color: #c62828; color: #c62828; background: #fff; }
+      .btn-sec:disabled { opacity: .55; cursor: wait; }
+      .sec-input { width: 100%; padding: 10px 12px; border: 1px solid #cfd8cf; border-radius: 10px; font-size: 16px; letter-spacing: 2px; }
+      .sec-note { font-size: 12px; color: #78909c; }
+      .sec-alert { border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; display: none; }
+      .sec-alert.err { display: block; background: #fdecea; color: #b71c1c; }
+      .sec-alert.ok { display: block; background: #e8f5e9; color: #1b5e20; }
+    </style>
+  </head>
+  <body>
+    <div class="sec-page">
+      <p class="sec-note"><a href="javascript:history.back()" style="color:inherit;font-weight:700;">&larr; Back</a></p>
+      <h1 style="color:#1b5e20;margin:8px 0 0;">Sign-in backup options</h1>
+      <p class="sec-note">If the email code can't reach you, these fallbacks still let you sign in securely.</p>
+
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-envelope"></i> Email code <span class="pill on">Always on</span></h2>
+        <p>Every sign-in sends a 6-digit code to <strong>{{ masked_email }}</strong>. Codes rotate every 30 seconds and stay valid for 5 minutes.</p>
+      </div>
+
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-bell"></i> Push notification code
+          {% if has_push %}<span class="pill on">{{ push_count }} device{{ push_count|pluralize }} ready</span>
+          {% else %}<span class="pill off">Not enabled</span>{% endif %}
+        </h2>
+        <p>When email delivery fails, the same code can be pushed to your signed-in devices instead. Push needs internet on both ends — it covers Gmail outages, not a dead connection.</p>
+        <div class="sec-row">
+          <button class="btn-sec ghost" type="button" id="pushEnableBtn"><i class="fa-solid fa-bell"></i> Enable push on this device</button>
+        </div>
+        <p class="sec-note" id="pushState">Allow notifications when the browser asks, then this device can receive login codes.</p>
+      </div>
+
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-key"></i> Backup codes (no app needed)
+          {% if backup_remaining %}<span class="pill on">{{ backup_remaining }} unused</span>
+          {% else %}<span class="pill off">None saved</span>{% endif %}
+        </h2>
+        <p>10 one-time codes for when email <em>and</em> push both fail — no authenticator app required. Each works once. Shown <strong>exactly once</strong>: save them before closing.</p>
+        <div class="sec-row">
+          <button class="btn-sec primary" type="button" id="standaloneBtn">Get backup codes</button>
+        </div>
+        <div class="sec-alert" id="standaloneMsg"></div>
+        <div class="backup-grid" id="standaloneCodes" style="display:none;"></div>
+      </div>
+
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-mobile-screen"></i> Authenticator app (works offline)
+          {% if auth_app_enabled %}<span class="pill on">Enabled{% if auth_enrolled_at %} since {{ auth_enrolled_at|date:"M d, Y" }}{% endif %}</span>
+          {% else %}<span class="pill off">Not set up</span>{% endif %}
+        </h2>
+        <p>Google Authenticator, Microsoft Authenticator, or any TOTP app generates a rotating 6-digit code <strong>on your phone with no internet needed</strong>. Type it into the same login box. This is the fallback to set up before you need it.</p>
+
+        <div id="authEnrolled" {% if not auth_app_enabled %}style="display:none;"{% endif %}>
+          <p>Backup codes remaining: <strong id="backupCount">{{ backup_remaining }}</strong> (each works once).</p>
+          <div class="sec-row">
+            <button class="btn-sec ghost" type="button" id="regenBtn">Generate new backup codes</button>
+            <button class="btn-sec danger" type="button" id="authDisableBtn">Remove authenticator</button>
+          </div>
+          <div class="sec-alert" id="enrolledMsg"></div>
+          <div class="backup-grid" id="newBackupCodes" style="display:none;"></div>
+        </div>
+
+        <div id="authEnroll" {% if auth_app_enabled %}style="display:none;"{% endif %}>
+          <div class="sec-row">
+            <button class="btn-sec primary" type="button" id="enrollBtn"><i class="fa-solid fa-qrcode"></i> Set up authenticator app</button>
+          </div>
+          <div id="qrBlock" style="display:none;">
+            <p><strong>1.</strong> Open your authenticator app and scan this code (or enter the key below manually):</p>
+            <img class="sec-qr" id="qrImg" alt="Authenticator QR code" />
+            <div class="manual-key" id="manualKey"></div>
+            <p style="margin-top:12px;"><strong>2.</strong> Type the current 6-digit code from the app to confirm:</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input class="sec-input" id="confirmCode" inputmode="numeric" maxlength="6" placeholder="000000" style="max-width:180px;" />
+              <button class="btn-sec primary" type="button" id="confirmBtn">Confirm &amp; enable</button>
+            </div>
+            <p class="sec-note">You'll get 10 one-time backup codes — save them somewhere safe (they show only once).</p>
+          </div>
+          <div class="backup-grid" id="freshBackupCodes" style="display:none;"></div>
+          <div class="sec-alert" id="enrollMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    {% csrf_token %}
+    <script>
+      window.VAPID_PUBLIC_KEY = "{{ vapid_public_key|escapejs }}";
+      window.PUSH_RECIPIENT_TYPE = "officer";
+    </script>
+    <script defer src="{% static 'js/push-init.js' %}"></script>
+    <script>
+      (function () {
+        function csrf() {
+          var el = document.querySelector("[name=csrfmiddlewaretoken]");
+          return el ? el.value : "";
+        }
+        function post(url, params) {
+          return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": csrf() },
+            body: new URLSearchParams(params || {}),
+          }).then(function (r) { return r.json(); });
+        }
+        function flash(el, ok, msg) {
+          el.className = "sec-alert " + (ok ? "ok" : "err");
+          el.textContent = msg;
+        }
+
+        var pushBtn = document.getElementById("pushEnableBtn");
+        var pushState = document.getElementById("pushState");
+        pushBtn.addEventListener("click", function () {
+          if (typeof window.requestPushPermission === "function") {
+            window.requestPushPermission();
+            pushState.textContent = "Follow the browser prompt. Reload this page afterwards to see the updated status.";
+          } else {
+            pushState.textContent = "Push setup is still loading — wait a moment and try again.";
+          }
+        });
+
+        var enrollBtn = document.getElementById("enrollBtn");
+        var qrBlock = document.getElementById("qrBlock");
+        var enrollMsg = document.getElementById("enrollMsg");
+        if (enrollBtn) {
+          enrollBtn.addEventListener("click", function () {
+            enrollBtn.disabled = true;
+            fetch("/api/auth/authenticator/setup/").then(function (r) { return r.json(); }).then(function (d) {
+              enrollBtn.disabled = false;
+              if (!d.ok) { flash(enrollMsg, false, d.error || "Setup failed."); return; }
+              if (d.enabled) { location.reload(); return; }
+              qrBlock.style.display = "";
+              if (d.qr_data_uri) {
+                document.getElementById("qrImg").src = d.qr_data_uri;
+              } else {
+                document.getElementById("qrImg").alt = "QR unavailable — enter the key below manually";
+                document.getElementById("qrImg").style.display = "none";
+                flash(enrollMsg, true, "QR image unavailable on the server — type the key below into your app manually, then confirm.");
+              }
+              document.getElementById("manualKey").textContent = d.manual_key || "";
+            }).catch(function () {
+              enrollBtn.disabled = false;
+              flash(enrollMsg, false, "Network error. Try again.");
+            });
+          });
+        }
+
+        var confirmBtn = document.getElementById("confirmBtn");
+        if (confirmBtn) {
+          confirmBtn.addEventListener("click", function () {
+            var code = document.getElementById("confirmCode").value.trim();
+            if (!/^\d{6}$/.test(code)) { flash(enrollMsg, false, "Enter the 6-digit code from your app."); return; }
+            confirmBtn.disabled = true;
+            post("/api/auth/authenticator/confirm/", { code: code }).then(function (d) {
+              confirmBtn.disabled = false;
+              if (!d.ok) { flash(enrollMsg, false, d.error || "That code doesn't match."); return; }
+              flash(enrollMsg, true, "Authenticator enabled! Save these backup codes now — each works once and they won't be shown again.");
+              var grid = document.getElementById("freshBackupCodes");
+              grid.style.display = "grid";
+              grid.innerHTML = (d.backup_codes || []).map(function (c) { return "<span>" + c + "</span>"; }).join("");
+              setTimeout(function () { location.reload(); }, 15000);
+            }).catch(function () {
+              confirmBtn.disabled = false;
+              flash(enrollMsg, false, "Network error. Try again.");
+            });
+          });
+        }
+
+        var disableBtn = document.getElementById("authDisableBtn");
+        var enrolledMsg = document.getElementById("enrolledMsg");
+        if (disableBtn) {
+          disableBtn.addEventListener("click", function () {
+            if (!confirm("Remove the authenticator fallback? Email codes keep working.")) return;
+            post("/api/auth/authenticator/disable/", {}).then(function (d) {
+              if (d.ok) location.reload();
+              else flash(enrolledMsg, false, d.error || "Could not remove.");
+            });
+          });
+        }
+
+        var regenBtn = document.getElementById("regenBtn");
+        if (regenBtn) {
+          regenBtn.addEventListener("click", function () {
+            if (!confirm("Generate 10 new backup codes? Old unused codes stop working.")) return;
+            post("/api/auth/authenticator/backup-codes/", {}).then(function (d) {
+              if (!d.ok) { flash(enrolledMsg, false, d.error || "Could not generate."); return; }
+              flash(enrolledMsg, true, "New backup codes — save them now. Old codes no longer work.");
+              var grid = document.getElementById("newBackupCodes");
+              grid.style.display = "grid";
+              grid.innerHTML = (d.backup_codes || []).map(function (c) { return "<span>" + c + "</span>"; }).join("");
+              document.getElementById("backupCount").textContent = (d.backup_codes || []).length;
+            });
+          });
+        }
+
+        // Standalone issuance: no authenticator needed. 409 = unused codes
+        // exist → ask once, then re-post with replace=true.
+        var standaloneBtn = document.getElementById("standaloneBtn");
+        var standaloneMsg = document.getElementById("standaloneMsg");
+        if (standaloneBtn) {
+          standaloneBtn.addEventListener("click", function () {
+            standaloneBtn.disabled = true;
+            post("/api/auth/backup-codes/issue/", {}).then(function (d) {
+              if (!d.ok && d.needs_replace_confirm) {
+                standaloneBtn.disabled = false;
+                if (confirm(d.error || "Replace existing codes?")) {
+                  standaloneBtn.disabled = true;
+                  post("/api/auth/backup-codes/issue/", { replace: "true" }).then(showStandalone);
+                }
+                return;
+              }
+              showStandalone(d);
+            }).catch(function () {
+              standaloneBtn.disabled = false;
+              flash(standaloneMsg, false, "Network error. Try again.");
+            });
+          });
+          function showStandalone(d) {
+            standaloneBtn.disabled = false;
+            if (!d.ok) { flash(standaloneMsg, false, d.error || "Could not generate."); return; }
+            flash(standaloneMsg, true, "Save these now — each works once and they won't be shown again.");
+            var grid = document.getElementById("standaloneCodes");
+            grid.style.display = "grid";
+            grid.innerHTML = (d.backup_codes || []).map(function (c) { return "<span>" + c + "</span>"; }).join("");
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -903,6 +903,11 @@ urlpatterns = [
         name="treasurer_approved_aid_posts",
     ),
     path(
+        "api/treasurer/aid-release/unfiled-setasides/",
+        treasurer_views.treasurer_unfiled_setasides,
+        name="treasurer_unfiled_setasides",
+    ),
+    path(
         "api/treasurer/aid-post-members/<int:post_id>/",
         treasurer_views.treasurer_aid_post_members,
         name="treasurer_aid_post_members",
@@ -1220,6 +1225,17 @@ urlpatterns = [
     path("api/auth/mfa/challenge/", auth_views.mfa_challenge, name="mfa_challenge"),
     path("api/auth/mfa/status/", auth_views.mfa_delivery_status, name="mfa_delivery_status"),
     path("api/auth/mfa/verify/", auth_views.mfa_verify, name="mfa_verify"),
+    path("api/auth/mfa/push/", auth_views.mfa_push_fallback, name="mfa_push_fallback"),
+    # Authenticator-app offline fallback + recovery codes (self-service).
+    path("api/auth/authenticator/setup/", auth_views.authenticator_setup, name="authenticator_setup"),
+    path("api/auth/authenticator/confirm/", auth_views.authenticator_confirm, name="authenticator_confirm"),
+    path("api/auth/authenticator/disable/", auth_views.authenticator_disable, name="authenticator_disable"),
+    path("api/auth/authenticator/backup-codes/", auth_views.authenticator_backup_codes_regenerate, name="authenticator_backup_codes"),
+    # Standalone backup codes (no authenticator needed) + first-login reveal.
+    path("api/auth/backup-codes/issue/", auth_views.backup_codes_issue, name="backup_codes_issue"),
+    path("api/auth/backup-codes/reveal/", auth_views.backup_codes_reveal, name="backup_codes_reveal"),
+    path("api/auth/backup-status/", auth_views.backup_status, name="backup_status"),
+    path("settings/security/", auth_views.security_settings_page, name="security_settings"),
     path("mfa/challenge/", auth_views.mfa_challenge_page, name="mfa_challenge_page"),
     path("api/auth/zero-trust/challenge/", auth_views.zero_trust_challenge, name="zero_trust_challenge"),
     path("api/auth/zero-trust/verify/", auth_views.zero_trust_verify, name="zero_trust_verify"),

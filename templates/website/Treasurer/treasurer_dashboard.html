@@ -3174,7 +3174,11 @@
   .rpt-doc .rptd-title{text-align:center;font-size:16px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:12px 0 2px;}
   .rpt-doc .rptd-period{text-align:center;font-size:12px;color:#333;margin-bottom:12px;}
   .rpt-doc table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;}
-  .rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:center !important;}
+  /* Official sheet tables: TEXT left, NUMERICALS right. Cells carry
+     explicit inline alignment from the renderer; this is only the fallback
+     default — deliberately NO !important, so inline styles always win
+     (a center !important here would pin every cell centered). */
+  .rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:left;}
   .rpt-doc th{background:#e8efe9;font-weight:700;}
   .rpt-doc tr.total td{font-weight:700;background:#f2f2f2;}
   .rpt-doc .rptd-sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#1e5c38;color:#fff;padding:4px 9px;margin:14px 0 7px;}
@@ -3952,6 +3956,7 @@
   <div class="nav-group-title">SYSTEM</div>
   <div class="nav-item menu-item" data-target="view-audit-trail" onclick="window.setActiveModule('view-audit-trail')"><span class="ico"><i class="fas fa-clipboard-list"></i></span><span class="menu-text">Audit Trail</span></div>
   <div class="nav-item menu-item" data-target="view-help" onclick="window.setActiveModule('view-help')"><span class="ico"><i class="fas fa-circle-question"></i></span><span class="menu-text">Help</span></div>
+  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Backup sign-in codes"><span class="ico"><i class="fas fa-key"></i></span><span class="menu-text">Backup sign-in codes</span></div>
   <div class="nav-item menu-item" onclick="confirmLogout()" title="Logout"><span class="ico"><i class="fas fa-right-from-bracket"></i></span><span class="menu-text">Logout</span></div>
 
   <!-- Hidden dot IDs for production JS backward compat (folder aggregates) -->
@@ -4085,6 +4090,7 @@
             <ul class="hn-menu">
               <li><button type="button" class="hn-item" data-target="view-audit-trail"><i class="fas fa-clipboard-list"></i>Audit Trail</button></li>
               <li><button type="button" class="hn-item" data-target="view-help"><i class="fas fa-circle-question"></i>Help</button></li>
+              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-key"></i>Backup sign-in codes</button></li>
               <li><button type="button" class="hn-item" data-hn-logout="1"><i class="fas fa-right-from-bracket"></i>Logout</button></li>
             </ul>
           </div>
@@ -5271,6 +5277,7 @@
               #fund-timeline .ft-item:last-child { border-bottom:none; }
               #fund-timeline .ft-item-desc { min-width:0; }
               #fund-timeline .ft-item-desc .ft-desc { display:block; font-size:0.84rem; font-weight:600; color:#263238; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+              #fund-timeline .ft-item-desc .ft-recip { display:block; font-size:0.72rem; font-weight:700; color:#00695c; }
               #fund-timeline .ft-item-desc .ft-meta { display:block; font-size:0.7rem; color:#8a949e; }
               #fund-timeline .ft-pos-mini { color:#4b7a52; font-weight:600; }
               #fund-timeline .ft-amt { font-weight:800; font-size:0.86rem; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -5399,11 +5406,24 @@
                 <div id="ot-once-fields">
                   <label class="ot-label" style="margin-top:18px;">Transaction Type</label>
                   <div class="ot-type-toggle">
-                    <button type="button" class="ot-type-btn is-selected" data-action="deposit">Receipt (Fund Deposit) <span class="ot-type-hint">credits general fund</span></button>
-                    <button type="button" class="ot-type-btn" data-action="withdraw">Disbursement (Fund Withdrawal) <span class="ot-type-hint">debits general fund</span></button>
+                    <button type="button" class="ot-type-btn is-selected" data-action="deposit">DEPOSIT <span class="ot-type-hint">credits general fund</span></button>
+                    <button type="button" class="ot-type-btn" data-action="withdraw">WITHDRAWALS <span class="ot-type-hint">debits general fund</span></button>
                   </div>
 
-                  <label class="ot-label" style="margin-top:18px;">Notes / Purpose<span class="ot-info" tabindex="0" aria-label="More info about Notes / Purpose">i<span class="ot-info-tip">e.g. Bank transfer receipt, office desk purchase, ...</span></span></label>
+                  <div id="ot-purpose-wrap" style="display:none;">
+                    <label class="ot-label" for="ot-purpose" style="margin-top:18px;">Purpose<span class="ot-info" tabindex="0" aria-label="More info about Purpose">i<span class="ot-info-tip">What the withdrawal is for — recorded with the transaction.</span></span></label>
+                    <select id="ot-purpose" class="form-control">
+                      <option value="">Select purpose…</option>
+                      <option value="Meal">Meal</option>
+                      <option value="Emergency">Emergency</option>
+                      <option value="Aid">Aid</option>
+                      <option value="Token">Token</option>
+                      <option value="__others__">Others…</option>
+                    </select>
+                    <input type="text" id="ot-purpose-custom" class="form-control" maxlength="60" placeholder="Type custom purpose, press Enter" style="display:none;margin-top:8px;" />
+                  </div>
+
+                  <label class="ot-label" style="margin-top:18px;">Notes (optional)<span class="ot-info" tabindex="0" aria-label="More info about Notes">i<span class="ot-info-tip">e.g. Bank transfer receipt, office desk purchase, ...</span></span></label>
                   <input type="text" id="ot-description" class="form-control" maxlength="255"/>
 
                   <div id="ot-donor-wrap">
@@ -5412,8 +5432,32 @@
                   </div>
 
                   <div id="ot-recipient-wrap" style="display:none;">
-                    <label class="ot-label" for="ot-recipient" style="margin-top:18px;">Recipient / Donee<span class="ot-info" tabindex="0" aria-label="More info about Recipient / Donee">i<span class="ot-info-tip">Who receives this (e.g. other campus, aid recipient) — e.g. ISU Echague Campus aid, ...</span></span></label>
+                    <label class="ot-label" style="margin-top:18px;">Recipient / Donee<span class="ot-info" tabindex="0" aria-label="More info about Recipient / Donee">i<span class="ot-info-tip">Who receives this — options change with the purpose above.</span></span></label>
                     <input type="text" id="ot-recipient" class="form-control" maxlength="120" placeholder="e.g. ISU Echague Campus aid, ..." />
+                    <div id="ot-recipient-meal-wrap" style="display:none;">
+                      <select id="ot-recipient-meal" class="form-control">
+                        <option value="">Who receives it…</option>
+                        <option value="ISUCauFA (Whole Organization)">ISUCauFA (Whole Organization)</option>
+                        <option value="__others__">Others (specify)…</option>
+                      </select>
+                      <input type="text" id="ot-recipient-meal-custom" class="form-control" maxlength="120" placeholder="Specify recipient, press Enter" style="display:none;margin-top:8px;" />
+                    </div>
+                    <div id="ot-recipient-aid-wrap" style="display:none;">
+                      <select id="ot-aid-type" class="form-control">
+                        <option value="">Aid type…</option>
+                        <option value="Medical">Medical</option>
+                        <option value="Death">Death</option>
+                      </select>
+                      <div id="ot-aid-medical-wrap" style="display:none;margin-top:8px;">
+                        <input type="text" id="ot-member-search" class="form-control" maxlength="60" placeholder="Search member name or ID…" />
+                        <select id="ot-recipient-member" class="form-control" style="margin-top:8px;">
+                          <option value="">Select member…</option>
+                        </select>
+                      </div>
+                      <div id="ot-aid-death-wrap" style="display:none;margin-top:8px;">
+                        <input type="text" id="ot-recipient-external" class="form-control" maxlength="120" placeholder="External beneficiary — e.g. Other Campus family" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -9625,7 +9669,7 @@
       </div>
       <div style="text-align:right;margin-left:auto;display:flex;gap:24px;align-items:flex-start;">
         <div>
-          <div style="font-size:0.72rem;color:#757575;text-transform:uppercase;letter-spacing:0.4px;">Fund Balance</div>
+          <div style="font-size:0.72rem;color:#757575;text-transform:uppercase;letter-spacing:0.4px;">Cash on Hand</div>
           <div id="nxFundBalance" style="font-weight:700;color:#1b5e20;font-size:1.1rem;">—</div>
         </div>
         <div>
@@ -9641,6 +9685,21 @@
       <table class="data">
         <thead><tr><th>Type</th><th>Member</th><th>Status</th><th>Action</th></tr></thead>
         <tbody id="nxReleaseBody"><tr><td colspan="4"><div class="empty-state">Loading...</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="pd-card" style="margin-top:16px;">
+    <div class="pd-card-head">
+      <div>
+        <div class="pd-card-title">UNFILED AIDS</div>
+        <div class="pd-card-sub">Aid cases not yet filed for release — recipient and earmarked set-aside per case. File them from the Members Aid Queue once collection is complete.</div>
+      </div>
+      <button type="button" class="btn-brand btn-refresh" onclick="nxLoadReleases()">REFRESH</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Recipient</th><th>Aid Case</th><th>Status</th><th>Collected</th><th>Set-Aside</th></tr></thead>
+        <tbody id="nxUnfiledBody"><tr><td colspan="5"><div class="empty-state">Loading...</div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -9754,10 +9813,10 @@
     <script src="{% static 'js/Treasurer/death_aid_returned.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/Treasurer/aid_filing.js' %}?v=20260930af1"></script>
     <script src="{% static 'js/Treasurer/returned_claims.js' %}?v=20260912rc9"></script>
-    <script src="{% static 'js/Treasurer/monthly_deduction.js' %}?v=20261004mdp97"></script>
+    <script src="{% static 'js/Treasurer/monthly_deduction.js' %}?v=20261007mdp98"></script>
     <script src="{% static 'js/shared/member_ledger_history.js' %}?v=20260913mlh8"></script>
     <script src="{% static 'js/shared/fund_overview.js' %}?v=20260913fx13"></script>
-                    <script src="{% static 'js/Treasurer/other_transactions.js' %}?v=20260924ot9"></script>
+                     <script src="{% static 'js/Treasurer/other_transactions.js' %}?v=20261006ot12"></script>
     <script src="{% static 'js/Treasurer/due_deposit.js' %}?v=20260925dd1"></script>
 
     <script>
@@ -12386,7 +12445,7 @@
              <div style="font-size:20px;font-weight:800;margin-top:4px;color:#b71c1c;">−${frPeso(outSum)}</div>
            </div>
            <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);border-radius:12px;padding:16px;color:#fff;">
-             <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.85;">Current Balance</div>
+              <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.85;">Cash on Hand</div>
              <div style="font-size:20px;font-weight:800;margin-top:4px;">${frPeso(balance)}</div>
            </div>`;
         frRenderTrendChart(monthlyIn, monthlyOut);
@@ -13094,7 +13153,7 @@
             paidBtn.disabled = isLocked || !fundsOk;
             paidBtn.style.opacity = (isLocked || !fundsOk) ? "0.5" : "";
             paidBtn.style.cursor = (isLocked || !fundsOk) ? "not-allowed" : "";
-            paidBtn.title = fundsOk ? "" : "Insufficient funds — fund balance must cover the payout plus the safety threshold";
+            paidBtn.title = fundsOk ? "" : "Insufficient funds — cash on hand must cover the payout plus the safety threshold";
           }
           var startBtn = rcGetEl("rcStartCollectBtn");
           if (startBtn) startBtn.disabled = false;
@@ -13927,6 +13986,7 @@
     <script src="{% static 'js/Treasurer/audit_trail.js' %}?v=20260902bust5"></script>
     <script>window.VAPID_PUBLIC_KEY = "BM6l9llDodZefTcQFVHNfe_8q7TRTXkVH9Ipw927BuVLX1t5cgGcH1erFmRZt3SxDqMWp0WP_4e35-96KmBeBeE"; window.PUSH_RECIPIENT_TYPE = "officer";</script>
     <script src="{% static 'js/push-init.js' %}?v=20260921push3"></script>
+    <script defer src="{% static 'js/backup-nudge.js' %}?v=20261006bn2"></script>
 
     <div
       id="auditTrailModal"
@@ -15104,7 +15164,7 @@
         });
       })();
     </script>
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20260927zt5"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
     {% include "website/shared/zt_badge.html" %}
   <script>
 (function(){
@@ -15520,22 +15580,6 @@
           rptRun(false);
         }).catch(e => { if (window.showToast) window.showToast(e.message || "Could not save budget.", true); });
       };
-      function rptEnsureJournal(from, to) {
-        const key = (from || "") + ".." + (to || "");
-        const slot = RPT.cache.journal[key];
-        if (slot) return slot;
-        RPT.cache.journal[key] = { pending: true };
-        let url = "/api/fund-ledger/?per_page=1000";
-        if (from) url += "&date_from=" + encodeURIComponent(from) + "&opening_before=" + encodeURIComponent(from);
-        if (to) url += "&date_to=" + encodeURIComponent(to);
-        fetchJSON(url).then(d => {
-          RPT.cache.journal[key] = (d && Array.isArray(d.items))
-            ? { items: d.items, total: d.total || d.items.length, opening: Number((d.summary && d.summary.opening) || 0) }
-            : { items: null, total: 0, opening: 0 };
-          rptRun(false);
-        }).catch(() => { RPT.cache.journal[key] = { items: null, total: 0, opening: 0 }; rptRun(false); });
-        return RPT.cache.journal[key];
-      }
       /* Member deduction ledger (Month / Expected / Deducted / Balance /
          Status) fetched on demand from the Monthly Deduction module and cached
          per member — rptRun re-renders when the fetch lands. */
@@ -15561,7 +15605,12 @@
       function rptStandingFor(months) {
         const set = months && months.length ? months : null;
         const per = {};
-        (RPT.cache.assessments || []).forEach(a => {
+        /* Assessments arrive newest-first (Meta ordering "-month") — walk
+           oldest-first so the LATEST record per member truly wins (a plain
+           forEach overwrite would leave each member's OLDEST month). */
+        const ordered = (RPT.cache.assessments || []).slice().sort((a, b) =>
+          String(a.month || "").localeCompare(String(b.month || "")));
+        ordered.forEach(a => {
           if (set && set.indexOf(String(a.month || "").slice(0, 7)) === -1) return;
           const hm = RPT.cache.heatmaps[a.assessment_id];
           if (!hm || !hm.notify_allowed) return;
@@ -15996,10 +16045,14 @@
               });
               deptFull += Number((hm.totals || {}).full || 0);
             });
-            /* Count columns only — the report intentionally carries NO rate. */
+            /* Count columns only — the report intentionally carries NO rate.
+               Counts travel as STRINGS: the generic sheet/submit formatters
+               peso-format any numeric key containing "paid" (paid, unpaid) —
+               but these are headcounts (3 members), never pesos (₱3). */
             const rows = Object.keys(merged).sort().map(k => ({
-              department: k, members: merged[k].members,
-              paid: merged[k].full, partial: merged[k].partial, unpaid: merged[k].zero + merged[k].pending,
+              department: k, members: String(merged[k].members),
+              paid: String(merged[k].full), partial: String(merged[k].partial),
+              unpaid: String(merged[k].zero + merged[k].pending),
             }));
             return { rows, summary: [
               { item: pickedDepts.length > 1 ? "Period" : "Month", value: periodName },
@@ -16163,7 +16216,7 @@
               member: d.member_name || "—", college: rptDeptFor(d.member_id) || "—", month: d.month || "",
               expected: rptNum(d.amount), deducted: rptNum(d.amount), owed: 0, st: "full",
             }));
-            const fullRows = fullSrc.filter(m => m.st === "full" || (Number(m.owed) <= 0 && Number(m.deducted) > 0)).map(m => ({
+            const fullRows = fullSrc.filter(m => String(m.st || "") !== "retired" && Number(m.owed) <= 0 && (m.st === "full" || Number(m.deducted) > 0 || Number(m.expected) > 0)).map(m => ({
               member: rptPersonName(m.member), college: m.college || "—", month: m.month || "—",
               expected: Number(m.expected) || 0, deducted: Number(m.deducted) || 0, owed: Number(m.owed) || 0,
               status: "Fully Paid",
@@ -16182,7 +16235,10 @@
               member: d.member_name || "—", college: rptDeptFor(d.member_id) || "—", month: d.month || "",
               expected: rptNum(d.amount), deducted: rptNum(d.amount) / 2, owed: rptNum(d.amount) / 2, st: "partial",
             }));
-            const partRows = partSrc.filter(m => m.st === "partial").map(m => ({
+            /* Owes something AND paid something — including "full"-status
+               rows carrying a prior balance (paid this month, still owes
+               last month's). Retired rows owe nothing further. */
+            const partRows = partSrc.filter(m => String(m.st || "") !== "retired" && Number(m.owed) > 0 && Number(m.deducted) > 0).map(m => ({
               member: rptPersonName(m.member), college: m.college || "—", month: m.month || "—",
               expected: Number(m.expected) || 0, deducted: Number(m.deducted) || 0, owed: Number(m.owed) || 0,
               status: "Partially Paid",
@@ -16205,16 +16261,32 @@
               member: d.member_name || "—", college: rptDeptFor(d.member_id) || "—", month: d.month || "",
               expected: rptNum(d.amount), deducted: 0, owed: rptNum(d.amount), st: "zero",
             }));
-            const unRows = unSrc.filter(m => m.st === "zero" || m.st === "pending").map(m => ({
+            /* Everyone who still owes — zero-payment AND partial. A member
+               who paid February's dues late (or short) is still unpaid for
+               what they owe, so partials list here with their own status
+               instead of hiding behind a zero-only filter. Retired rows owe
+               nothing further and are excluded. */
+            const unRows = unSrc.filter(m => String(m.st || "") !== "retired" && Number(m.owed) > 0).map(m => ({
               member: rptPersonName(m.member), college: m.college || "—", month: m.month || "—",
               expected: Number(m.expected) || 0, deducted: Number(m.deducted) || 0, owed: Number(m.owed) || 0,
-              status: "Unpaid",
+              status: Number(m.deducted) <= 0 ? "Unpaid" : "Partially Paid",
               _match: { period: m.month, year: rptStandingYear(m.month) },
             }));
+            /* Guidance notes: all-settled reads as confirmation; partials
+               without any zero-payment member say so plainly. */
+            const unPeriod = (typeof rptPeriodLabel === "function") ? rptPeriodLabel() : "this period";
+            const unHasZero = unRows.some(r => r.status === "Unpaid");
+            const unNote = !unRows.length ? [{
+              item: "Note",
+              value: "All members fully paid for " + unPeriod + " — nothing outstanding.",
+            }] : (!unHasZero ? [{
+              item: "Note",
+              value: "All listed members made partial payment — no zero-payment members in " + unPeriod + ".",
+            }] : []);
             return { rows: unRows, summary: [
               { item: "Unpaid Members", value: String(new Set(unRows.map(r => r.member)).size), strong: true },
               { item: "Total Unpaid", value: peso(unRows.reduce((s, r) => s + r.owed, 0)) },
-            ], groups: [
+            ].concat(unNote), groups: [
               { title: "By Department", headers: ["Department", "Members", "Unpaid"], rows: rptGroupSum(unRows, r => r.college, r => r.owed).map(g => ({ item: g.group, count: unRows.filter(r => r.college === g.group).length, value: peso(g.total), amount: g.total })) },
             ] };
           }
@@ -16458,7 +16530,7 @@
             balStand.forEach(m => { if (Number(m.owed) > 0) { balOwe += Number(m.owed); oweByDept[m.college || "—"] = (oweByDept[m.college || "—"] || 0) + Number(m.owed); } });
             const balMembers = balStand.filter(m => Number(m.owed) > 0).length;
             return { rows: [], summaryOnly: true, noDetail: true, summary: [
-              { item: "Current Fund Balance", value: (balOv && balOv.ok) ? peso2(balOv.balance) : "—", strong: true },
+              { item: "Cash on Hand", value: (balOv && balOv.ok) ? peso2(balOv.balance) : "—", strong: true },
               { item: "Money In (Overall)", value: (balOv && balOv.ok) ? "+" + peso2(balOv.money_in) : "—" },
               { item: "Money Out (Overall)", value: (balOv && balOv.ok) ? "−" + peso2(balOv.money_out) : "—" },
               { item: "Members with Balance", value: String(balMembers) },
@@ -16471,18 +16543,27 @@
              Chronological book of every fund movement in the period, with the
              true opening balance carried forward and a running balance. */
           case "journal-report": {
-            const jFrom = range ? range.from : "";
-            const jTo = range ? range.to : "";
-            const jSlot = rptEnsureJournal(jFrom, jTo);
-            if (jSlot.pending) return { rows: [], loadingJournal: true };
-            /* Period fetch failed (e.g. session hiccup) — fall back to the
-               one-time ledger load filtered to the period. */
-            const jSrc = Array.isArray(jSlot.items) ? jSlot.items
-              : (RPT.cache.ledger || []).filter(e => rptInPeriod(String(e.recorded_at || "").slice(0, 10), range));
-            const enriched = jSrc.map(e => {
+            /* Covered-month rule like the Ledger Report and Fund Overview
+               Summary: dues / set-aside / aid rows journal into the month
+               their description carries ("Monthly dues for February 2026 —
+               Juan Dela Cruz"), so February dues booked in October appear in
+               February. Other movements stay on recorded date. Entries sort
+               by attributed month, then booking time; the opening balance is
+               the net of everything attributed before the period, so opening
+               + in − out = closing still holds. Row dates show the true
+               booking date. Same-batch dues/set-aside inflows collapse to
+               one line each ("131 paid, 9 unpaid"); aid payouts stay
+               per-recipient. */
+            const jSrc = RPT.cache.ledger || [];
+            const jKeyOf = (e) => fosCovered(e) || String(e.recorded_at || "").slice(0, 7);
+            const enriched = jSrc.filter(e => fosEntryInPeriod(e)).map(e => {
               const ts = String(e.recorded_at || "");
               const dir = String(e.direction || "").toLowerCase();
+              const st = String(e.source_type || "").toLowerCase();
               return {
+                key: jKeyOf(e),
+                cov: fosCovered(e),
+                batchable: dir === "inflow" && FOS_MONTH_IN.indexOf(st) !== -1,
                 date: ts.slice(0, 10),
                 ts: ts,
                 id: Number(e.id) || 0,
@@ -16493,43 +16574,87 @@
                 recorded: e.recorded_by || "",
               };
             });
-            /* Stable intraday order: full timestamp, then entry id. */
-            enriched.sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || (a.id - b.id));
-            const jOpening = Number(jSlot.opening) || 0;
+            /* Batch collapse: one posting row per member makes dues batches
+               unreadable (131 identical ₱100 lines for COL-00010 / DR-2604).
+               Inflow dues/set-aside rows sharing date + reference + type +
+               covered month collapse into ONE line with the summed amount and
+               paid-vs-expected completeness ("131 paid, 9 unpaid"). Aid
+               payouts and every other movement stay per-row — per-recipient
+               detail is audit evidence and must never be folded away. */
+            const jExpected = (RPT.cache.members || []).filter(m => String(m.membership_status || "").toLowerCase() !== "retired").length;
+            const jBuckets = {};
+            const jLines = [];
+            enriched.forEach(e => {
+              if (!e.batchable || !e.cov) { jLines.push(e); return; }
+              const k = [e.date, e.reference, e.type, e.cov].join("|");
+              (jBuckets[k] = jBuckets[k] || []).push(e);
+            });
+            Object.keys(jBuckets).forEach(k => {
+              const rows = jBuckets[k];
+              if (rows.length < 2) { jLines.push(rows[0]); return; }
+              const first = rows[0];
+              const payers = {};
+              rows.forEach(r => {
+                const m = String(r.description || "").match(/ — ([^—]+)$/);
+                payers[((m ? m[1] : r.description) || "").trim()] = true;
+              });
+              const paid = Object.keys(payers).length;
+              const base = (String(first.description || "").replace(/ — [^—]+$/, "") || first.description || "—").trim();
+              const inSum = rows.reduce((s, r) => s + (Number(r.inflow) || 0), 0);
+              const rec0 = first.recorded;
+              jLines.push({
+                key: first.key, date: first.date, ts: first.ts, id: first.id,
+                reference: first.reference, type: first.type,
+                description: base + " — " + paid + " paid" + (jExpected > 0 ? ", " + Math.max(0, jExpected - paid) + " unpaid" : ""),
+                inflow: Math.round(inSum * 100) / 100, outflow: 0,
+                recorded: rows.every(r => r.recorded === rec0) ? rec0 : "Various",
+              });
+            });
+            /* Attributed-month order first (dues period), then booking time,
+               then entry id for a stable intraday order. */
+            jLines.sort((a, b) => String(a.key).localeCompare(String(b.key)) || String(a.ts).localeCompare(String(b.ts)) || (a.id - b.id));
+            let jOpening = 0;
+            jSrc.forEach(e => {
+              if (!fosEntryBeforePeriod(e)) return;
+              const amt = rptNum(e.amount);
+              jOpening += String(e.direction || "").toLowerCase() === "inflow" ? amt : -amt;
+            });
+            jOpening = Math.round(jOpening * 100) / 100;
             let runBal = jOpening;
-            const jRows = enriched.map(e => {
+            const jRows = jLines.map(e => {
               runBal += (Number(e.inflow) || 0) - (Number(e.outflow) || 0);
               return { date: e.date, reference: e.reference, description: e.description, type: e.type, inflow: e.inflow, outflow: e.outflow, balance: Math.round(runBal * 100) / 100, recorded: e.recorded };
             });
             const jIn = jRows.reduce((s, r) => s + r.inflow, 0);
             const jOut = jRows.reduce((s, r) => s + r.outflow, 0);
             if (!jRows.length) {
-              const jBooked = {};
-              (RPT.cache.ledger || []).forEach(e => {
-                const ym = String(e.recorded_at || "").slice(0, 7);
-                if (/^\d{4}-\d{2}$/.test(ym)) jBooked[ym] = true;
+              const jCovered = {};
+              jSrc.forEach(e => {
+                const k = jKeyOf(e);
+                if (/^\d{4}-\d{2}$/.test(k)) jCovered[k] = true;
               });
-              const jKeys = Object.keys(jBooked).sort();
+              const jKeys = Object.keys(jCovered).sort();
               const jName = (ym) => {
                 const names = (typeof RPT_MONTHS !== "undefined") ? RPT_MONTHS : [];
                 return (names[Number(ym.slice(5, 7)) - 1] || ym.slice(5, 7)) + " " + ym.slice(0, 4);
               };
               const jWhen = (typeof rptPeriodLabel === "function") ? rptPeriodLabel() : "this period";
               const jWhere = jKeys.length
-                ? "Bookings exist in: " + jKeys.slice(-6).map(jName).join(", ") + "."
+                ? "Movements on record cover: " + jKeys.slice(-6).map(jName).join(", ") + ". Switch the Reporting Period there, or use All Time."
                 : "The fund ledger is empty or unavailable — click Refresh and try again.";
               return { rows: [], summary: [
-                { item: "Status", value: "No fund movements RECORDED in " + jWhen + " (journal runs on booking date — dues appear under the month they were booked). " + jWhere + " Try All Time.", strong: true },
+                { item: "Status", value: "No fund movements for " + jWhen + ". " + jWhere, strong: true },
               ] };
             }
             const jSummary = [
-              { item: "Opening Balance", value: peso(jOpening) },
+              { item: "Opening Cash on Hand", value: peso(jOpening) },
               { item: "Journal Entries", value: String(jRows.length) },
               { item: "Total Inflow", value: peso(jIn) },
               { item: "Total Outflow", value: peso(jOut) },
-              { item: "Closing Balance", value: peso(jOpening + jIn - jOut), strong: true },
+              { item: "Closing Cash on Hand", value: peso(jOpening + jIn - jOut), strong: true },
+              { item: "Basis", value: "Dues period (covered month); row dates show booking date" },
             ];
-            if (jSlot.total > jRows.length) jSummary.push({ item: "Note", value: "Showing " + jRows.length + " of " + jSlot.total + " movements — narrow the period" });
+            if (jSrc.length >= 1000) jSummary.push({ item: "Note", value: "Showing up to 1000 movements — narrow the period" });
             return { rows: jRows, summary: jSummary };
           }
           /* ========== LEDGER REPORT ==========
@@ -16559,29 +16684,76 @@
               if (!lAccts[r.account]) lAccts[r.account] = { n: 0, debit: 0, credit: 0 };
               lAccts[r.account].n += 1; lAccts[r.account].debit += r.debit; lAccts[r.account].credit += r.credit;
             });
-            if (!lRows.length) {
-              /* A ledger is a book of POSTINGS: entries appear under the
-                 month they were RECORDED (booking date), not the month the
-                 dues cover — February dues booked in October live in October.
-                 Say so explicitly (plus where the bookings actually are)
-                 instead of printing bare zeros that look like lost data. */
-              const bookedMonths = {};
-              (RPT.cache.ledger || []).forEach(e => {
-                const ym = String(e.recorded_at || "").slice(0, 7);
-                if (/^\d{4}-\d{2}$/.test(ym)) bookedMonths[ym] = true;
+            /* Set-aside recipient on the account line itself: an earmark total
+               alone ("Medical Aid Set-Aside — 131 entries") never says WHOSE
+               aid case it feeds, so the account reads "Medical Aid
+               Set-Aside for Ana Santos". Each set-aside posting belongs to
+               the aid case whose target month matches its covered month;
+               months with no case stay pooled under the plain account name —
+               no name is ever invented, and no nag is shown when there is
+               simply no aid case on record. */
+            const SETASIDE_SRC = ["aid_setaside_medical", "aid_setaside_death"];
+            const setAidKey = (st) => st === "aid_setaside_medical" ? "medical_aid" : (st === "aid_setaside_death" ? "death_aid" : "");
+            const normPostYM = (tm) => {
+              const s = String(tm || "").trim();
+              if (/^\d{4}-\d{2}$/.test(s)) return s;
+              return fosYM(s);
+            };
+            const ymLabel = (ym) => {
+              const names = (typeof RPT_MONTHS !== "undefined") ? RPT_MONTHS : [];
+              const mm = String(ym).slice(5, 7);
+              return ((names[Number(mm) - 1] || mm) + " " + String(ym).slice(0, 4));
+            };
+            const postsForSetAside = (aidKey, ym) => (RPT.cache.aidPosts || []).filter(p =>
+              String(p.aid_type || "") === aidKey && normPostYM(p.target_month) === ym);
+            const recipDisplay = (p) => {
+              if (p.is_external) return String(p.external_display || p.external_beneficiary || p.member_name || "External aid case");
+              return String(p.member_name || "—");
+            };
+            /* Distinct recipient names per set-aside source, in covered-month
+               order, across the whole selected period. */
+            const setYmsBySource = {};
+            lAll.forEach(e => {
+              const st = String(e.source_type || "").toLowerCase();
+              if (SETASIDE_SRC.indexOf(st) === -1 || String(e.direction || "").toLowerCase() !== "inflow") return;
+              const cov = fosCovered(e);
+              if (!cov) return;
+              const s = setYmsBySource[st] = setYmsBySource[st] || {};
+              s[cov] = true;
+            });
+            const setNamesBySource = {};
+            Object.keys(setYmsBySource).forEach(st => {
+              const aidKey = setAidKey(st);
+              const names = [];
+              Object.keys(setYmsBySource[st]).sort().forEach(ym => {
+                (aidKey ? postsForSetAside(aidKey, ym) : []).forEach(p => {
+                  const nm = recipDisplay(p);
+                  if (names.indexOf(nm) === -1) names.push(nm);
+                });
               });
-              const ymKeys = Object.keys(bookedMonths).sort();
-              const ymName = (ym) => {
-                const names = (typeof RPT_MONTHS !== "undefined") ? RPT_MONTHS : [];
-                return (names[Number(ym.slice(5, 7)) - 1] || ym.slice(5, 7)) + " " + ym.slice(0, 4);
-              };
+              setNamesBySource[st] = names;
+            });
+            const srcForLabel = {};
+            lAll.forEach(e => {
+              srcForLabel[rptFriendlySource(e.source_type)] = String(e.source_type || "").toLowerCase();
+            });
+            if (!lRows.length) {
+              /* Nothing attributed to this period (dues/set-asides filter by
+                 covered month, other movements by recorded date). Say where
+                 the money actually is instead of printing bare zeros. */
+              const covMonths = {};
+              (RPT.cache.ledger || []).forEach(e => {
+                const k = fosCovered(e) || String(e.recorded_at || "").slice(0, 7);
+                if (/^\d{4}-\d{2}$/.test(k)) covMonths[k] = true;
+              });
+              const ymKeys = Object.keys(covMonths).sort();
               const where = ymKeys.length
-                ? "Bookings exist in: " + ymKeys.slice(-6).map(ymName).join(", ") + ". Switch the Reporting Period there, or use All Time."
+                ? "Movements on record cover: " + ymKeys.slice(-6).map(ymLabel).join(", ") + ". Switch the Reporting Period there, or use All Time."
                 : "The fund ledger is empty or unavailable — click Refresh and try again.";
               const when = (typeof rptPeriodLabel === "function") ? rptPeriodLabel() : "this period";
               return { rows: [], summary: [
-                { item: "Status", value: "No fund movements RECORDED in " + when + " — dues appear under their booking month (e.g. February dues booked in October). " + where, strong: true },
-                { item: "Tip", value: "For dues by covered month, use the Fund Overview Summary or Member Contribution Report." },
+                { item: "Status", value: "No fund movements for " + when + ". " + where, strong: true },
+                { item: "Tip", value: "Dues and set-asides filter by covered month; donations, withdrawals and releases by recorded date." },
               ], groups: [] };
             }
             return { rows: lRows, summary: [
@@ -16589,7 +16761,13 @@
               { item: "Total Debit", value: peso(lDebit) },
               { item: "Total Credit", value: peso(lCredit), strong: true },
             ], groups: [
-              { title: "By Account", headers: ["Account", "Entries", "Debit", "Credit"], rows: Object.keys(lAccts).sort().map(k => [k, String(lAccts[k].n), peso(lAccts[k].debit), peso(lAccts[k].credit)]) },
+              { title: "By Account", headers: ["Account", "Entries", "Debit", "Credit"], rows: Object.keys(lAccts).sort().map(k => {
+                const st = srcForLabel[k] || "";
+                const names = setNamesBySource[st] || [];
+                const label = (SETASIDE_SRC.indexOf(st) !== -1 && names.length) ? k + " for " + names.join("; ") : k;
+                const a = lAccts[k];
+                return [label, String(a.n), peso(a.debit), peso(a.credit)];
+              }) },
             ] };
           }
           /* ========== DISCREPANCY REPORT ==========
@@ -16732,7 +16910,7 @@
             return {
               rows: [], summaryOnly: true, noDetail: true,
               summary: [
-                { item: "Current Balance", value: peso2(d.balance), strong: true },
+                { item: "Cash on Hand", value: peso2(d.balance), strong: true },
                 { item: "Money In (Overall)", value: "+" + peso2(d.money_in) },
                 { item: "Money Out (Overall)", value: "−" + peso2(d.money_out) },
                 { item: "Money In (" + periodLabel + ")", value: "+" + peso2(perIn) },
@@ -16743,10 +16921,10 @@
                 { title: "Revenue Sources (All Time)", headers: ["Source", "Amount"], rows: inflowRows.concat([{ item: "TOTAL", count: peso2(d.money_in), strong: true }]) },
                 { title: "Expense Breakdown (All Time)", headers: ["Purpose", "Amount"], rows: expenseRows.concat([{ item: "TOTAL", count: peso2(d.money_out), strong: true }]) },
                 { title: "Reconciliation (" + periodLabel + ")", headers: ["Item", "Amount"], rows: [
-                  { item: "Opening Balance", count: peso2(opening) },
+                  { item: "Opening Cash on Hand", count: peso2(opening) },
                   { item: "Money In (" + periodLabel + ")", count: "+" + peso2(perIn) },
                   { item: "Money Out (" + periodLabel + ")", count: "−" + peso2(perOut) },
-                  { item: "Closing Balance", count: peso2(opening + perIn - perOut), strong: true },
+                  { item: "Closing Cash on Hand", count: peso2(opening + perIn - perOut), strong: true },
                 ] },
                 { title: "Recent Transactions (" + periodLabel + (recentHidden > 0 ? " — showing " + recentShown.length + " of " + recentAll.length : "") + ")", headers: ["Date", "Type", "Details", "Amount"], rows: recentRows },
               ],
@@ -16829,10 +17007,10 @@
             return {
               summaryOnly: true, rows: [], noDetail: true,
               summary: [
-                { item: "Starting Balance", value: peso(opening) },
+                { item: "Starting Cash on Hand", value: peso(opening) },
                 { item: "Total Collections", value: peso(totalIn) },
                 { item: "Total Disbursements", value: peso(totalOut) },
-                { item: "Ending Balance", value: peso(closing), strong: true },
+                { item: "Ending Cash on Hand", value: peso(closing), strong: true },
               ],
               groups: [
                 { title: "Collections by Source", headers: ["Collection Source", "Records", "Amount"], rows: collGroup },
@@ -17859,8 +18037,6 @@
           ? '<div class="rpt-hint" style="background:#fff8e1;border-color:#ffe08a;color:#8a6d00;">Select a member in the filters to generate their financial history.</div>'
           : result.loadingMember
           ? '<div class="rpt-hint" style="background:#f0f7f0;border-color:#d6e8d6;color:#1b5e20;">Loading the member\'s deduction ledger…</div>'
-          : result.loadingJournal
-          ? '<div class="rpt-hint" style="background:#f0f7f0;border-color:#d6e8d6;color:#1b5e20;">Loading the fund journal…</div>'
           : result.loadingAssoc
           ? '<div class="rpt-hint" style="background:#f0f7f0;border-color:#d6e8d6;color:#1b5e20;">Loading the association report…</div>'
           : result.noCases
@@ -18431,7 +18607,7 @@
           '.rpt-doc .rptd-title{text-align:center;font-size:16px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:12px 0 2px;}' +
           '.rpt-doc .rptd-period{text-align:center;font-size:12px;color:#333;margin-bottom:12px;}' +
           '.rpt-doc table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;}' +
-          '.rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:center !important;}' +
+          '.rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:left;}' +
           '.rpt-doc th{background:#e8efe9;font-weight:700;}' +
           '.rpt-doc tr.total td{font-weight:700;background:#f2f2f2;}' +
           '.rpt-doc .rptd-sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#1e5c38;color:#fff;padding:4px 9px;margin:14px 0 7px;}' +
@@ -18514,7 +18690,18 @@
            and mix two reports into one sheet). Only a live preview — which
            passes neither — falls back to RPT.lastResult. Section rows arrive
            as arrays (saved) or {item,count,value} objects (live) — both
-           normalize to plain cells, right-aligning amount columns only. */
+           normalize to plain cells. TEXT aligns left, NUMERICALS right: a
+           cell counts as numeric when it is a number or a numeric string
+           after stripping ₱/$, commas, whitespace, a leading +/− and a
+           trailing % — so "131", "₱65,500.00" and "90%" right-align while
+           names, dates ("2026-10-04") and "—" stay left. */
+        const NUM_CELL = (v) => {
+          if (typeof v === "number") return isFinite(v);
+          const s = String(v == null ? "" : v).trim();
+          if (!s || s === "—" || s === "-" || /^n\/a$/i.test(s)) return false;
+          const t = s.replace(/[₱$,\s]/g, "").replace(/^[+\-−]/, "").replace(/%$/, "");
+          return t !== "" && !isNaN(Number(t));
+        };
         const AMT_HEADERS = ["amount", "expected", "collected", "deducted", "owed", "paid", "required", "inflow", "outflow", "balance", "benefit", "money in", "money out", "fund growth", "fund balance"];
         const summarySource = Array.isArray(h.summary) ? h.summary
           : (RPT.lastResult && RPT.lastResult.result && RPT.lastResult.result.summary) || [];
@@ -18528,7 +18715,6 @@
           const heads = (g.headers || (gRows[0] && gRows[0].headers) || null);
           const headArr = heads ? heads.map(String) : null;
           const twoCol = headArr && headArr.length === 2;
-          const isAmt = (i) => !!headArr && AMT_HEADERS.includes((headArr[i] || "").trim().toLowerCase());
           /* Saved sections keep TOTAL flags in a parallel "strong" array (the
              rows themselves are plain string arrays); live sections carry
              strong on each row object. Both normalize to r.strong. */
@@ -18536,13 +18722,18 @@
           const norm = gRows.map((r, ri) => Array.isArray(r)
             ? { cells: r.map(String), strong: !!strongFlags[ri] }
             : { cells: (twoCol ? [r.item, r.count] : [r.item, r.count, r.value]).map(String), strong: !!r.strong });
-          const thead = headArr && headArr.length
-            ? "<thead><tr>" + headArr.map((hd, i) => `<th${isAmt(i) ? ' style="text-align:right;"' : ""}>${hd}</th>`).join("") + "</tr></thead>"
-            : "<thead><tr><th>Category</th><th style=\"text-align:right;\">Count</th><th style=\"text-align:right;\">Amount</th></tr></thead>";
+          /* Column alignment: amount headers always right; otherwise the
+             column's own values decide (all-numeric → right, else left) —
+             so headcounts ("131") right-align even under plain headers
+             like "Paid (Full)", while names and months stay left. */
+          const headLabels = headArr && headArr.length ? headArr : ["Category", "Count", "Amount"];
+          const numCol = headLabels.map((hd, i) =>
+            AMT_HEADERS.includes(String(hd).trim().toLowerCase()) ||
+            (norm.length > 0 && norm.every(r => NUM_CELL(r.cells[i]))));
+          const thead = "<thead><tr>" + headLabels.map((hd, i) => `<th style="text-align:${numCol[i] ? "right" : "left"};">${hd}</th>`).join("") + "</tr></thead>";
           const cellAttr = (i) => {
-            if (twoCol && i === 1) return ' style="text-align:right;font-weight:600;"';
-            if (!headArr) return i === 1 ? ' style="text-align:right;"' : i === 2 ? ' style="text-align:right;font-weight:600;"' : "";
-            return isAmt(i) ? ' style="text-align:right;"' : "";
+            const extra = ((twoCol && i === 1) || (!headArr && i === 2)) ? ";font-weight:600" : "";
+            return ` style="text-align:${numCol[i] ? "right" : "left"};${extra}"`;
           };
           const tbody = "<tbody>" + (norm.length
             ? norm.map(r => `<tr${r.strong ? ' style="font-weight:700;background:#eef5ee;"' : ""}>` + r.cells.map((c, i) => `<td${cellAttr(i)}>${c}</td>`).join("") + "</tr>").join("")
@@ -18553,7 +18744,7 @@
            the report renders group sections (e.g. the Aid Requests Summary's
            Status/No. of Requests/Amount table replaces the meta block). */
         const summaryTable = summaryNorm.length
-          ? `<div class="rptd-sec">Summary</div><table><tbody>${summaryNorm.map(s => `<tr${s.strong ? ' style="font-weight:700;background:#eef5ee;"' : ""}><td>${s.item}</td><td style="text-align:right;font-weight:${s.strong ? 700 : 500};">${s.value}</td></tr>`).join("")}</tbody></table>`
+          ? `<div class="rptd-sec">Summary</div><table><tbody>${summaryNorm.map(s => `<tr${s.strong ? ' style="font-weight:700;background:#eef5ee;"' : ""}><td style="text-align:left;">${s.item}</td><td style="text-align:${NUM_CELL(s.value) ? "right" : "left"};font-weight:${s.strong ? 700 : 500};">${s.value}</td></tr>`).join("")}</tbody></table>`
           : (!groupSections
             ? `<div class="rptd-sec">Summary</div><div class="rptd-meta"><div><span>Total Records</span><b>${h.count}</b></div><div><span>Total Amount</span><b>${peso(h.amount)}</b></div></div>`
             : "");
@@ -18564,12 +18755,13 @@
         const recordsSection = h.rows.length && !h.noDetail
           ? (() => {
               const recKeys = Object.keys(h.rows[0] || {}).filter(k => !String(k).startsWith("_"));
+              const recNum = recKeys.map(k => h.rows.length > 0 && h.rows.every(r => NUM_CELL(r[k])));
               const cellOf = (r, k) => {
                 const v = r[k];
                 if (typeof v === "number") return RPT_AMT_KEY.test(k) ? peso(v) : String(v);
                 return v == null ? "" : String(v);
               };
-              return `<div class="rptd-sec">Records</div><table><thead><tr>${recKeys.map(k => `<th>${rptHeadLabel(k)}</th>`).join("")}</tr></thead><tbody>${h.rows.map(r => `<tr>${recKeys.map(k => `<td>${cellOf(r, k)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+              return `<div class="rptd-sec">Records</div><table><thead><tr>${recKeys.map((k, ci) => `<th style="text-align:${recNum[ci] ? "right" : "left"};">${rptHeadLabel(k)}</th>`).join("")}</tr></thead><tbody>${h.rows.map(r => `<tr>${recKeys.map((k, ci) => `<td style="text-align:${recNum[ci] ? "right" : "left"};">${cellOf(r, k)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
             })()
           : "";
         /* Header data gaps (financial-report-generator skill: every report
@@ -18736,9 +18928,10 @@
         const b = document.getElementById("nxReleaseBody");
         if (!b) return;
         if (!silent) b.innerHTML = `<tr><td colspan="4"><div class="empty-state">Loading...</div></td></tr>`;
-        const [posts, releases] = await Promise.all([
+        const [posts, releases, unfiledExtra] = await Promise.all([
           fetchJSON("/api/treasurer/approved-aid-posts/"),
           fetchJSON("/api/treasurer/releases/list/"),
+          fetchJSON("/api/treasurer/aid-release/unfiled-setasides/").catch(() => null),
         ]);
         const balance = parseFloat((posts && posts.fund_balance) || 0);
         nxReleaseState.balance = balance;
@@ -18829,6 +19022,36 @@
               )
               .join("")
           : `<tr><td colspan="4"><div class="empty-state">No aid cases ready for release.</div></td></tr>`;
+
+        /* Unfiled aids — active aid cases NOT yet filed for release (not
+           ready, not released, not rejected): recipient + earmarked
+           set-aside per case, so nothing collectible slips out of sight. */
+        const FILED_OUT = ["pending_release", "released", "completed", "complete", "repayment", "rejected"];
+        const prettyStatus = (s) => {
+          const v = String(s || "").trim() || "tracking";
+          return v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ");
+        };
+        const unfiled = ((posts && posts.posts) || [])
+          .concat((unfiledExtra && unfiledExtra.unfiled) || [])
+          .filter((p) => FILED_OUT.indexOf(String(p.finish_status || "").toLowerCase()) === -1)
+          .map((p) => ({
+            recipient: ((p.is_external && (p.external_display || p.member_name)) ? (p.external_display || p.member_name) : (p.member_name || "—")),
+            caseLabel: (p.aid_label || "Aid") + (p.case_suffix || (" · Post #" + (p.post_id || "—"))),
+            status: prettyStatus(p.finish_status),
+            collected: parseFloat(p.total_collected || 0),
+            setAside: parseFloat(p.set_aside_available || 0),
+          }));
+        const ub = document.getElementById("nxUnfiledBody");
+        if (ub) {
+          ub.innerHTML = unfiled.length
+            ? unfiled.map((u) => `<tr>
+              <td><b>${nxesc(u.recipient)}</b></td><td>${nxesc(u.caseLabel)}</td>
+              <td><span class="badge" style="background:rgba(117,117,117,0.12);color:#616161;border:1px solid #cfd4d1;">${nxesc(u.status)}</span></td>
+              <td style="text-align:right;">${peso(u.collected)}</td>
+              <td style="text-align:right;font-weight:700;color:#00695c;">${peso(u.setAside)}</td>
+            </tr>`).join("")
+            : `<tr><td colspan="5"><div class="empty-state">All aid cases filed — nothing waiting.</div></td></tr>`;
+        }
 
         const rqDot = document.getElementById("release-queue-dot");
         if (rqDot) {
@@ -19329,7 +19552,7 @@
         /* Reason is optional: money past the claim's own set-aside comes out
            of the fund, but the server-side fund-deduction confirm covers it. */
         if (manualAmount - nxReleaseState.balance > 0.009) {
-          nudge("nx-rel-amount", `Amount exceeds the available fund balance (${peso(nxReleaseState.balance)}).`);
+          nudge("nx-rel-amount", `Amount exceeds the available cash on hand (${peso(nxReleaseState.balance)}).`);
           return;
         }
 
@@ -19512,6 +19735,7 @@
         "treasurer-other-transactions": function () { if (window.nxOtherTransactions) window.nxOtherTransactions.load(); },
         "view-due-deposit": function () { if (window.nxDueDeposit) window.nxDueDeposit.load(); },
         "treasurer-aid-release": function () { nxLoadReleases(); },
+        "view-monthly-deduction": function () { if (typeof window.mdMaybePromptAidLink === "function") { try { window.mdMaybePromptAidLink(); } catch (e) {} } },
         "aid-file-medical": function () { if (window.nxAidFiling) window.nxAidFiling.loadMedical(); },
         "aid-file-death": function () { if (window.nxAidFiling) window.nxAidFiling.loadDeath(); },
         "treasurer-returned-claims": function () { if (window.nxReturnedClaims) window.nxReturnedClaims.load(); },

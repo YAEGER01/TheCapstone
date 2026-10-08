@@ -370,7 +370,7 @@
       root.innerHTML = `
         <div class="fx-cards4 fx-cards3">
           <div class="fx-mcard">
-            <div><div class="fx-mcard-label">Current Balance</div><div class="fx-mcard-value">${PESO(d.balance)}</div></div>
+            <div><div class="fx-mcard-label">Cash on Hand</div><div class="fx-mcard-value">${PESO(d.balance)}</div></div>
           </div>
           <div class="fx-mcard">
             <div><div class="fx-mcard-label">Total Money In</div><div class="fx-mcard-value fx-pos">${PESO(d.money_in)}</div></div>
@@ -384,8 +384,8 @@
           <div class="fx-card" style="margin-bottom:0;">
             <div class="fx-mcard-head">
               <div>
-                <h3 class="fx-title">Fund Balance Trend</h3>
-                <p class="fx-subtitle" style="margin-bottom:0;">Balance movement across monthly collections and expenses.</p>
+                <h3 class="fx-title">Cash on Hand Trend</h3>
+                <p class="fx-subtitle" style="margin-bottom:0;">Cash movement across monthly collections and expenses.</p>
               </div>
             </div>
             <div id="fx-trend-body" style="margin-top:12px;">${fxTrendBody(d.trend || [])}</div>
@@ -557,7 +557,7 @@
         <div class="fx-ovw4">
           <div class="fx-ovw-card">
             <div class="fx-ovw-top">
-              <div class="fx-ovw-label">Fund Balance</div>
+              <div class="fx-ovw-label">Cash on Hand</div>
               <span class="fx-ovw-chip" style="background:#e7f6ec;color:#16703c;font-weight:800;">&#8369;</span>
             </div>
             <div class="fx-ovw-value">${PESO(d.balance)}</div>
@@ -661,7 +661,7 @@
             <div class="pd-bk-title">Overview</div>
             <div class="pd-bk-row"><span class="l">Total Money In</span><span class="v pos">+${PESO(d.money_in)}</span></div>
             <div class="pd-bk-row"><span class="l">Total Money Out</span><span class="v neg">&minus;${PESO(d.money_out)}</span></div>
-            <div class="pd-bk-row"><span class="l">Current Balance</span><span class="v total">${PESO(d.balance)}</span></div>
+            <div class="pd-bk-row"><span class="l">Cash on Hand</span><span class="v total">${PESO(d.balance)}</span></div>
           </div>
           <div class="pd-fundsummary-grid">
             <div class="pd-bk-section">

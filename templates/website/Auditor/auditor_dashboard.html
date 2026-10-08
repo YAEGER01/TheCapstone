@@ -3378,7 +3378,7 @@ input:checked + .slider{background-color:var(--green);}
   .rpt-doc .rptd-title{text-align:center;font-size:16px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:12px 0 2px;}
   .rpt-doc .rptd-period{text-align:center;font-size:12px;color:#333;margin-bottom:12px;}
   .rpt-doc table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;}
-  .rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:center !important;}
+  .rpt-doc th,.rpt-doc td{border:1px solid #999;padding:5px 7px;text-align:left;}
   .rpt-doc th{background:#e8efe9;font-weight:700;}
   .rpt-doc tr.total td{font-weight:700;background:#f2f2f2;}
   .rpt-doc .rptd-sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#1e5c38;color:#fff;padding:4px 9px;margin:14px 0 7px;}
@@ -3954,6 +3954,7 @@ input:checked + .slider{background-color:var(--green);}
   <div class="nav-group-title">SYSTEM</div>
   <div class="nav-item menu-item" data-target="audit-trail"><span class="ico"><i class="fas fa-clipboard-list"></i></span><span class="menu-text">Audit Trail</span></div>
   <div class="nav-item menu-item" data-target="view-help"><span class="ico"><i class="fas fa-circle-question"></i></span><span class="menu-text">Help</span></div>
+  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Backup sign-in codes"><span class="ico"><i class="fas fa-key"></i></span><span class="menu-text">Backup sign-in codes</span></div>
   <div class="nav-item menu-item" onclick="confirmLogout()" title="Logout"><span class="ico"><i class="fas fa-right-from-bracket"></i></span><span class="menu-text">Logout</span></div>
 
   <!-- Hidden dot IDs for production JS backward compat -->
@@ -4062,6 +4063,7 @@ input:checked + .slider{background-color:var(--green);}
             <ul class="hn-menu">
               <li><button type="button" class="hn-item" data-target="audit-trail"><i class="fas fa-clipboard-list"></i>Audit Trail</button></li>
               <li><button type="button" class="hn-item" data-target="view-help"><i class="fas fa-circle-question"></i>Help</button></li>
+              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-key"></i>Backup sign-in codes</button></li>
               <li><button type="button" class="hn-item" data-hn-logout="1"><i class="fas fa-right-from-bracket"></i>Logout</button></li>
             </ul>
           </div>
@@ -8351,7 +8353,7 @@ input:checked + .slider{background-color:var(--green);}
     </div>
     <script src="{% static 'js/Auditor/toast.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/shared/top_center_banner.js' %}?v=20260927tcb3"></script>
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20260927zt5"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
     <script src="{% static 'js/status-utils.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/shared/fund_display.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/Auditor/auditor_dashboard.js' %}?v=20260928aud23"></script>
@@ -8723,6 +8725,7 @@ input:checked + .slider{background-color:var(--green);}
       })();
     </script>
     <script src="{% static 'js/push-init.js' %}?v=20260921push3"></script>
+    <script defer src="{% static 'js/backup-nudge.js' %}?v=20261006bn2"></script>
     <script>
       // Department Analytics Tabs
       var deptEndpoints = {

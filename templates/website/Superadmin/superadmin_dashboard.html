@@ -573,6 +573,63 @@
                   <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-back-dues" onclick="confirmFormSubmit(this, 'Reset Back-Dues Chase to default')">Reset to default</button></div>
                 </div>
 
+                <!-- Card 4a: Login OTP Switch -->
+                <div class="dashboard-panel sa-card" id="sa-card-login-otp">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Login OTP Switch</h2>
+                      <p class="sa-card-desc">ON: every role signs in with password + email code. OFF: password only — no code queued or asked for, on any role login.</p>
+                    </div>
+                    <span class="sa-card-badge {% if login_otp_is_default %}is-default{% else %}is-custom{% endif %}">{% if login_otp_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Require email code at login</strong><small>When off, all roles (Superadmin, officers, members) sign in with password only.</small></div>
+                      <span class="sa-state-badge {% if login_otp_enabled %}on{% else %}off{% endif %}">{% if login_otp_enabled %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="login_otp_enabled" value="on" {% if login_otp_enabled %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-login-otp" onclick="confirmFormSubmit(this, 'Reset Login OTP Switch to default (ON)')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 4b: Unpaid Month List -->
+                <div class="dashboard-panel sa-card" id="sa-card-unpaid-months">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Unpaid Month List</h2>
+                      <p class="sa-card-desc">ON: the Record Monthly Dues unpaid popup shows the month checkbox cards. OFF: only the Amount to pay input stays (amounts still settle oldest months).</p>
+                    </div>
+                    <span class="sa-card-badge {% if show_unpaid_months_is_default %}is-default{% else %}is-custom{% endif %}">{% if show_unpaid_months_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Show unpaid month cards</strong><small>When off, treasurers pay arrears purely by amount — no month ticks.</small></div>
+                      <span class="sa-state-badge {% if show_unpaid_months %}on{% else %}off{% endif %}">{% if show_unpaid_months %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="show_unpaid_months" value="on" {% if show_unpaid_months %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-unpaid-months" onclick="confirmFormSubmit(this, 'Reset Unpaid Month List to default (ON)')">Reset to default</button></div>
+                </div>
+
+                <!-- Card 4c: Other Campus Option -->
+                <div class="dashboard-panel sa-card" id="sa-card-other-campus">
+                  <div class="sa-card-head">
+                    <div>
+                      <h2 class="panel-title">Other Campus Option</h2>
+                      <p class="sa-card-desc">ON: the President monthly deduction recipient picker shows Other Campus (external beneficiary). OFF: the option is hidden — no new other-campus aid can be declared.</p>
+                    </div>
+                    <span class="sa-card-badge {% if show_other_campus_is_default %}is-default{% else %}is-custom{% endif %}">{% if show_other_campus_is_default %}Default{% else %}Custom{% endif %}</span>
+                  </div>
+                  <div class="sa-card-body">
+                    <div class="sa-toggle-row">
+                      <div class="sa-toggle-text"><strong>Show Other Campus recipient</strong><small>When off, Death Aid / Other rows offer members only; saved external rows stay visible as history.</small></div>
+                      <span class="sa-state-badge {% if show_other_campus %}on{% else %}off{% endif %}">{% if show_other_campus %}ON{% else %}OFF{% endif %}</span>
+                      <label class="sa-switch"><input type="checkbox" name="show_other_campus" value="on" {% if show_other_campus %}checked{% endif %} onchange="saSyncBadge(this)"><span class="sa-track"></span></label>
+                    </div>
+                  </div>
+                  <div class="sa-card-foot"><button type="button" class="btn btn-secondary btn-sm" form="sa-reset-other-campus" onclick="confirmFormSubmit(this, 'Reset Other Campus Option to default (ON)')">Reset to default</button></div>
+                </div>
+
                 <!-- Card 4b: Outgoing Email STOP (momentary) -->
                 <div class="dashboard-panel sa-card" id="sa-card-email-kill">
                   <div class="sa-card-head">
@@ -746,7 +803,7 @@
                 </div>
               </div><!-- /sa-cards -->
               <div class="sa-updatebar">
-                <p>One update saves <strong>all 9 cards</strong>. A card with invalid input is skipped and reported.</p>
+                <p>One update saves <strong>all 12 cards</strong>. A card with invalid input is skipped and reported.</p>
                 <button type="button" class="btn btn-primary" onclick="confirmFormSubmit(this, 'Update all system settings')">Update All Settings</button>
               </div>
             </form>
@@ -774,6 +831,21 @@
               {% csrf_token %}
               <input type="hidden" name="form_type" value="system_settings_reset">
               <input type="hidden" name="reset_group" value="back_dues">
+            </form>
+            <form id="sa-reset-login-otp" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="login_otp">
+            </form>
+            <form id="sa-reset-unpaid-months" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="unpaid_months">
+            </form>
+            <form id="sa-reset-other-campus" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="system_settings_reset">
+              <input type="hidden" name="reset_group" value="other_campus">
             </form>
             <form id="sa-reset-email-kill" method="post" action="" onsubmit="event.preventDefault();" style="display:none;">
               {% csrf_token %}
@@ -1243,7 +1315,7 @@
     <script src="{% static 'js/shared/sidebar_peek.js' %}?v=20260928sp2"></script>
     <!-- CAUFA Zero Trust: screen lock, badge, hard-check interception -->
     <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20260930zt6" />
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20260927zt5"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
     {% include "website/shared/zt_badge.html" %}
   </body>
 </html>

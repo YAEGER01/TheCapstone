@@ -18,7 +18,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q, Sum, Count, Min
+from django.db.models import F, Q, Sum, Count, Min
 from django.db.models.functions import ExtractMonth
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -2234,6 +2234,29 @@ def treasurer_other_transaction_record(request: HttpRequest):
     # another campus). Folded into the 255-char description — no schema change.
     donor = (request.POST.get("donor") or "").strip()[:120]
     recipient = (request.POST.get("recipient") or "").strip()[:120]
+    # The " — " sequence is the counterparty separator in stored
+    # descriptions — neutralize it inside free-text names so parsing holds.
+    donor = donor.replace(" — ", " - ")
+    recipient = recipient.replace(" — ", " - ")
+    # Withdrawal purpose (Meal / Emergency / Aid / Token / custom). Stored as
+    # a "[Purpose]" tag inside the notes segment so the "To {recipient} — …"
+    # counterparty parsing keeps working — no schema change.
+    purpose = (request.POST.get("purpose") or "").strip()
+    # Aid subtype (Medical = member recipient, Death = external beneficiary).
+    # Only meaningful with purpose Aid; folded as "[Aid - Medical|Death]".
+    aid_type = (request.POST.get("aid_type") or "").strip().capitalize()
+    if aid_type and purpose != "Aid":
+        return JsonResponse({"ok": False, "error": "Aid type applies to Aid withdrawals only."}, status=400)
+    if aid_type and aid_type not in ("Medical", "Death"):
+        return JsonResponse({"ok": False, "error": "Aid type must be Medical or Death."}, status=400)
+    if purpose:
+        if action != "withdraw":
+            return JsonResponse({"ok": False, "error": "Purpose applies to withdrawals only."}, status=400)
+        if len(purpose) > 60 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 '\-.&]*", purpose):
+            return JsonResponse({"ok": False, "error": "Purpose must be 60 characters or fewer (letters, numbers, spaces)."}, status=400)
+        purpose = re.sub(r"\s+", " ", purpose)
+        tag = f"{purpose} - {aid_type}" if aid_type else purpose
+        description = f"[{tag}]" + (f" {description}" if description else "")
     if action == "deposit" and donor:
         description = f"From {donor}" + (f" — {description}" if description else "")
         description = description[:255]
@@ -6110,6 +6133,81 @@ def treasurer_approved_aid_posts(request: HttpRequest):
 
 
 @require_GET
+def treasurer_unfiled_setasides(request: HttpRequest):
+    """Aid set-asides with no tracking post — earmarked through monthly
+    deductions but no claim filed yet. Feeds the UNFILED AIDS table next to
+    tracked-but-unready posts. Shaped like approved-aid-post rows so the
+    table renders both identically."""
+    guard = require_role(request, role=["Treasurer", "Auditor", "President"])
+    if guard is not None:
+        return guard
+
+    from core_system.models import AidSetAside
+
+    rows = (
+        AidSetAside.objects.filter(aid_tracking_post_id_FK__isnull=True)
+        .values(
+            "assessment_item_id_FK_id",
+            "assessment_item_id_FK__purpose",
+            "assessment_item_id_FK__custom_label",
+            "assessment_item_id_FK__recipient",
+            "assessment_item_id_FK__recipient_type",
+            "assessment_item_id_FK__external_campus",
+            "assessment_item_id_FK__external_beneficiary",
+            "assessment_item_id_FK__assessment_id_FK__month",
+        )
+        .annotate(
+            collected=Sum("amount"),
+            released=Sum("amount_released"),
+            contributors=Count("member_assessment_id_FK", distinct=True),
+        )
+        .order_by("-assessment_item_id_FK__assessment_id_FK__month")
+    )
+
+    items = []
+    for r in rows:
+        collected = float(r["collected"] or 0)
+        released = float(r["released"] or 0)
+        available = round(max(0.0, collected - released), 2)
+        if available <= 0:
+            continue
+        purpose = r["assessment_item_id_FK__purpose"] or ""
+        if purpose == "medical_aid_fund":
+            aid_label = "Medical Aid"
+        elif purpose == "death_aid_fund":
+            aid_label = "Death Aid"
+        else:
+            aid_label = r["assessment_item_id_FK__custom_label"] or "Aid"
+        is_external = (r["assessment_item_id_FK__recipient_type"] or "") == "external"
+        campus = (r["assessment_item_id_FK__external_campus"] or "").strip()
+        bene = (r["assessment_item_id_FK__external_beneficiary"] or "").strip()
+        if is_external and (campus or bene):
+            display = f"{campus} — {bene}".strip(" —") or "External beneficiary"
+        else:
+            display = (r["assessment_item_id_FK__recipient"] or "").strip() or "—"
+        month = r["assessment_item_id_FK__assessment_id_FK__month"]
+        month_label = month.strftime("%b %Y") if month else ""
+        items.append({
+            "member_name": display,
+            "aid_label": aid_label,
+            "post_id": None,
+            "finish_status": "unfiled",
+            "total_collected": round(collected, 2),
+            "set_aside_available": available,
+            "is_external": is_external,
+            "external_display": display if is_external else "",
+            "member_id": None,
+            "case_suffix": f"Set-aside · {month_label}" if month_label else "Set-aside",
+            "contributors": int(r["contributors"] or 0),
+        })
+
+    response = JsonResponse({"ok": True, "unfiled": items})
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    return response
+
+
+@require_GET
 def treasurer_aid_post_members(request: HttpRequest, post_id: int):
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
@@ -9605,8 +9703,54 @@ _BATCH_COMPONENT_LABELS = (
     ("aid_setaside_death", "Death Aid Set-Aside"),
 )
 
+_SETASIDE_TO_AID_TYPE = {
+    "aid_setaside_medical": "medical_aid",
+    "aid_setaside_death": "death_aid",
+}
 
-def _timeline_units(rows: list) -> list:
+_TIMELINE_MONTH_YM = {
+    "january": "01", "february": "02", "march": "03", "april": "04",
+    "may": "05", "june": "06", "july": "07", "august": "08",
+    "september": "09", "october": "10", "november": "11", "december": "12",
+}
+
+
+def _timeline_covered_ym(descriptions) -> str:
+    """Covered "YYYY-MM" from booking descriptions shaped like
+    "Monthly dues for March 2026 — member 12" (raw id or simplified name
+    after the em dash — only the month part matters)."""
+    for desc in descriptions or []:
+        match = re.search(r" for ([A-Za-z]+)\s+(\d{4})\s+—", str(desc or ""))
+        if match and match.group(1).lower() in _TIMELINE_MONTH_YM:
+            return f"{match.group(2)}-{_TIMELINE_MONTH_YM[match.group(1).lower()]}"
+    return ""
+
+
+def _timeline_post_recipients() -> dict:
+    """{(aid_type, target_month): [recipient names]} over every aid tracking
+    post (active AND closed — historical months' cases are finished) so
+    set-aside components can name the aid case they feed."""
+    index: dict[tuple, list] = {}
+    posts = AidTrackingPost.objects.select_related("archive_id_FK").all()
+    for post in posts:
+        ym = (post.target_month or "").strip()
+        if not ym or not post.aid_type:
+            continue
+        archive = post.archive_id_FK
+        if post.source_type == "external_aid" or post.external_campus or post.external_beneficiary:
+            name = (post.external_display or "").strip() or (archive.member_name if archive else "")
+        else:
+            name = archive.member_name if archive else ""
+        name = (name or "").strip()
+        if not name:
+            continue
+        key = (post.aid_type, ym)
+        if name not in index.setdefault(key, []):
+            index[key].append(name)
+    return index
+
+
+def _timeline_units(rows: list, post_recipients: dict | None = None) -> list:
     """Fold the raw fund rows into timeline units.
 
     A President-approved monthly deduction batch books one row per member per
@@ -9644,14 +9788,23 @@ def _timeline_units(rows: list) -> list:
             if dues_rows:
                 prefix = dues_rows[0]["description"].split("—")[0].strip(" -–") or prefix
 
+            covered_ym = _timeline_covered_ym([x["description"] for x in family])
             components = []
             for source_key, comp_label in _BATCH_COMPONENT_LABELS:
                 comp_rows = [x for x in family if x["source_key"] == source_key]
                 if not comp_rows:
                     continue
+                # Set-aside components feed an aid case: name its recipient
+                # (dues components have no single recipient — the count
+                # already says how many members paid).
+                recipient = ""
+                aid_type = _SETASIDE_TO_AID_TYPE.get(source_key)
+                if aid_type and covered_ym and post_recipients:
+                    recipient = "; ".join(post_recipients.get((aid_type, covered_ym), []))
                 components.append({
                     "source_key": source_key,
                     "label": comp_label,
+                    "recipient": recipient,
                     "count": len(comp_rows),
                     "total": round(sum(x["amount"] for x in comp_rows), 2),
                     "fund_before": comp_rows[0]["fund_before"],
@@ -9731,6 +9884,45 @@ def treasurer_fund_timeline(request: HttpRequest):
         .order_by("recorded_at", "transaction_id_PK")
     )
 
+    # Aid recipients, joined by id (never parsed out of descriptions): aid
+    # payouts name their medical member / death claimant / tracked post, so
+    # the timeline's debit side can say WHO received the aid.
+    outflows = [t for t in transactions if t.direction == "outflow"]
+    med_claims = {
+        m.medical_aid_id_PK: (m.member_id_FK.full_name if m.member_id_FK else "")
+        for m in MedicalAid.objects.filter(
+            medical_aid_id_PK__in=[t.source_id for t in outflows if t.source_type == "medical_aid"]
+        ).select_related("member_id_FK")
+    }
+    death_claims = {
+        d.death_aid_id_PK: (
+            (d.claimant_id_FK.full_name if d.claimant_id_FK else "") or d.deceased_name or ""
+        )
+        for d in DeathAid.objects.filter(
+            death_aid_id_PK__in=[t.source_id for t in outflows if t.source_type == "death_aid"]
+        ).select_related("claimant_id_FK")
+    }
+    release_posts = {
+        p.post_id_PK: (
+            (p.external_display or "").strip()
+            or (p.archive_id_FK.member_name if p.archive_id_FK else "")
+        )
+        for p in AidTrackingPost.objects.filter(
+            post_id_PK__in=[t.source_id for t in outflows if t.source_type == "aid_post_payment"]
+        ).select_related("archive_id_FK")
+    }
+
+    def _outflow_recipient(tx) -> str:
+        if tx.direction != "outflow":
+            return ""
+        if tx.source_type == "medical_aid":
+            return med_claims.get(tx.source_id, "")
+        if tx.source_type == "death_aid":
+            return death_claims.get(tx.source_id, "")
+        if tx.source_type == "aid_post_payment":
+            return release_posts.get(tx.source_id, "")
+        return ""
+
     # Chronological rows, EACH carrying the fund position immediately before
     # and after itself — the timeline's center column is per record.
     rows = []
@@ -9748,6 +9940,7 @@ def treasurer_fund_timeline(request: HttpRequest):
             "date": local_ts.strftime("%b %d"),
             "direction": t.direction,
             "description": t.description or "",
+            "recipient": _outflow_recipient(t),
             "source_type": t.get_source_type_display() or "",
             "source_key": t.source_type,
             "reference": t.reference_number or "",
@@ -9756,7 +9949,7 @@ def treasurer_fund_timeline(request: HttpRequest):
             "fund_after": after,
         })
 
-    units = _timeline_units(rows)
+    units = _timeline_units(rows, _timeline_post_recipients())
 
     month_names = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]

@@ -29,7 +29,11 @@ from django.db.models import Q, Sum, Count, Prefetch
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
-from core_system.constants.policy_constants import get_monthly_dues_amount
+from core_system.constants.policy_constants import (
+    get_death_aid_amount,
+    get_medical_aid_contribution_amount,
+    get_monthly_dues_amount,
+)
 from core_system.aid_setaside import (
     book_member_fund_rows,
     delete_member_fund_rows,
@@ -1004,10 +1008,20 @@ def president_monthly_assessment_list(request: HttpRequest):
         key=str.casefold,
     )
 
+    try:
+        from core_system.other_campus_guard import is_other_campus_enabled
+
+        show_other_campus = is_other_campus_enabled()
+    except Exception:
+        show_other_campus = True
+
     return JsonResponse({
         "ok": True,
         "default_monthly_due": get_monthly_dues_amount(),
+        "default_medical_aid": get_medical_aid_contribution_amount(),
+        "default_death_aid": get_death_aid_amount("member"),
         "member_names": member_names,
+        "show_other_campus": show_other_campus,
         "external_campuses": [
             "ISU Echague Campus",
             "ISU Ilagan Campus",
@@ -1110,6 +1124,20 @@ def president_save_monthly_assessment(request: HttpRequest):
             external_campus = None
             external_beneficiary = None
         elif recipient_type == "external":
+            # System Admin toggle: when Other Campus is hidden, no new
+            # external aid can be declared (saved rows stay as history).
+            try:
+                from core_system.other_campus_guard import is_other_campus_enabled
+
+                if not is_other_campus_enabled():
+                    return JsonResponse({
+                        "ok": False,
+                        "error": "Other Campus option is currently disabled by System Admin — pick a member recipient instead.",
+                    }, status=400)
+            except JsonResponse:
+                raise
+            except Exception:
+                pass
             # Other-campus aid (different campus beneficiary) is only
             # available for Death Aid and Other purposes — never Medical Aid.
             if purpose not in (AssessmentItem.PURPOSE_DEATH_AID, AssessmentItem.PURPOSE_OTHER):
@@ -1917,6 +1945,7 @@ def treasurer_monthly_deductions_overview(request: HttpRequest):
         data.append(serialized)
 
     from core_system.dues_backfill_guard import is_back_dues_chase_enabled
+    from core_system.unpaid_months_guard import is_show_unpaid_months_enabled
 
     chase_enabled = is_back_dues_chase_enabled()
     return JsonResponse({
@@ -1928,7 +1957,7 @@ def treasurer_monthly_deductions_overview(request: HttpRequest):
             ).filter(_catchup_eligible_filter()).count()
             if chase_enabled else 0
         ),
-        "flags": {"require_back_dues": chase_enabled},
+        "flags": {"require_back_dues": chase_enabled, "show_unpaid_months": is_show_unpaid_months_enabled()},
     })
 
 
@@ -2069,8 +2098,10 @@ def treasurer_monthly_deduction_members(request: HttpRequest, assessment_id: int
     # uncollectible member. Lenient per member — a failure here must never
     # break roster loading; the digest tells the popup what happened.
     from core_system.dues_backfill_guard import is_back_dues_chase_enabled
+    from core_system.unpaid_months_guard import is_show_unpaid_months_enabled
 
     chase_enabled = is_back_dues_chase_enabled()
+    show_unpaid_months = is_show_unpaid_months_enabled()
     officer = resolve_officer_from_session(request)
     auto_created_notice = ""
     auto_created_results: list = []
@@ -2237,7 +2268,7 @@ def treasurer_monthly_deduction_members(request: HttpRequest, assessment_id: int
     return JsonResponse({
         "ok": True,
         "recordable": recordable_flag,
-        "flags": {"require_back_dues": chase_enabled},
+        "flags": {"require_back_dues": chase_enabled, "show_unpaid_months": show_unpaid_months},
         "assessment": _serialize_assessment(assessment),
         "items": [_serialize_item(i) for i in assessment.items.all()],
         "members": roster,

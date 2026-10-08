@@ -13,11 +13,133 @@
     <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}" />
     <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
     <link rel="stylesheet" href="{% static 'css/login-improved.css' %}" />
+    <style>
+      /* Security showcase 1:1 card (login only, shows on every load) */
+      .sec-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(13, 61, 40, 0.55);
+      }
+      .sec-overlay[hidden] { display: none; }
+      .sec-overlay.sec-closing .sec-card { animation: secSlideDown 0.2s ease-in both; }
+      .sec-card {
+        width: min(340px, 92vw);
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+        padding: 20px 20px 16px;
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+        animation: secSlideUp 0.25s ease-out both;
+      }
+      @keyframes secSlideUp {
+        from { transform: translate3d(0, 32px, 0); }
+        to { transform: translate3d(0, 0, 0); }
+      }
+      @keyframes secSlideDown {
+        from { transform: translate3d(0, 0, 0); }
+        to { transform: translate3d(0, 32px, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sec-overlay, .sec-card, .sec-overlay.sec-closing, .sec-overlay.sec-closing .sec-card { animation: none; }
+      }
+      .sec-icon {
+        width: 44px;
+        height: 44px;
+        margin: 0 auto 8px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1b5e20 0%, #14521b 100%);
+        color: #FCD34D;
+        font-size: 20px;
+        flex-shrink: 0;
+      }
+      .sec-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 2px;
+      }
+      .sec-sub {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 12px;
+      }
+      .sec-list {
+        list-style: none;
+        margin: 0 0 12px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        text-align: left;
+        flex: 1;
+      }
+      .sec-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #333;
+        background: #f4f8f5;
+        border: 1px solid #e2ece4;
+        border-radius: 10px;
+        padding: 7px 10px;
+      }
+      .sec-list li i {
+        color: #1b5e20;
+        font-size: 13px;
+        margin-top: 2px;
+        flex-shrink: 0;
+      }
+      .sec-btn {
+        width: 100%;
+        padding: 13px 16px;
+        background: linear-gradient(135deg, #1b5e20 0%, #14521b 100%);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-family: "Poppins", sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 2px 8px rgba(27, 94, 63, 0.25);
+      }
+      .sec-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(27, 94, 63, 0.35); }
+      .sec-btn:focus-visible { outline: 3px solid #FCD34D; outline-offset: 2px; }
+    </style>
     {% if turnstile_enabled %}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     {% endif %}
   </head>
   <body>
+    <!-- Security showcase card: small 1:1, shown on every login visit -->
+    <div id="secShowcaseOverlay" class="sec-overlay" role="dialog" aria-modal="true" aria-labelledby="secShowcaseTitle">
+      <div class="sec-card" role="document">
+        <div class="sec-icon" aria-hidden="true">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h2 id="secShowcaseTitle" class="sec-title">Your Data is Secured</h2>
+        <p class="sec-sub">How this portal protects your account</p>
+        <ul class="sec-list">
+          <li><i class="fa-solid fa-lock" aria-hidden="true"></i><span>Encrypted HTTPS sign-in — never plaintext.</span></li>
+          <li><i class="fa-solid fa-robot" aria-hidden="true"></i><span>Bot screening by Cloudflare Turnstile.</span></li>
+          <li><i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i><span>Email verification code on every sign-in.</span></li>
+          <li><i class="fa-solid fa-key" aria-hidden="true"></i><span>Argon2id passwords, one session, auto-lock.</span></li>
+        </ul>
+        <button type="button" id="secShowcaseBtn" class="sec-btn">Proceed to Login</button>
+      </div>
+    </div>
     <div class="login-container">
       <!-- Left Panel with Background Image -->
       <div class="login-left-panel" style="background-image: url('{% static 'img/isugym.jpg' %}'); background-size: cover; background-position: center;">
@@ -162,6 +284,10 @@
               Enter the 6-digit verification code sent to your registered email address:
               {% if form.mfa_email_masked %}<strong>{{ form.mfa_email_masked }}</strong>{% endif %}
             </p>
+            <p class="mfa-footer-text" style="margin-top: 4px;">
+              No email? You can also use the current code from your authenticator app{% if form.has_push %}, or have the code pushed to your device below{% endif %}.
+              A saved backup code works too.
+            </p>
 
             {% if form.email_warning %}
             <div class="alert-message alert-warning">
@@ -188,10 +314,10 @@
                   id="otp"
                   name="otp"
                   type="text"
-                  inputmode="numeric"
-                  maxlength="6"
-                  pattern="[0-9]*"
-                  placeholder="000000"
+                  inputmode="text"
+                  autocomplete="one-time-code"
+                  maxlength="12"
+                  placeholder="000000 or backup code"
                   required
                   autofocus
                   class="form-input otp-input"
@@ -210,6 +336,11 @@
               <button class="btn-resend" type="button" id="resendBtn">
                 <i class="fa-solid fa-rotate-right"></i> Resend Code
               </button>
+              {% if form.has_push %}
+              <button class="btn-resend" type="button" id="pushBtn" style="margin-top: 8px;">
+                <i class="fa-solid fa-bell"></i> Send Code via Push Instead
+              </button>
+              {% endif %}
             </div>
 
             <p class="mfa-footer-text">
@@ -264,8 +395,10 @@
           setLoading(true);
 
           var otp = otpInput.value.trim();
-          if (!otp || otp.length !== 6) {
-            showError("Please enter the 6-digit code.");
+          var isTotp = /^\d{6}$/.test(otp);
+          var isBackup = /^[A-Za-z0-9][A-Za-z0-9\- ]{7,11}$/.test(otp);
+          if (!otp || (!isTotp && !isBackup)) {
+            showError("Enter the 6-digit code or a saved backup code.");
             setLoading(false);
             return;
           }
@@ -281,11 +414,17 @@
               pre_auth_token: document.getElementById("preAuthToken").value,
             }),
           })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+            .then(function (r) { return r.json().then(function (d) { return {status: r.status, body: d}; }); })
+            .then(function (res) {
               setLoading(false);
+              var data = res.body || {};
               if (data && data.ok && data.redirect_url) {
                 window.location.href = data.redirect_url;
+              } else if (data && data.locked_out) {
+                showError((data && data.error) || "Too many wrong codes. Starting over…");
+                setTimeout(function () { window.location.href = "/login/?cancel_mfa=1"; }, 2500);
+              } else if (data && typeof data.attempts_left === "number") {
+                showError(((data && data.error) || "Verification failed.") + " (" + data.attempts_left + " attempt(s) left.)");
               } else {
                 showError((data && data.error) || "Verification failed.");
               }
@@ -365,6 +504,49 @@
             });
         });
 
+        // Push fallback: same code delivered as a push notification
+        // (for Gmail outages). Then type the code into the box above.
+        var pushBtn = document.getElementById("pushBtn");
+        if (pushBtn) {
+          pushBtn.addEventListener("click", function () {
+            hideError();
+            pushBtn.disabled = true;
+            pushBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Sending push...';
+            fetch("/api/auth/mfa/push/", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+              },
+              body: new URLSearchParams({
+                pre_auth_token: document.getElementById("preAuthToken").value,
+              }),
+            })
+              .then(function (r) { return r.json().then(function (d) { return {status: r.status, body: d}; }); })
+              .then(function (res) {
+                pushBtn.disabled = false;
+                pushBtn.innerHTML = '<i class="fa-solid fa-bell"></i> Send Code via Push Instead';
+                var data = res.body || {};
+                if (data.ok) {
+                  showError(data.message || "Code sent via push notification.");
+                  setTimeout(hideError, 5000);
+                  if (deliveryEl) {
+                    deliveryEl.innerHTML = '<i class="fa-solid fa-bell"></i> Code pushed to your device — enter it below.';
+                  }
+                } else if (data.rate_limited) {
+                  showError(data.error || "Please wait before requesting another push.");
+                } else {
+                  showError(data.error || "Push delivery failed.");
+                }
+              })
+              .catch(function () {
+                pushBtn.disabled = false;
+                pushBtn.innerHTML = '<i class="fa-solid fa-bell"></i> Send Code via Push Instead';
+                showError("Network error. Please try again.");
+              });
+          });
+        }
+
         // Delivery poll: show the REAL queue status (sending/sent/failed)
         // so nobody stares at an empty inbox. Stops on sent/failed or 90s.
         var deliveryEl = document.getElementById("mfaDeliveryStatus");
@@ -407,5 +589,30 @@
       })();
     </script>
     {% endif %}
+    <script>
+      // Security showcase: visible on every login visit; Proceed dismisses it.
+      (function () {
+        var overlay = document.getElementById("secShowcaseOverlay");
+        var btn = document.getElementById("secShowcaseBtn");
+        if (!overlay || !btn) return;
+        document.body.style.overflow = "hidden";
+        btn.focus();
+        function close() {
+          if (overlay.hasAttribute("hidden") || overlay.classList.contains("sec-closing")) return;
+          overlay.classList.add("sec-closing");
+          window.setTimeout(function () {
+            overlay.setAttribute("hidden", "");
+            overlay.classList.remove("sec-closing");
+            document.body.style.overflow = "";
+            var target = document.getElementById("username") || document.getElementById("otp");
+            if (target) target.focus();
+          }, 200);
+        }
+        btn.addEventListener("click", close);
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && !overlay.hasAttribute("hidden")) close();
+        });
+      })();
+    </script>
   </body>
 </html>

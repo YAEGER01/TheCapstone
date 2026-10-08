@@ -171,23 +171,55 @@ def build_delinquency(request):
     if department:
         members = members.filter(department__iexact=department)
 
-    oldest_by_member: dict[int, str] = {}
+    # Owed months (assessments with outstanding + back-dues catchups) drive
+    # both ends of the standing: oldest owed month (existing column) and the
+    # latest owed month behind the Status text. Months compare as DATES —
+    # never as "Month Year" strings ("April 2026" < "February 2026"
+    # lexicographically, which would corrupt min/max across month names).
+    owed_months: dict[int, list] = {}
     for row in (
         MemberAssessment.objects.filter(member_id_FK_id__in=member_ids, outstanding_balance__gt=0)
         .select_related("assessment_id_FK")
         .order_by("assessment_id_FK__month")
         .values("member_id_FK_id", "assessment_id_FK__month")
     ):
-        oldest_by_member.setdefault(row["member_id_FK_id"], _month_label(row["assessment_id_FK__month"]))
+        if row["assessment_id_FK__month"]:
+            owed_months.setdefault(row["member_id_FK_id"], []).append(row["assessment_id_FK__month"])
     for row in (
         MemberCatchupDue.objects.filter(member_id_FK_id__in=member_ids, amount__gt=0)
         .order_by("month")
         .values("member_id_FK_id", "month")
     ):
-        current = oldest_by_member.get(row["member_id_FK_id"])
-        label = _month_label(row["month"])
-        if current is None or label < current:
-            oldest_by_member[row["member_id_FK_id"]] = label
+        if row["month"]:
+            owed_months.setdefault(row["member_id_FK_id"], []).append(row["month"])
+
+    oldest_by_member = {
+        mid: _month_label(min(months)) for mid, months in owed_months.items() if months
+    }
+    latest_owed_by_member = {
+        mid: _month_label(max(months)) for mid, months in owed_months.items() if months
+    }
+
+    # Latest month with an actual deduction — backs "Already Paid on {month}"
+    # for zero-balance rows.
+    paid_months: dict[int, list] = {}
+    for row in (
+        MemberAssessment.objects.filter(member_id_FK_id__in=member_ids, actual_deduction__gt=0)
+        .select_related("assessment_id_FK")
+        .order_by("-assessment_id_FK__month")
+        .values("member_id_FK_id", "assessment_id_FK__month")
+    ):
+        if row["assessment_id_FK__month"]:
+            paid_months.setdefault(row["member_id_FK_id"], []).append(row["assessment_id_FK__month"])
+
+    def _standing(mid, total):
+        if total > 0:
+            latest = latest_owed_by_member.get(mid)
+            return f"Still Unpaid as of {latest}" if latest else "Still Unpaid"
+        paid = paid_months.get(mid)
+        if paid:
+            return f"Already Paid on {_month_label(max(paid))}"
+        return "Already Paid"
 
     rows = []
     for member in members[:MAX_ROWS]:
@@ -199,7 +231,7 @@ def build_delinquency(request):
             "email": member.email or "N/A",
             "total_due": totals.get(member.member_id_PK, 0.0),
             "oldest_month": oldest_by_member.get(member.member_id_PK, "N/A"),
-            "status": member.membership_status or "Unknown",
+            "status": _standing(member.member_id_PK, totals.get(member.member_id_PK, 0.0)),
         })
     rows.sort(key=lambda r: r["total_due"], reverse=True)
 
@@ -227,6 +259,9 @@ def build_delinquency(request):
         _col("status", "Status"),
     ]
     report["rows"] = rows
+    report["notes"] = [
+        "Status is payment standing, not membership type: 'Still Unpaid as of {month}' means a balance is still open (latest owed month); 'Already Paid on {month}' means cleared.",
+    ]
     return report
 
 

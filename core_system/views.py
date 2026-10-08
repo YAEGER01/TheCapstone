@@ -197,12 +197,18 @@ def _build_superadmin_dashboard_context(superadmin: OfficerUser, president: Offi
     from core_system.isu_email_guard import is_isu_email_guard_enabled, is_membership_duplicate_email_allowed
     from core_system.dues_backfill_guard import is_back_dues_chase_enabled
     from core_system.email_killswitch import is_email_sending_enabled
+    from core_system.otp_killswitch import is_login_otp_enabled
+    from core_system.unpaid_months_guard import is_show_unpaid_months_enabled
+    from core_system.other_campus_guard import is_other_campus_enabled
     nav_flags = get_nav_modules()
     landing_flags = get_landing_sections()
     isu_email_guard_enabled = is_isu_email_guard_enabled()
     membership_allow_duplicate_email = is_membership_duplicate_email_allowed()
     dues_require_back_dues_on_join = is_back_dues_chase_enabled()
     email_sending_enabled = is_email_sending_enabled()
+    login_otp_enabled = is_login_otp_enabled()
+    show_unpaid_months = is_show_unpaid_months_enabled()
+    show_other_campus = is_other_campus_enabled()
     try:
         from core_system.email_killswitch import get_last_stop_info, get_queue_counts
 
@@ -243,6 +249,12 @@ def _build_superadmin_dashboard_context(superadmin: OfficerUser, president: Offi
         "isu_email_guard_enabled": isu_email_guard_enabled,
         "membership_allow_duplicate_email": membership_allow_duplicate_email,
         "dues_require_back_dues_on_join": dues_require_back_dues_on_join,
+        "login_otp_enabled": login_otp_enabled,
+        "login_otp_is_default": login_otp_enabled,
+        "show_unpaid_months": show_unpaid_months,
+        "show_unpaid_months_is_default": show_unpaid_months,
+        "show_other_campus": show_other_campus,
+        "show_other_campus_is_default": show_other_campus,
         "email_sending_enabled": email_sending_enabled,
         "email_is_default": email_sending_enabled,
         "email_queue_pending": _email_queue["pending"],
@@ -591,6 +603,93 @@ def _handle_superadmin_email_kill_switch_form(request: HttpRequest) -> dict:
     return feedback
 
 
+def _handle_superadmin_login_otp_form(request: HttpRequest) -> dict:
+    """Global login-OTP switch (Superadmin only): OFF skips the email code step."""
+    from core_system.otp_killswitch import set_login_otp_enabled
+
+    form_type = request.POST.get("form_type", "").strip()
+    feedback = {"ok": False, "message": "", "level": "error"}
+    if form_type != "login_otp_switch":
+        feedback["message"] = "Invalid form type."
+        return feedback
+
+    enabled = request.POST.get("login_otp_enabled") == "on"
+    set_login_otp_enabled(enabled)
+    if enabled:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Login OTP is now ON: every role signs in with password + email "
+            "verification code, as before."
+        )
+    else:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Login OTP is now OFF: every role signs in with password only — "
+            "no verification code is queued or asked for. Turn it back ON to "
+            "restore the email code step."
+        )
+    feedback["level"] = "success"
+    return feedback
+
+
+def _handle_superadmin_unpaid_months_form(request: HttpRequest) -> dict:
+    """Unpaid month list switch (Superadmin only): OFF hides the month cards."""
+    from core_system.unpaid_months_guard import set_show_unpaid_months_enabled
+
+    form_type = request.POST.get("form_type", "").strip()
+    feedback = {"ok": False, "message": "", "level": "error"}
+    if form_type != "show_unpaid_months":
+        feedback["message"] = "Invalid form type."
+        return feedback
+
+    enabled = request.POST.get("show_unpaid_months") == "on"
+    set_show_unpaid_months_enabled(enabled)
+    if enabled:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Unpaid month list is now SHOWN: the Record Monthly Dues popup "
+            "shows the month checkbox cards alongside the Amount to pay input."
+        )
+    else:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Unpaid month list is now HIDDEN: the Record Monthly Dues popup "
+            "shows only the Amount to pay input — typing an amount still "
+            "settles the oldest months automatically."
+        )
+    feedback["level"] = "success"
+    return feedback
+
+
+def _handle_superadmin_other_campus_form(request: HttpRequest) -> dict:
+    """Other Campus option switch (Superadmin only): OFF hides the picker option."""
+    from core_system.other_campus_guard import set_other_campus_enabled
+
+    form_type = request.POST.get("form_type", "").strip()
+    feedback = {"ok": False, "message": "", "level": "error"}
+    if form_type != "show_other_campus":
+        feedback["message"] = "Invalid form type."
+        return feedback
+
+    enabled = request.POST.get("show_other_campus") == "on"
+    set_other_campus_enabled(enabled)
+    if enabled:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Other Campus option is now SHOWN: the President monthly deduction "
+            "recipient picker offers Other Campus (external beneficiary) again."
+        )
+    else:
+        feedback["ok"] = True
+        feedback["message"] = (
+            "Other Campus option is now HIDDEN: the President monthly deduction "
+            "recipient picker no longer offers Other Campus — saved external "
+            "rows stay visible as history but no new ones can be declared."
+        )
+    feedback["level"] = "success"
+    return feedback
+
+
 # Groups for the consolidated System Settings view: card -> SystemSetting keys.
 # Reset deletes these rows so every getter falls back to its code default.
 SA_RESET_GROUPS: dict[str, dict] = {
@@ -622,6 +721,18 @@ SA_RESET_GROUPS: dict[str, dict] = {
     "email_kill": {
         "label": "Outgoing Email Kill Switch",
         "keys": ["email_sending_enabled"],
+    },
+    "login_otp": {
+        "label": "Login OTP Switch",
+        "keys": ["login_otp_enabled"],
+    },
+    "unpaid_months": {
+        "label": "Unpaid Month List",
+        "keys": ["show_unpaid_months"],
+    },
+    "other_campus": {
+        "label": "Other Campus Option",
+        "keys": ["show_other_campus"],
     },
     "safety_threshold": {
         "label": "Fund Safety Threshold",
@@ -686,6 +797,15 @@ def _handle_system_settings_save_all(request: HttpRequest, updated_by: OfficerUs
     saved.append("Member Duplicate Emails saved")
     set_back_dues_chase_enabled(request.POST.get("dues_require_back_dues_on_join") == "on")
     saved.append("Back-Dues Chase saved")
+    from core_system.otp_killswitch import set_login_otp_enabled
+    set_login_otp_enabled(request.POST.get("login_otp_enabled") == "on")
+    saved.append("Login OTP Switch saved")
+    from core_system.unpaid_months_guard import set_show_unpaid_months_enabled
+    set_show_unpaid_months_enabled(request.POST.get("show_unpaid_months") == "on")
+    saved.append("Unpaid Month List saved")
+    from core_system.other_campus_guard import set_other_campus_enabled
+    set_other_campus_enabled(request.POST.get("show_other_campus") == "on")
+    saved.append("Other Campus Option saved")
     # NOTE: the email STOP is momentary (own button + confirm) and is
     # deliberately NOT part of Update All — an absent checkbox must never
     # force email OFF on a bulk save.
@@ -845,6 +965,12 @@ def superadmin_dashboard(request: HttpRequest):
             form_feedback = _handle_superadmin_back_dues_chase_form(request)
         elif form_type == "email_kill_switch":
             form_feedback = _handle_superadmin_email_kill_switch_form(request)
+        elif form_type == "login_otp_switch":
+            form_feedback = _handle_superadmin_login_otp_form(request)
+        elif form_type == "show_unpaid_months":
+            form_feedback = _handle_superadmin_unpaid_months_form(request)
+        elif form_type == "show_other_campus":
+            form_feedback = _handle_superadmin_other_campus_form(request)
         elif form_type == "email_stop_now":
             form_feedback = _handle_superadmin_email_stop_form(request)
         elif form_type == "system_settings_save_all":
@@ -1197,6 +1323,7 @@ def member_dashboard(request: HttpRequest):
     total_dues_unpaid = 0
     outstanding_balance = 0
     dues_records = []
+    unpaid_months = []
     if member:
         all_dues = MonthlyDues.objects.filter(member_id_FK=member).order_by("-month_covered")
         total_dues_paid = float(all_dues.filter(payment_status__in=Status.ALL_AUDITOR_VERIFIED).aggregate(t=Sum("amount"))["t"] or 0)
@@ -1511,6 +1638,10 @@ def member_dashboard(request: HttpRequest):
         # dashboard until the member completes it once.
         "onboarding_pending": onboarding_pending,
         "onboarding_email": (member.email if member and member.email else officer_email),
+        # First-login backup-code reveal: one-time modal. Plaintext codes are
+        # NEVER embedded here — the modal fetches them once via the reveal
+        # endpoint, which destroys them server-side on first serve.
+        "show_backup_modal": bool(request.session.get("show_backup_modal")),
     }
 
     return render(request, "website/Member/member_dashboard.html", context)

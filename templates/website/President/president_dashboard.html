@@ -4169,6 +4169,7 @@
 
   <div class="nav-group-title nav-system-group">SYSTEM</div>
   <div class="nav-item menu-item" data-target="view-help"><span class="ico"><i class="fas fa-circle-question"></i></span><span class="menu-text">Help</span></div>
+  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Backup sign-in codes"><span class="ico"><i class="fas fa-key"></i></span><span class="menu-text">Backup sign-in codes</span></div>
   <div class="nav-item menu-item" onclick="confirmLogout()" title="Logout"><span class="ico"><i class="fas fa-right-from-bracket"></i></span><span class="menu-text">Logout</span></div>
 </aside>
 
@@ -4268,6 +4269,7 @@
             <button type="button" class="hn-btn" aria-haspopup="true" aria-expanded="false">System <span class="hn-caret" aria-hidden="true">&#9662;</span></button>
             <ul class="hn-menu">
               <li><button type="button" class="hn-item" data-target="view-help"><i class="fas fa-circle-question"></i>Help</button></li>
+              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-key"></i>Backup sign-in codes</button></li>
               <li><button type="button" class="hn-item" data-hn-logout="1"><i class="fas fa-right-from-bracket"></i>Logout</button></li>
             </ul>
           </div>
@@ -7985,11 +7987,11 @@
                 <div class="fs-tile"><div class="v" style="color: #1b5e20;" id="fsInflows">+&#8369;0</div><div class="l">Total Money In</div></div>
                 <div class="fs-tile"><div class="v" style="color: #c62828;" id="fsOutflows">-&#8369;0</div><div class="l">Total Money Out</div></div>
                 <div class="fs-tile"><div class="v" style="color: #1b5e20;" id="fsNet">+&#8369;0</div><div class="l">Increase</div></div>
-                <div class="fs-tile"><div class="v" id="fsBalance">&#8369;0</div><div class="l">Current Balance</div></div>
+                <div class="fs-tile"><div class="v" id="fsBalance">&#8369;0</div><div class="l">Cash on Hand</div></div>
               </div>
               <div class="fs-charts">
                 <div class="fs-chart-card">
-                  <h3>Fund Balance Trend</h3>
+                  <h3>Cash on Hand Trend</h3>
                   <div class="chart-wrap"><canvas id="fsTrendChart"></canvas></div>
                 </div>
                 <div class="fs-chart-card">
@@ -8168,7 +8170,7 @@
               #presSheetBody .rptd-title{text-align:center;font-size:16px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:12px 0 2px;}
               #presSheetBody .rptd-period{text-align:center;font-size:12px;color:#333;margin-bottom:12px;}
               #presSheetBody table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;}
-              #presSheetBody th,#presSheetBody td{border:1px solid #999;padding:5px 7px;text-align:center !important;}
+              #presSheetBody th,#presSheetBody td{border:1px solid #999;padding:5px 7px;text-align:left;}
               #presSheetBody th{background:#e8efe9;font-weight:700;}
               #presSheetBody tr.total td{font-weight:700;background:#f2f2f2;}
               #presSheetBody .rptd-sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#1e5c38;color:#fff;padding:4px 9px;margin:14px 0 7px;}
@@ -8250,7 +8252,7 @@
 
               >
 
-                <div style="color: #6c757d">Loading fund balance...</div>
+                <div style="color: #6c757d">Loading cash on hand...</div>
 
               </div>
 
@@ -8430,7 +8432,7 @@
 
                       <div style="display:flex;flex-direction:column;padding:12px;background:#f8f9fa;border-radius:8px;">
 
-                        <span style="font-size:12px;color:#6c757d;text-transform:uppercase;">Current Balance</span>
+                        <span style="font-size:12px;color:#6c757d;text-transform:uppercase;">Cash on Hand</span>
 
                         <span style="font-size:18px;font-weight:700;margin-top:4px;">₱${data.balance.toFixed(2)}</span>
 
@@ -8594,7 +8596,7 @@
 
                     <div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px;">
 
-                      <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>Current Balance:</span><span>₱${data.fund_balance.toFixed(2)}</span></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>Cash on Hand:</span><span>₱${data.fund_balance.toFixed(2)}</span></div>
 
                       <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>+ This Batch (inflow):</span><span style="color:#28a745;">+₱${data.fund_impact.toFixed(2)}</span></div>
 
@@ -13854,9 +13856,10 @@
     </script>
 
     <script src="{% static 'js/push-init.js' %}?v=20260921push3"></script>
+    <script defer src="{% static 'js/backup-nudge.js' %}?v=20261006bn2"></script>
 
     <script src="{% static 'js/President/aid_finish_approval.js' %}?v=20260902bust5"></script>
-    <script src="{% static 'js/President/monthly_assessment.js' %}?v=20260930ma55"></script>
+    <script src="{% static 'js/President/monthly_assessment.js' %}?v=20261007ma58"></script>
     <script src="{% static 'js/President/aid_approval_new.js' %}?v=20260912afa5"></script>
     <script src="{% static 'js/shared/fund_overview.js' %}?v=20260913fx12"></script>
 
@@ -15712,7 +15715,7 @@
 
     </script>
 
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20260927zt5"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
 
     <script>
 

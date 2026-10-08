@@ -51,10 +51,16 @@
 
   function itemRow(t, dir, withPos) {
     const desc = t.description || t.source_type;
+    // Recipient line only when it ADDS info (release descriptions already
+    // name the payee — no "for Juan" under "disbursement — Juan").
+    const recip = (t.recipient && String(desc).indexOf(t.recipient) === -1)
+      ? '<span class="ft-recip">for ' + esc(t.recipient) + '</span>'
+      : "";
     return (
       '<div class="ft-item">' +
         '<span class="ft-item-desc">' +
           '<span class="ft-desc" title="' + esc(desc) + '">' + esc(desc) + '</span>' +
+          recip +
           '<span class="ft-meta">' + itemMeta(t, withPos) + '</span>' +
         '</span>' +
         '<span class="ft-amt ' + dir + '">' + (dir === "in" ? "+" : "−") + peso(t.amount) + '</span>' +
@@ -85,10 +91,14 @@
     const breakdown = u.has_aid
       ? '<div class="ft-group-items">' +
           u.components.map(function (c) {
+            const recip = c.recipient
+              ? '<span class="ft-recip">for ' + esc(c.recipient) + '</span>'
+              : "";
             return (
               '<div class="ft-item">' +
                 '<span class="ft-item-desc">' +
                   '<span class="ft-desc">' + esc(c.label) + '</span>' +
+                  recip +
                   '<span class="ft-meta">' + c.count + (c.count === 1 ? " record" : " records") +
                     ' · <span class="ft-pos-mini">' + peso(c.fund_before) + ' &#8594; ' + peso(c.fund_after) + '</span>' +
                   '</span>' +

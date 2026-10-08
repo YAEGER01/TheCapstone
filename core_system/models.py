@@ -38,6 +38,16 @@ class OfficerUser(models.Model):
     mfa_enabled = models.BooleanField(default=False)
     # TOTP seed: Fernet ciphertext at rest (never filtered on — attribute-only).
     mfa_secret = EncryptedCharField(max_length=500, null=True, blank=True)
+    # Authenticator-app fallback (RFC 6238 base32 secret for offline TOTP).
+    # Enrolled separately from the email OTP above so existing secrets keep
+    # working; set only after the officer confirms a code from their app.
+    authenticator_secret = EncryptedCharField(max_length=500, null=True, blank=True)
+    authenticator_enabled = models.BooleanField(default=False)
+    authenticator_enrolled_at = models.DateTimeField(null=True, blank=True)
+    # Last time backup codes were issued (authenticator enrollment, first
+    # member login, or standalone issuance). Drives the fallback nudge and
+    # the one-time first-login reveal; hashes only are ever stored.
+    backup_codes_issued_at = models.DateTimeField(null=True, blank=True)
     last_mfa_email_sent_at = models.DateTimeField(null=True, blank=True)
     email = models.CharField(max_length=255, null=True, blank=True)
     must_change_password = models.BooleanField(default=False)
@@ -387,6 +397,27 @@ class Notification(models.Model):
             models.Index(fields=["recipient_type", "recipient_id", "sent_at", "notification_id_PK"]),
             models.Index(fields=["recipient_type", "recipient_id", "is_read"]),
         ]
+
+
+class MfaBackupCode(models.Model):
+    """Single-use recovery codes for officers with authenticator fallback.
+
+    Only the sha256 hash is stored; plaintext is shown once at enrollment
+    and never persisted. A code burns on first successful use.
+    """
+    code_id_PK = models.AutoField(primary_key=True)
+    officer_id_FK = models.ForeignKey(
+        "OfficerUser",
+        on_delete=models.CASCADE,
+        db_column="officer_id_FK",
+        related_name="mfa_backup_codes",
+    )
+    code_hash = models.CharField(max_length=128)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "mfa_backup_code"
 
 
 class PushSubscription(models.Model):
@@ -1555,6 +1586,9 @@ class FundTransaction(models.Model):
         indexes = [
             models.Index(fields=["direction"]),
             models.Index(fields=["source_type", "source_id"]),
+            # Hot path: newest-first scans/slices (movements, ledger,
+            # trends) and recorded_at range filters (summaries).
+            models.Index(fields=["-recorded_at"]),
         ]
 
     @staticmethod

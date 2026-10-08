@@ -74,7 +74,13 @@
   }
 
   let defaultMonthlyDue = 200;
+  let defaultMedicalAid = 100;
+  let defaultDeathAid = 500;
   let memberNames = [];
+  // System Admin toggle (System Settings > Other Campus Option). ON (default)
+  // shows the "Other Campus" recipient choice; OFF hides it everywhere on
+  // this screen. Saved external rows still render as history.
+  window.__showOtherCampus = true;
   let externalCampuses = [
     "ISU Echague Campus",
     "ISU Ilagan Campus",
@@ -616,8 +622,10 @@
   }
 
   // External (other-campus) beneficiaries are only allowed for Death Aid
-  // and Other purposes — never Medical Aid, never Monthly Due.
+  // and Other purposes — never Medical Aid, never Monthly Due — and only
+  // while the System Admin "Other Campus Option" toggle is ON.
   function maExternalAllowed(purpose) {
+    if (window.__showOtherCampus === false) return false;
     return purpose === "death_aid_fund" || purpose === "other";
   }
 
@@ -674,10 +682,10 @@
       ? `No member starts with "${esc(maPickerLetter)}"${t ? ` for “${esc(term)}”` : ""}.`
       : `No member matches "${esc(term)}".`;
     listEl.innerHTML = pageItems.map((o, i) => `
-      <div role="button" tabindex="0" onclick="maPickRecipientAt(${(maPickerPage - 1) * MA_PICKER_PAGE_SIZE + i})"
+      <div role="button" tabindex="0" onclick="${o.external ? `maToggleExternalDrawer(event, ${(maPickerPage - 1) * MA_PICKER_PAGE_SIZE + i})` : `maPickRecipientAt(${(maPickerPage - 1) * MA_PICKER_PAGE_SIZE + i})`}"
            onmouseover="this.style.background='#f3f6f3'" onmouseout="this.style.background=''"
            style="padding:9px 14px; border-bottom:1px solid #f1f4f1; cursor:pointer; font-size:0.86rem; color:#1f2937;">
-        <div style="font-weight:600;">${esc(o.name)}</div>
+        <div style="font-weight:600;">${esc(o.name)}${o.external ? ' <span style="font-size:0.7rem; color:#1b5e20;">▾</span>' : ""}</div>
         ${o.sub ? `<div style="font-size:0.74rem; color:#8a949e;">${esc(o.sub)}</div>` : ""}
       </div>`).join("")
       || `<div style="padding:18px; text-align:center; color:#8a949e; font-size:0.84rem;">${emptyNote}</div>`
@@ -701,11 +709,100 @@
     maRenderRecipientList(search ? search.value : "", false);
   };
 
+  /* Other-campus dropdown drawer: clicking the "Other Campus" option card
+     expands an inline drawer (campus dropdown on top, beneficiary name
+     below) instead of jumping straight to the row. Confirming applies both
+     to the row exactly as if picked there. Re-rendering the list (search /
+     paging) closes the drawer — confirm first. */
+  function maExternalDrawerHTML() {
+    const campusOpts = (externalCampuses || [])
+      .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    return `
+      <div id="ma-ext-drawer" style="margin:0 10px 10px; background:#f5f9ff; border:1px dashed #90a4ae;
+           border-radius:8px; padding:10px 12px;" onclick="event.stopPropagation()">
+        <label style="display:block; font-size:0.72rem; font-weight:700; color:#455a64; margin-bottom:4px;">Campus</label>
+        <select id="ma-ext-drawer-campus" class="form-control" style="width:100%; margin-bottom:8px;">
+          <option value="">Select campus…</option>
+          ${campusOpts}
+        </select>
+        <label style="display:block; font-size:0.72rem; font-weight:700; color:#455a64; margin-bottom:4px;">Beneficiary name</label>
+        <input type="text" id="ma-ext-drawer-bene" class="form-control" maxlength="120"
+               placeholder="Beneficiary - e.g. Juan Dela Cruz" style="width:100%;" />
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button type="button" onmouseover="this.style.background='#14521b'" onmouseout="this.style.background='#1b5e20'"
+                  style="flex:1; padding:9px 0; background:#1b5e20; color:#fff; border:none; border-radius:8px;
+                  font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 2px 8px rgba(27,94,32,.35);"
+                  onclick="maConfirmExternalDrawer()">✓ Use this beneficiary</button>
+          <button type="button" class="btn-outline" style="padding:7px 14px;"
+                  onclick="maCloseExternalDrawer()">Cancel</button>
+        </div>
+      </div>`;
+  }
+
+  window.maToggleExternalDrawer = function maToggleExternalDrawer(ev, idx) {
+    if (ev) {
+      ev.preventDefault();
+      if (ev.stopPropagation) ev.stopPropagation();
+    }
+    const card = ev && ev.currentTarget ? ev.currentTarget : null;
+    const existing = document.getElementById("ma-ext-drawer");
+    if (existing) {
+      const wasHere = card && existing.previousElementSibling === card;
+      existing.remove();
+      if (wasHere) return; // toggle closed
+    }
+    if (!card || !card.parentNode) return;
+    const tmp = document.createElement("div");
+    tmp.innerHTML = maExternalDrawerHTML();
+    const drawer = tmp.firstElementChild;
+    card.insertAdjacentElement("afterend", drawer);
+    const sel = document.getElementById("ma-ext-drawer-campus");
+    if (sel) sel.focus();
+    void idx;
+  };
+
+  window.maCloseExternalDrawer = function maCloseExternalDrawer() {
+    const existing = document.getElementById("ma-ext-drawer");
+    if (existing) existing.remove();
+  };
+
+  window.maConfirmExternalDrawer = function maConfirmExternalDrawer() {
+    const row = window.__maPickerRow;
+    if (!row) return;
+    const sel = document.getElementById("ma-ext-drawer-campus");
+    const beneEl = document.getElementById("ma-ext-drawer-bene");
+    const campus = sel ? sel.value.trim() : "";
+    const bene = beneEl ? beneEl.value.trim() : "";
+    let bad = false;
+    if (sel) sel.style.border = !campus ? "1px solid #e57373" : "";
+    if (beneEl) beneEl.style.border = !bene ? "1px solid #e57373" : "";
+    if (!campus || !bene) bad = true;
+    if (bad) {
+      toast("Pick a campus and type the beneficiary name.", true);
+      return;
+    }
+    const cb = row.querySelector(".ma-ext-toggle");
+    if (cb) cb.checked = true;
+    maSetRowExternal(row, true);
+    const campusInput = row.querySelector(".ma-item-ext-campus");
+    const beneInput = row.querySelector(".ma-item-ext-bene");
+    if (campusInput) campusInput.value = campus;
+    if (beneInput) beneInput.value = bene;
+    maApplyRecipientRules(row, row.querySelector(".ma-item-purpose")?.value);
+    maComputeTotal();
+    if (window.SimpleModal) SimpleModal.close();
+  };
+
   window.maPickRecipientAt = function maPickRecipientAt(idx) {
     const item = (window.__maPickerItems || [])[idx];
     const row = window.__maPickerRow;
     if (!item || !row) return;
     if (item.external) {
+      if (window.__showOtherCampus === false) {
+        if (window.SimpleModal) SimpleModal.close();
+        toast("Other Campus option is currently disabled by System Admin.", true);
+        return;
+      }
       // Other-campus choice: auto-check the row's checkbox, flip the row
       // into external mode and focus campus.
       const cb = row.querySelector(".ma-ext-toggle");
@@ -746,6 +843,12 @@
   window.maToggleExternal = function maToggleExternal(checkbox) {
     const row = checkbox.closest(".ma-item-row");
     if (!row) return;
+    if (window.__showOtherCampus === false) {
+      checkbox.checked = false;
+      maSetRowExternal(row, false);
+      toast("Other Campus option is currently disabled by System Admin.", true);
+      return;
+    }
     const purpose = row.querySelector(".ma-item-purpose")?.value || "";
     if (!maExternalAllowed(purpose)) {
       checkbox.checked = false;
@@ -861,6 +964,19 @@
     const row = select.closest(".ma-item-row");
     if (!row) return;
     maApplySpecifyControl(row, select.value);
+    // Auto-fill the policy default amount when the purpose changes and the
+    // amount is still empty/zero — e.g. picking Medical Aid Fund fills the
+    // configured benefit instead of leaving 0.00. Typed amounts are kept.
+    const amtInput = row.querySelector(".ma-item-amount");
+    const purposeDefaults = {
+      monthly_due: defaultMonthlyDue,
+      medical_aid_fund: defaultMedicalAid,
+      death_aid_fund: defaultDeathAid,
+    };
+    if (amtInput && (amtInput.value === "" || parseFloat(amtInput.value) === 0) && purposeDefaults[select.value] != null) {
+      amtInput.value = purposeDefaults[select.value];
+      maComputeTotal();
+    }
     // Switching purposes clears external mode except death<->other.
     const purpose = select.value || "";
     if (!maExternalAllowed(purpose) && row.dataset.external === "1") {
@@ -966,7 +1082,11 @@
       const data = await resp.json();
       if (!data.ok) { toast(data.error || "Failed to load deduction records.", true); return; }
       defaultMonthlyDue = data.default_monthly_due || 200;
+      if (data.default_medical_aid != null) defaultMedicalAid = data.default_medical_aid;
+      if (data.default_death_aid != null) defaultDeathAid = data.default_death_aid;
       memberNames = data.member_names || [];
+      // System Admin toggle: missing/true = show, explicit false = hide.
+      window.__showOtherCampus = data.show_other_campus !== false;
       if (data.external_campuses && data.external_campuses.length) externalCampuses = data.external_campuses;
       latestAssessments = data.assessments || [];
       maPopulateMonthOptions();

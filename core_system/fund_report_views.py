@@ -921,7 +921,7 @@ def _build_report_pdf_bytes(report):
     from xml.sax.saxutils import escape as xml_escape
 
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.utils import ImageReader
@@ -985,9 +985,9 @@ def _build_report_pdf_bytes(report):
     center_title = ParagraphStyle("ct", parent=center, fontName=serif_b, fontSize=14, leading=17, spaceBefore=12)
     center_meta = ParagraphStyle("cm", parent=center_small, fontSize=11, textColor=colors.HexColor("#333333"), spaceBefore=3)
     sec_cell = ParagraphStyle("secc", fontName=serif_b, fontSize=9.5, leading=12, textColor=colors.white)
-    # Report tables center their headers AND data (official sheet design);
-    # amount columns right-align to match the on-screen sheets.
-    cell = ParagraphStyle("cell", fontName=serif, fontSize=9, leading=11.5, alignment=TA_CENTER)
+    # Report tables: TEXT left, NUMERICALS right (matches the on-screen
+    # sheets); amount columns use cell_right.
+    cell = ParagraphStyle("cell", fontName=serif, fontSize=9, leading=11.5, alignment=TA_LEFT)
     cell_right = ParagraphStyle("cellr", parent=cell, alignment=TA_RIGHT)
     cell_strong = ParagraphStyle("cells", parent=cell, fontName=serif_b)
     meta_k = ParagraphStyle("mk", fontName=serif_b, fontSize=10, leading=13)

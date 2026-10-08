@@ -216,3 +216,55 @@ class TreasurerDeductionMembersTests(TestCase):
         self.assertTrue(payload["ok"], payload)
         self.assertEqual(len(payload["members"]), 1)
         self.assertEqual(payload["members"][0]["monthly_due_per_member"], 100.0)
+
+
+class PresidentAssessmentDefaultsTests(TestCase):
+    def _login(self, username="president_defaults"):
+        officer = OfficerUser.objects.create(
+            full_name="Defaults Tester",
+            username=username,
+            password_hash=hash_password("DefaultsPass123!"),
+            role="President",
+            account_status="Active",
+            mfa_enabled=False,
+        )
+        session, token = create_access_session(
+            officer=officer,
+            ip_address="127.0.0.1",
+            device_info="tests",
+        )
+        session.save()
+
+        test_session = self.client.session
+        test_session["access_token"] = token
+        test_session["officer_id"] = officer.user_id_PK
+        test_session["role"] = officer.role
+        test_session.save()
+        return officer
+
+    def _list(self):
+        from django.urls import reverse as _reverse
+
+        response = self.client.get(_reverse("president_monthly_assessment_list"))
+        self.assertEqual(response.status_code, 200, response.content[:500])
+        payload = response.json()
+        self.assertTrue(payload["ok"], payload)
+        return payload
+
+    def test_list_returns_aid_defaults(self):
+        self._login()
+        payload = self._list()
+        self.assertEqual(payload["default_monthly_due"], 100.0)
+        self.assertEqual(payload["default_medical_aid"], 100.0)
+        self.assertEqual(payload["default_death_aid"], 500.0)
+
+    def test_list_honors_policy_override(self):
+        from core_system.models import SystemSetting
+
+        self._login()
+        SystemSetting.objects.update_or_create(
+            setting_key="policy.accidental_sickness_aid_benefit",
+            defaults={"setting_value": "500.0"},
+        )
+        payload = self._list()
+        self.assertEqual(payload["default_medical_aid"], 500.0)

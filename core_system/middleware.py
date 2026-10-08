@@ -179,7 +179,7 @@ def _revoke_expired_lock(session, request) -> None:
             actor=session.user_id_FK,
             old=None,
             new=None,
-            ip=request.META.get("REMOTE_ADDR"),
+            ip=zt_service.get_client_ip(request),
             device_info=request.META.get("HTTP_USER_AGENT"),
             notes="Locked screen not unlocked in time - session signed out automatically.",
         )
@@ -475,7 +475,7 @@ class ZeroTrustMiddleware:
                 actor=session.user_id_FK,
                 old=None,
                 new={"reasons": reasons},
-                ip=request.META.get("REMOTE_ADDR"),
+                ip=zt_service.get_client_ip(request),
                 device_info=request.META.get("HTTP_USER_AGENT"),
                 notes=f"ZT level change: {', '.join(reasons)}",
             )

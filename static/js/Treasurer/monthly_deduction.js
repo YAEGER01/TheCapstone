@@ -550,6 +550,13 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     color:#1b5e20; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums;
   }
   #mdp-root .mdp-unpaid-empty { color:#8a949e; font-size:0.7rem; padding:6px 2px; }
+  /* Superadmin "Unpaid Month List" switch OFF: the month checkbox cards hide
+     and only the Amount to pay input stays. Hidden rows still auto-tick when
+     an amount is typed (same DOM linkage), so recording is unaffected. */
+  #mdp-root .mdp-unpaid-panel.mdp-months-hidden .mdp-unpaid-listhead,
+  #mdp-root .mdp-unpaid-panel.mdp-months-hidden .mdp-unpaid-row,
+  #mdp-root .mdp-unpaid-panel.mdp-months-hidden .mdp-unpaid-group,
+  #mdp-root .mdp-unpaid-panel.mdp-months-hidden .mdp-unpaid-empty { display:none; }
   /* Month group: header checkbox ticks the whole month (Due + Aid);
      sub-rows tick one component. Same checkbox | label | amount grid. */
   #mdp-root .mdp-unpaid-group { display:flex; flex-direction:column; gap:3px; padding:4px; margin-bottom:4px; border:1px solid #e4ece6; border-radius:8px; background:#fcfdfc; }
@@ -715,7 +722,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
   }
 
   /* ============================== state ============================== */
-  const state = { assessments: [], activeAssessments: [], approvedAssessments: [], assessmentId: null, voAssessmentId: null, roster: null, recordable: false, status: "", filter: "all", search: "", page: 1, perPage: 50, flags: { requireBackDues: false } };
+  const state = { assessments: [], activeAssessments: [], approvedAssessments: [], assessmentId: null, voAssessmentId: null, roster: null, recordable: false, status: "", filter: "all", search: "", page: 1, perPage: 50, flags: { requireBackDues: false, showUnpaidMonths: true } };
 
   /* Informational join-status badges (green/amber/pink) show for 5 minutes
    * after first display in this tab; orange "New member" always stays. */
@@ -931,6 +938,9 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
       if (data.flags && typeof data.flags.require_back_dues === "boolean") {
         state.flags.requireBackDues = data.flags.require_back_dues;
       }
+      if (data.flags && typeof data.flags.show_unpaid_months === "boolean") {
+        state.flags.showUnpaidMonths = data.flags.show_unpaid_months;
+      }
       updateCatchupButton(data.catchup_pending_count || 0);
       // Pending-recording banner: once per page load, pop a top-center
       // action banner when months await treasurer recording, with a button
@@ -953,7 +963,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
           });
         }
       } catch (e) {}
-      if (state.activeAssessments.length) mdLoadRoster();
+      if (state.activeAssessments.length) mdLoadRoster({ auto: true });
       else mdpRenderEmpty();
       if (state.voAssessmentId) mdpLoadViewOnly();
     } catch (e) {
@@ -1057,7 +1067,8 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     el.innerHTML = current && suffix ? statusBadge(current.status, suffix) : "";
   }
 
-  window.mdLoadRoster = async function mdLoadRoster() {
+  window.mdLoadRoster = async function mdLoadRoster(opts) {
+    const optsAuto = !!(opts && opts.auto);
     const select = document.getElementById("md-month-select");
     const assessmentId = select ? select.value : "";
     state.assessmentId = assessmentId || null;
@@ -1085,6 +1096,9 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
       if (data.flags && typeof data.flags.require_back_dues === "boolean") {
         state.flags.requireBackDues = data.flags.require_back_dues;
       }
+      if (data.flags && typeof data.flags.show_unpaid_months === "boolean") {
+        state.flags.showUnpaidMonths = data.flags.show_unpaid_months;
+      }
       state.status = String((data.assessment && data.assessment.status) || "");
       state.filter = "all";
       state.search = "";
@@ -1093,8 +1107,11 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
       scheduleJoinBadgeExpiry();
       // Aid linkage: a monthly due carrying an aid fund needs its claim
       // filed first — prompt before the treasurer records the collection.
+      // Suppressed on automatic (boot) loads: the prompt belongs to opening
+      // Record Monthly Dues or explicitly changing the month, never to
+      // landing on the dashboard.
       try {
-        const aidLinkCheck = mdCheckAidLinkage(data);
+        const aidLinkCheck = mdCheckAidLinkage(data, { auto: !!optsAuto });
         if (aidLinkCheck && aidLinkCheck.catch) aidLinkCheck.catch(() => {});
       } catch (e) { /* never break roster load */ }
       /* Roster-load safety net fired: tell the treasurer exactly which
@@ -1159,7 +1176,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     }
   }
 
-  async function mdCheckAidLinkage(data) {
+  async function mdCheckAidLinkage(data, opts) {
     const items = (data && data.items) || ((data && data.assessment && data.assessment.items) || []);
     const members = (data && data.members) || [];
     const assessment = (data && data.assessment) || {};
@@ -1167,6 +1184,10 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     // Only prompt while the month is still recordable — a submitted month
     // no longer needs a pre-recording filing nudge.
     if (data.recordable === false) return;
+    // Automatic loads (dashboard boot) never prompt — the treasurer hasn't
+    // opened Record Monthly Dues. Explicit month changes and section opens
+    // (via mdMaybePromptAidLink) do.
+    if (opts && opts.auto) return;
     const aidItems = items.filter((i) => MD_AID_PURPOSES[i.purpose] && (i.recipient || "").trim());
     if (!aidItems.length) return;
     // One prompt per assessment per tab session — re-opening the same month
@@ -1191,6 +1212,20 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     try { sessionStorage.setItem(warnKey, "1"); } catch (e) {}
     mdShowAidLinkPrompt(unfiled, assessment);
   }
+
+  // Section-open entry point (nxModuleInit hook): re-evaluate the cached
+  // roster and prompt only now that Record Monthly Dues is actually open.
+  // No refetch — the roster payload already carries items + members.
+  window.mdMaybePromptAidLink = function mdMaybePromptAidLink() {
+    try {
+      const data = state.roster;
+      if (!data) return;
+      const sec = document.getElementById("view-monthly-deduction");
+      if (sec && !sec.classList.contains("active")) return;
+      const p = mdCheckAidLinkage(data, { auto: false });
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* never break navigation */ }
+  };
 
   function mdShowAidLinkPrompt(unfiled, assessment) {
     const monthLabel = (assessment && assessment.month_label) || "";
@@ -1582,7 +1617,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
             <span>Unpaid <span class="mdp-unpaid-count">(${unpaidMonths.length})</span></span>
             <strong>${PESO(outstandingTotal)}</strong>
           </button>
-          <div class="mdp-unpaid-panel" data-member-id="${m.member_id}" data-unpaid-total="${outstandingTotal}">
+          <div class="mdp-unpaid-panel${state.flags.showUnpaidMonths === false ? " mdp-months-hidden" : ""}" data-member-id="${m.member_id}" data-unpaid-total="${outstandingTotal}">
             <div class="mdp-unpaid-panel-title">Unpaid Months</div>
             <div class="mdp-unpaid-card"><span>Total Unpaid Balance</span><strong>${PESO(outstandingTotal)}</strong></div>
             <div class="mdp-unpaid-card"><span>Amount to pay</span><input type="number" class="mdp-unpaid-amount-input" data-member-id="${m.member_id}" step="0.01" min="0" max="${outstandingTotal}" value="0.00" placeholder="0.00" ${unpaidRowLocked ? "disabled" : ""} oninput="mdUnpaidAmountInput(this, false)" onchange="mdUnpaidAmountInput(this, true)" onkeydown="if(event.key==='Enter'){event.preventDefault();}" title="Type an amount to auto-pay the oldest unpaid months — linked with the month ticks below" /></div>

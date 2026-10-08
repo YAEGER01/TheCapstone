@@ -3051,16 +3051,29 @@ def member_fund_movements(request: HttpRequest):
 
     Batch-level (one row per collection batch, full totals) instead of the
     raw per-member FundTransaction rows. Member-only, read-logged.
+    ``?limit=`` caps the newest-first groups (default 5 for the Top-5 card,
+    up to 200 for the full Transactions view).
     """
     member, err = _transparency_guard(request)
     if err is not None:
         return err
 
+    try:
+        limit = int(request.GET.get("limit", 5) or 5)
+    except (TypeError, ValueError):
+        limit = 5
+    limit = max(1, min(limit, 200))
+    try:
+        offset = int(request.GET.get("offset", 0) or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(0, offset)
+
     _log_sensitive_read(
         request, "fund_transaction", [0],
         "Member viewed aggregated fund movements",
     )
-    return JsonResponse(transparency.fund_movements())
+    return JsonResponse(transparency.fund_movements(max_groups=limit, offset=offset))
 
 
 @require_GET

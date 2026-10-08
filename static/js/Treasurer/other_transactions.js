@@ -86,15 +86,292 @@
     const action = currentAction();
     const donorWrap = document.getElementById("ot-donor-wrap");
     const recipWrap = document.getElementById("ot-recipient-wrap");
+    const purposeWrap = document.getElementById("ot-purpose-wrap");
     if (donorWrap) donorWrap.style.display = action === "withdraw" ? "none" : "";
     if (recipWrap) recipWrap.style.display = action === "withdraw" ? "" : "none";
+    if (purposeWrap) purposeWrap.style.display = action === "withdraw" ? "" : "none";
+    updateRecipientVisibility();
     if (!hint) return;
     hint.classList.remove("withdraw", "dues");
     hint.classList.toggle("withdraw", currentAction() === "withdraw");
     hint.innerHTML =
       currentAction() === "withdraw"
-        ? '<i class="fas fa-circle-up" style="color:#a52c2c;"></i> A <b>Disbursement (Fund Withdrawal)</b> Debits general fund and shows under <b>Where Money Goes Out</b> in the Fund Overview.'
-        : '<i class="fas fa-circle-up" style="color:#166a3b;"></i> Deposits will automatically reconcile with the General Fund receipt summary. A <b>Receipt (Fund Deposit)</b> credits the fund and shows under <b>Where Money Came From</b> in the Fund Overview.';
+        ? '<i class="fas fa-circle-up" style="color:#a52c2c;"></i> A <b>WITHDRAWAL</b> debits general fund and shows under <b>Where Money Goes Out</b> in the Fund Overview.'
+        : '<i class="fas fa-circle-up" style="color:#166a3b;"></i> Deposits will automatically reconcile with the General Fund receipt summary. A <b>DEPOSIT</b> credits the fund and shows under <b>Where Money Came From</b> in the Fund Overview.';
+  }
+
+  /* --------------------- withdrawal purpose --------------------- */
+
+  function currentPurpose() {
+    const sel = document.getElementById("ot-purpose");
+    const custom = document.getElementById("ot-purpose-custom");
+    if (!sel) return "";
+    if (sel.value === "__others__") {
+      return custom ? custom.value.trim() : "";
+    }
+    return (sel.value || "").trim();
+  }
+
+  function commitCustomPurpose() {
+    const sel = document.getElementById("ot-purpose");
+    const custom = document.getElementById("ot-purpose-custom");
+    if (!sel || !custom) return;
+    const value = custom.value.trim().replace(/\s+/g, " ");
+    if (!value) {
+      sel.value = "";
+      custom.style.display = "none";
+      return;
+    }
+    let existing = Array.from(sel.options).find((o) => o.value === value);
+    if (!existing) {
+      existing = document.createElement("option");
+      existing.value = value;
+      existing.textContent = value;
+      const others = Array.from(sel.options).find((o) => o.value === "__others__");
+      if (others) sel.insertBefore(existing, others);
+      else sel.appendChild(existing);
+    }
+    sel.value = value;
+    custom.value = "";
+    custom.style.display = "none";
+  }
+
+  function bindPurpose() {
+    const sel = document.getElementById("ot-purpose");
+    const custom = document.getElementById("ot-purpose-custom");
+    if (!sel || sel.dataset.bound) return;
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", function () {
+      if (!custom) return;
+      if (sel.value === "__others__") {
+        custom.style.display = "";
+        custom.focus();
+      } else {
+        custom.style.display = "none";
+        custom.value = "";
+      }
+    });
+    if (custom) {
+      custom.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitCustomPurpose();
+        }
+      });
+      custom.addEventListener("blur", function () {
+        if (custom.style.display !== "none" && custom.value.trim()) commitCustomPurpose();
+      });
+    }
+  }
+
+  function resetPurpose() {
+    const sel = document.getElementById("ot-purpose");
+    const custom = document.getElementById("ot-purpose-custom");
+    if (sel) sel.value = "";
+    if (custom) {
+      custom.value = "";
+      custom.style.display = "none";
+    }
+    updateRecipientVisibility();
+  }
+
+  /* ---------------- dynamic recipient (follows purpose) ---------------- */
+
+  function selectedPurpose() {
+    const sel = document.getElementById("ot-purpose");
+    return sel ? sel.value : "";
+  }
+
+  function show(el, on) {
+    if (el) el.style.display = on ? "" : "none";
+  }
+
+  function updateAidVisibility() {
+    const type = (document.getElementById("ot-aid-type") || {}).value || "";
+    show(document.getElementById("ot-aid-medical-wrap"), type === "Medical");
+    show(document.getElementById("ot-aid-death-wrap"), type === "Death");
+    if (type === "Medical") loadMembersOnce();
+  }
+
+  function updateRecipientVisibility() {
+    if (currentAction() !== "withdraw") return;
+    const purpose = selectedPurpose();
+    const isMeal = purpose === "Meal";
+    const isAid = purpose === "Aid";
+    show(document.getElementById("ot-recipient"), !isMeal && !isAid);
+    show(document.getElementById("ot-recipient-meal-wrap"), isMeal);
+    show(document.getElementById("ot-recipient-aid-wrap"), isAid);
+    if (isAid) updateAidVisibility();
+  }
+
+  function currentAidType() {
+    if (currentAction() !== "withdraw" || selectedPurpose() !== "Aid") return "";
+    const t = (document.getElementById("ot-aid-type") || {}).value || "";
+    return t === "Medical" || t === "Death" ? t : "";
+  }
+
+  function currentRecipient() {
+    if (currentAction() !== "withdraw") return "";
+    const purpose = selectedPurpose();
+    if (purpose === "Meal") {
+      const sel = document.getElementById("ot-recipient-meal");
+      const custom = document.getElementById("ot-recipient-meal-custom");
+      if (!sel) return "";
+      if (sel.value === "__others__") return custom ? custom.value.trim() : "";
+      return (sel.value || "").trim();
+    }
+    if (purpose === "Aid") {
+      const t = currentAidType();
+      if (t === "Medical") {
+        const m = document.getElementById("ot-recipient-member");
+        return m ? (m.value || "").trim() : "";
+      }
+      if (t === "Death") {
+        const e = document.getElementById("ot-recipient-external");
+        return e ? e.value.trim() : "";
+      }
+      return "";
+    }
+    const free = document.getElementById("ot-recipient");
+    return free ? free.value.trim() : "";
+  }
+
+  function commitMealCustom() {
+    const sel = document.getElementById("ot-recipient-meal");
+    const custom = document.getElementById("ot-recipient-meal-custom");
+    if (!sel || !custom) return;
+    const value = custom.value.trim().replace(/\s+/g, " ");
+    if (!value) {
+      sel.value = "";
+      custom.style.display = "none";
+      return;
+    }
+    let existing = Array.from(sel.options).find((o) => o.value === value);
+    if (!existing) {
+      existing = document.createElement("option");
+      existing.value = value;
+      existing.textContent = value;
+      const others = Array.from(sel.options).find((o) => o.value === "__others__");
+      if (others) sel.insertBefore(existing, others);
+      else sel.appendChild(existing);
+    }
+    sel.value = value;
+    custom.value = "";
+    custom.style.display = "none";
+  }
+
+  let membersLoaded = false;
+  let membersLoading = false;
+  let memberCache = [];
+
+  async function loadMembersOnce() {
+    if (membersLoaded || membersLoading) return;
+    const sel = document.getElementById("ot-recipient-member");
+    membersLoading = true;
+    try {
+      const res = await fetch("/api/treasurer/members/list/", { credentials: "same-origin" });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.error || "Could not load members.");
+      membersLoaded = true;
+      memberCache = d.members || [];
+      renderMemberOptions(memberCache);
+    } catch (e) {
+      if (sel) sel.innerHTML = '<option value="">Member list unavailable — type the name in Notes</option>';
+    } finally {
+      membersLoading = false;
+    }
+  }
+
+  function renderMemberOptions(members) {
+    const sel = document.getElementById("ot-recipient-member");
+    if (!sel) return;
+    const q = ((document.getElementById("ot-member-search") || {}).value || "").trim().toLowerCase();
+    let html = '<option value="">Select member…</option>';
+    members
+      .filter((m) => {
+        if (!q) return true;
+        const hay = ((m.full_name || "") + " " + (m.employee_id || "")).toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 500)
+      .forEach((m) => {
+        const label = m.full_name + (m.employee_id ? " (" + m.employee_id + ")" : "");
+        html += '<option value="' + esc(label) + '">' + esc(label) + "</option>";
+      });
+    sel.innerHTML = html;
+  }
+
+  function bindRecipient() {
+    const sel = document.getElementById("ot-purpose");
+    if (sel && !sel.dataset.recipBound) {
+      sel.dataset.recipBound = "1";
+      sel.addEventListener("change", updateRecipientVisibility);
+    }
+    const meal = document.getElementById("ot-recipient-meal");
+    const mealCustom = document.getElementById("ot-recipient-meal-custom");
+    if (meal && !meal.dataset.bound) {
+      meal.dataset.bound = "1";
+      meal.addEventListener("change", function () {
+        if (!mealCustom) return;
+        if (meal.value === "__others__") {
+          mealCustom.style.display = "";
+          mealCustom.focus();
+        } else {
+          mealCustom.style.display = "none";
+          mealCustom.value = "";
+        }
+      });
+    }
+    if (mealCustom && !mealCustom.dataset.bound) {
+      mealCustom.dataset.bound = "1";
+      mealCustom.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitMealCustom();
+        }
+      });
+      mealCustom.addEventListener("blur", function () {
+        if (mealCustom.style.display !== "none" && mealCustom.value.trim()) commitMealCustom();
+      });
+    }
+    const aidType = document.getElementById("ot-aid-type");
+    if (aidType && !aidType.dataset.bound) {
+      aidType.dataset.bound = "1";
+      aidType.addEventListener("change", updateAidVisibility);
+    }
+    const search = document.getElementById("ot-member-search");
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = "1";
+      let t = null;
+      search.addEventListener("input", function () {
+        if (t) clearTimeout(t);
+        t = setTimeout(function () {
+          if (membersLoaded) renderMemberOptions(memberCache);
+          else loadMembersOnce();
+        }, 250);
+      });
+    }
+  }
+
+  function resetRecipient() {
+    const free = document.getElementById("ot-recipient");
+    const meal = document.getElementById("ot-recipient-meal");
+    const mealCustom = document.getElementById("ot-recipient-meal-custom");
+    const aidType = document.getElementById("ot-aid-type");
+    const external = document.getElementById("ot-recipient-external");
+    const search = document.getElementById("ot-member-search");
+    const member = document.getElementById("ot-recipient-member");
+    if (free) free.value = "";
+    if (meal) meal.value = "";
+    if (mealCustom) {
+      mealCustom.value = "";
+      mealCustom.style.display = "none";
+    }
+    if (aidType) aidType.value = "";
+    if (external) external.value = "";
+    if (search) search.value = "";
+    if (member) member.value = "";
+    updateRecipientVisibility();
   }
 
   /* --------------------------- one-off mode --------------------------- */
@@ -121,7 +398,12 @@
     if (action === "deposit") {
       if (donorInput && donorInput.value.trim()) fd.append("donor", donorInput.value.trim().slice(0, 120));
     } else {
-      if (recipInput && recipInput.value.trim()) fd.append("recipient", recipInput.value.trim().slice(0, 120));
+      const recipient = currentRecipient();
+      if (recipient) fd.append("recipient", recipient.slice(0, 120));
+      const purpose = currentPurpose();
+      if (purpose) fd.append("purpose", purpose.slice(0, 60));
+      const aidType = currentAidType();
+      if (aidType) fd.append("aid_type", aidType);
     }
     if (proofInput && proofInput.files && proofInput.files[0]) fd.append("proof_receipt", proofInput.files[0]);
 
@@ -184,11 +466,17 @@
   }
 
   function bindForm() {
+    // Idempotent per element (dataset flags): safe to re-run after a Turbo
+    // Drive visit replaces the body without re-executing page scripts.
     document.querySelectorAll("#treasurer-other-transactions .ot-type-btn[data-action]").forEach(function (btn) {
+      if (btn.dataset.otBound) return;
+      btn.dataset.otBound = "1";
       btn.addEventListener("click", function () {
         selectAction(btn.dataset.action);
       });
     });
+    bindPurpose();
+    bindRecipient();
 
     const clear = document.getElementById("ot-clear");
     if (clear) {
@@ -197,12 +485,14 @@
       });
     }
     const submit = document.getElementById("ot-submit");
-    if (submit) {
+    if (submit && !submit.dataset.otBound) {
+      submit.dataset.otBound = "1";
       submit.addEventListener("click", function () {
         record();
       });
       const amountInput = document.getElementById("ot-amount");
-      if (amountInput) {
+      if (amountInput && !amountInput.dataset.otBound) {
+        amountInput.dataset.otBound = "1";
         amountInput.addEventListener("keydown", function (e) {
           if (e.key === "Enter" && !amountInput.readOnly) {
             e.preventDefault();
@@ -519,6 +809,8 @@
       nameEl.style.display = "none";
       nameEl.textContent = "";
     }
+    resetPurpose();
+    resetRecipient();
     selectAction("deposit");
   }
 
@@ -527,11 +819,16 @@
   }
 
   function init() {
-    if (window.nxOtherTransactions) return;
+    console.log("OT MODULE v20261006ot12 ready");
+    // Always (re)bind: Turbo Drive visits replace the body without
+    // re-running page scripts, which would otherwise orphan the form on
+    // freshly rendered DOM. bindForm is idempotent per element.
     bindForm();
     if (document.getElementById("treasurer-other-transactions")) {
-      load();
+      selectAction(currentAction());
+      load(true);
     }
+    if (window.nxOtherTransactions) return;
     window.nxOtherTransactions = {
       load: load,
       record: record,
@@ -544,4 +841,6 @@
   } else {
     init();
   }
+  // Turbo Drive navigation (same JS context, fresh DOM): re-bind + reload.
+  document.addEventListener("turbo:load", init);
 })();

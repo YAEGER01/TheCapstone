@@ -1454,7 +1454,7 @@ def _movement_month_label(year: int | None, month: int | None) -> str:
         return ""
 
 
-def fund_movements(max_groups: int = 5, scan_rows: int = 1500) -> dict:
+def fund_movements(max_groups: int = 5, scan_rows: int = 1500, offset: int = 0) -> dict:
     """Aggregate FundTransactions into batch-level movements, newest first.
 
     Per-member booking rows (e.g. one "Medical aid set-aside — member 56"
@@ -1498,7 +1498,8 @@ def fund_movements(max_groups: int = 5, scan_rows: int = 1500) -> dict:
         g["rows"].append(t)
 
     movements: list[dict] = []
-    for key in order[:max_groups]:
+    total_groups = len(order)
+    for key in order[max(0, offset):max(0, offset) + max(1, max_groups)]:
         g = groups[key]
         grows = g["rows"]
         stype = g["source_type"]
@@ -1629,7 +1630,7 @@ def fund_movements(max_groups: int = 5, scan_rows: int = 1500) -> dict:
             "preview": preview,
         })
 
-    return {"ok": True, "movements": movements}
+    return {"ok": True, "movements": movements, "total": total_groups}
 
 
 def _post_recipient_label(post) -> str:

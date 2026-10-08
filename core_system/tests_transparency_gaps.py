@@ -7,11 +7,14 @@ from django.utils import timezone
 
 from core_system.auth_utils import create_access_session, hash_password
 from core_system.models import (
+    AidTrackingPost,
     FundTransaction,
+    MedicalAid,
     Member,
     MemberAssessment,
     MonthlyAssessment,
     OfficerUser,
+    TransactionArchive,
 )
 from core_system.fund_report_views import (
     _build_report_pdf_bytes,
@@ -346,13 +349,13 @@ class FundTimelineTests(TestCase):
         test_session.save()
         return officer
 
-    def _tx(self, direction, amount, year, month, description, source_type="other_transaction", ref=None):
+    def _tx(self, direction, amount, year, month, description, source_type="other_transaction", ref=None, source_id=1):
         # recorded_at is auto_now_add, so the historical date is applied with
         # an update after creation.
         tx = FundTransaction.objects.create(
             direction=direction,
             source_type=source_type,
-            source_id=1,
+            source_id=source_id,
             amount=Decimal(amount),
             description=description,
             reference_number=ref,
@@ -455,3 +458,52 @@ class FundTimelineTests(TestCase):
         data = resp.json()
         self.assertEqual(data["year"], 2029)
         self.assertEqual(len(data["months"]), 1)
+
+    def test_timeline_aid_recipients(self):
+        """Aid on the timeline names its recipient: set-aside components via
+        the aid case for their covered month, payouts via the claim itself."""
+        self._login_treasurer()
+        patient = Member.objects.create(
+            full_name="Ana Santos", employee_id="E901", department="C",
+            employment_status="Active", membership_status="Permanent",
+            member_classification="Teaching", member_type="Member",
+            date_joined=date(2030, 1, 1), email="ana@isu.edu.ph",
+        )
+        claim = MedicalAid.objects.create(
+            member_id_FK=patient, request_date=date(2031, 1, 5),
+            requested_amount=Decimal("5000.00"), hospital_name="H1",
+            hospital_bill_amount=Decimal("8000.00"), claim_year=2031,
+            document_status="Complete", policy_record_status="Eligible",
+            validated_aid_amount=Decimal("4000.00"), status="Approved",
+        )
+        archive = TransactionArchive.objects.create(
+            transaction_type="medical_aid", record_id=claim.medical_aid_id_PK,
+            member_id_FK=patient, member_name=patient.full_name,
+            amount=Decimal("4000.00"), validated_amount=Decimal("4000.00"),
+            status="Approved",
+        )
+        AidTrackingPost.objects.create(
+            archive_id_FK=archive, aid_type="medical_aid", target_month="2031-01",
+            total_expected=Decimal("4000.00"), total_collected=Decimal("0.00"),
+            is_active=True,
+        )
+        # January dues batch with a medical set-aside for the same month.
+        self._tx("inflow", "100", 2031, 1, "Monthly dues for January 2031 — member 1", source_type="monthly_dues", ref="COL-00009")
+        self._tx("inflow", "50", 2031, 1, "Medical aid set-aside for January 2031 — member 1", source_type="aid_setaside_medical", ref="COL-00009")
+        # February payout against the claim (description names nobody).
+        self._tx("outflow", "4000", 2031, 2, "Medical payout", source_type="medical_aid", source_id=claim.medical_aid_id_PK)
+
+        resp = self.client.get("/api/treasurer/fund-timeline/?year=2031",
+                               HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        jan, feb = data["months"]
+
+        batch = jan["rows"][0]
+        self.assertEqual(batch["kind"], "batch")
+        comps = {c["source_key"]: c for c in batch["components"]}
+        self.assertEqual(comps["aid_setaside_medical"]["recipient"], "Ana Santos")
+        self.assertEqual(comps["monthly_dues"]["recipient"], "")
+
+        payout = [r for r in feb["rows"] if r["kind"] == "single"][0]
+        self.assertEqual(payout["recipient"], "Ana Santos")

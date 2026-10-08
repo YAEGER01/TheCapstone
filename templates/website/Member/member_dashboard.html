@@ -1173,6 +1173,10 @@
           <span class="nav-label">Notifications</span>
           <span class="nav-badge" id="navNotifBadge">0</span>
         </button>
+        <button class="nav-item" data-view="transactions" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4"/><path d="M7 4L3 8"/><path d="M7 4l4 4"/><path d="M17 8v12"/><path d="M17 20l4-4"/><path d="M17 20l-4-4"/></svg>
+          <span class="nav-label">Transactions</span>
+        </button>
         <button class="nav-item" data-view="settings" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span class="nav-label">Settings</span>
@@ -1259,7 +1263,7 @@
                 </div>
               </div>
             </div>
-            <div class="fm-sec" style="margin-top:14px;">Top 5 Most Recent Transactions</div>
+            <div class="fm-sec" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">Top 5 Most Recent Transactions<button class="filter-tab" data-goto="transactions" type="button">See More…</button></div>
             <div class="fm-list" id="fmList">
               <div class="empty-state">Loading latest fund activity…</div>
             </div>
@@ -1339,6 +1343,24 @@
           </section>
 
         <!-- ============ PROFILE ============ -->
+        <!-- ============ ALL TRANSACTIONS ============ -->
+        <section class="view" id="view-transactions">
+          <div class="card" style="margin-top:16px;">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <span style="display:flex;align-items:center;gap:10px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M7 16V4"/><path d="M7 4L3 8"/><path d="M7 4l4 4"/><path d="M17 8v12"/><path d="M17 20l4-4"/><path d="M17 20l-4-4"/></svg>
+                All Transactions
+              </span>
+              <button class="filter-tab" id="fmAllRefresh" type="button">Refresh</button>
+            </div>
+            <div class="page-sub" id="fmAllCount">Every fund movement, newest first. Tap a row for the breakdown.</div>
+            <div class="fm-list" id="fmAllList" style="margin-top:10px;">
+              <div class="empty-state">Loading all fund activity…</div>
+            </div>
+            <div id="fmAllPager" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:12px;"></div>
+          </div>
+        </section>
+
         <section class="view" id="view-profile">
           <div class="page-sub">Your membership record with ISUCauFA, Inc. and the contact details we use to reach you.</div>
 
@@ -1880,6 +1902,21 @@
 
           <div class="card">
             <div class="card-title">
+              Backup sign-in codes
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">Emergency login codes</div>
+                <div class="setting-desc">
+                  One-time codes for signing in when email codes can't reach you. Each works once — get them before you need them.
+                </div>
+              </div>
+              <a href="/settings/security/" class="install-btn" style="text-decoration:none;" type="button">Set up</a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
               Login Activity
             </div>
             <p class="setting-desc" style="margin:0 0 6px;">
@@ -1975,6 +2012,10 @@
       <button class="nav-item fab-drawer-item" data-view="outstanding" type="button" role="menuitem">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         <span>Outstanding</span>
+      </button>
+      <button class="nav-item fab-drawer-item" data-view="transactions" type="button" role="menuitem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4"/><path d="M7 4L3 8"/><path d="M7 4l4 4"/><path d="M17 8v12"/><path d="M17 20l4-4"/><path d="M17 20l-4-4"/></svg>
+        <span>Transactions</span>
       </button>
       <button class="nav-item fab-drawer-item" data-view="notifications" type="button" role="menuitem">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -2303,7 +2344,7 @@
       }
 
       /* ---------------- navigation ---------------- */
-      var HEADINGS = { overview: "Overview", profile: "My Profile", info: "Info", due: "Due", aid: "Aid", outstanding: "Outstanding", notifications: "Notifications", settings: "Settings" };
+      var HEADINGS = { overview: "Overview", profile: "My Profile", info: "Info", due: "Due", aid: "Aid", outstanding: "Outstanding", notifications: "Notifications", settings: "Settings", transactions: "Transactions" };
       var activeView = "overview";
       function setView(name) {
         if (!HEADINGS[name]) name = "overview";
@@ -2330,6 +2371,7 @@
         if (name === "due") loadDueView();
         if (name === "aid") loadAidView();
         if (name === "outstanding") loadOutstandingView();
+        if (name === "transactions") loadAllMovements();
         try { localStorage.setItem("caufa_member_view", name); } catch (e) {}
       }
       document.querySelectorAll(".nav-item").forEach(function (btn) {
@@ -4954,21 +4996,37 @@
       };
 
       async function getJSON(url) {
+        // Bounded: a stalled endpoint degrades to its empty-state instead of
+        // hanging this fan-out (and every card behind it) forever.
+        const ctrl = ("AbortController" in window) ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 20000) : null;
         try {
-          const res = await fetch(url, { credentials: "same-origin" });
+          const res = await fetch(url, { credentials: "same-origin", signal: ctrl ? ctrl.signal : undefined });
           if (!res.ok) return null;
           return await res.json();
         } catch (e) {
           return null;
+        } finally {
+          if (timer) clearTimeout(timer);
         }
       }
 
-      async function loadFund() {
+      var fundBooted = false;
+      async function loadFund(force) {
+        // Boot guard: DOMContentLoaded + turbo:load both fire on first paint —
+        // never run the fan-out twice. Explicit refresh passes force=true.
+        if (fundBooted && !force) return;
+        fundBooted = true;
         const body = document.getElementById("fundBody");
         if (!body) return;
-        const [balance, ledger] = await Promise.all([
-          getJSON("/api/fund-balance/"),
-          getJSON("/api/fund-ledger/?page=1&per_page=10"),
+        // All four fan out together: a slow endpoint must never serialize
+        // behind the others. Each resolves independently (a failure yields
+        // null and its own empty-state below).
+        const [balance, ledger, summary, moves] = await Promise.all([
+          getJSON("/api/fund-balance/").catch(function () { return null; }),
+          getJSON("/api/fund-ledger/?page=1&per_page=10").catch(function () { return null; }),
+          getJSON("/api/member/fund/summary/").catch(function () { return null; }),
+          getJSON("/api/member/fund/movements/").catch(function () { return null; }),
         ]);
 
         // /api/fund-balance/ returns lifetime total_in / total_out alongside
@@ -4991,11 +5049,10 @@
           document.getElementById("fundOutflow").textContent = "—";
         }
 
-        getJSON("/api/member/fund/summary/").then(function (summary) {
-          const el = document.getElementById("fundCollections");
-          if (!el) return;
-          el.textContent = summary && summary.ok ? pesoOrMasked(summary.total_collections) : "—";
-        });
+        var fundCollectionsEl = document.getElementById("fundCollections");
+        if (fundCollectionsEl) {
+          fundCollectionsEl.textContent = summary && summary.ok ? pesoOrMasked(summary.total_collections) : "—";
+        }
 
         if (!ledger || !ledger.ok || !(ledger.items || []).length) {
           body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#757575;">No fund transactions posted yet.</td></tr>';
@@ -5011,7 +5068,7 @@
           '</tr>';
         }).join("");
         }
-        loadMovements();
+        loadMovements(moves);
       }
 
       // Overview FUND Movement card: batch-level movements (full totals, not
@@ -5021,33 +5078,108 @@
       var ARROW_DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
       var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>';
       var movementCache = {};
-      async function loadMovements() {
-        var list = document.getElementById("fmList");
-        if (!list) return;
-        var data = await getJSON("/api/member/fund/movements/");
-        if (!data || !data.ok || !(data.movements || []).length) {
-          list.innerHTML = '<div class="empty-state">No fund activity yet.</div>';
-          return;
-        }
-        movementCache = {};
-        list.innerHTML = data.movements.map(function (m) {
-          movementCache[m.key] = m;
-          var dir = m.direction === "inflow" ? "in" : "out";
-          var sub = esc(m.subtitle || m.date_label || "");
-          return '<button type="button" class="fm-row fm-open" data-key="' + esc(m.key) + '">' +
-            '<span class="fm-mini ' + dir + '">' + (dir === "in" ? ARROW_UP : ARROW_DOWN) + '</span>' +
-            '<span class="fm-main"><span class="fm-desc" title="' + esc(m.title) + '">' + esc(m.title) + '</span>' +
-            (sub ? '<span class="fm-sub">' + sub + '</span>' : "") + '</span>' +
-            '<span class="fm-amt ' + dir + '">' + (dir === "in" ? "+" : "−") + " " + peso(Math.abs(Number(m.total || 0))).replace("-", "") + '</span>' +
-            '<span class="fm-chev">' + CHEV + '</span>' +
-            '</button>';
-        }).join("");
+      function movementRowHTML(m) {
+        movementCache[m.key] = m;
+        var dir = m.direction === "inflow" ? "in" : "out";
+        var sub = esc(m.subtitle || m.date_label || "");
+        return '<button type="button" class="fm-row fm-open" data-key="' + esc(m.key) + '">' +
+          '<span class="fm-mini ' + dir + '">' + (dir === "in" ? ARROW_UP : ARROW_DOWN) + '</span>' +
+          '<span class="fm-main"><span class="fm-desc" title="' + esc(m.title) + '">' + esc(m.title) + '</span>' +
+          (sub ? '<span class="fm-sub">' + sub + '</span>' : "") + '</span>' +
+          '<span class="fm-amt ' + dir + '">' + (dir === "in" ? "+" : "−") + " " + peso(Math.abs(Number(m.total || 0))).replace("-", "") + '</span>' +
+          '<span class="fm-chev">' + CHEV + '</span>' +
+          '</button>';
+      }
+      function bindMovementRows(list) {
         list.querySelectorAll(".fm-open").forEach(function (btn) {
           btn.addEventListener("click", function () {
             var m = movementCache[btn.getAttribute("data-key")];
             if (m) openMovementModal(m);
           });
         });
+      }
+      async function loadMovements(prefetched) {
+        var list = document.getElementById("fmList");
+        if (!list) return;
+        var data = prefetched || await getJSON("/api/member/fund/movements/");
+        if (!data || !data.ok || !(data.movements || []).length) {
+          list.innerHTML = '<div class="empty-state">No fund activity yet.</div>';
+          return;
+        }
+        movementCache = {};
+        list.innerHTML = data.movements.map(movementRowHTML).join("");
+        bindMovementRows(list);
+      }
+      // Full Transactions view: same rows + same breakdown modal, newest
+      // first, 20 per page with pager navigation.
+      var FM_ALL_PAGE_SIZE = 20;
+      var fmAllPage = 1;
+      var fmAllTotalPages = 1;
+      function fmAllPagerHTML() {
+        var total = fmAllTotalPages;
+        var cur = fmAllPage;
+        function btn(label, page, disabled, active) {
+          return '<button type="button" class="filter-tab" data-fm-page="' + page + '"' +
+            (disabled ? " disabled" : "") +
+            (active ? ' style="background:#1b5e20;color:#fff;border-color:#1b5e20;"' : "") + ">" + label + "</button>";
+        }
+        var html = btn("← Prev", cur - 1, cur <= 1, false);
+        var start = Math.max(1, Math.min(cur - 2, total - 4));
+        var end = Math.min(total, start + 4);
+        start = Math.max(1, end - 4);
+        for (var p = start; p <= end; p++) html += btn(String(p), p, false, p === cur);
+        html += btn("Next →", cur + 1, cur >= total, false);
+        return html;
+      }
+      function bindFmAllPager() {
+        var pager = document.getElementById("fmAllPager");
+        if (!pager) return;
+        pager.innerHTML = fmAllTotalPages > 1 ? fmAllPagerHTML() : "";
+        pager.querySelectorAll("[data-fm-page]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var p = parseInt(b.getAttribute("data-fm-page"), 10);
+            if (p >= 1 && p <= fmAllTotalPages && p !== fmAllPage) {
+              loadAllMovements(p, true);
+            }
+          });
+        });
+      }
+      async function loadAllMovements(page, scrollTop) {
+        var list = document.getElementById("fmAllList");
+        if (!list) return;
+        fmAllPage = Math.max(1, page || fmAllPage);
+        list.innerHTML = '<div class="empty-state">Loading all fund activity…</div>';
+        var data = await getJSON("/api/member/fund/movements/?limit=" + FM_ALL_PAGE_SIZE +
+          "&offset=" + ((fmAllPage - 1) * FM_ALL_PAGE_SIZE));
+        var countEl = document.getElementById("fmAllCount");
+        if (!data || !data.ok || !(data.movements || []).length) {
+          if (fmAllPage > 1) {
+            fmAllPage = 1;
+            loadAllMovements(1, false);
+            return;
+          }
+          list.innerHTML = '<div class="empty-state">No fund activity yet.</div>';
+          if (countEl) countEl.textContent = "Every fund movement, newest first. Tap a row for the breakdown.";
+          var pager = document.getElementById("fmAllPager");
+          if (pager) pager.innerHTML = "";
+          return;
+        }
+        var total = Math.max(data.total || 0, data.movements.length);
+        fmAllTotalPages = Math.max(1, Math.ceil(total / FM_ALL_PAGE_SIZE));
+        if (fmAllPage > fmAllTotalPages) {
+          fmAllPage = fmAllTotalPages;
+          loadAllMovements(fmAllPage, false);
+          return;
+        }
+        list.innerHTML = data.movements.map(movementRowHTML).join("");
+        bindMovementRows(list);
+        if (countEl) countEl.textContent = "Page " + fmAllPage + " of " + fmAllTotalPages +
+          " · " + total + " movement(s), newest first. Tap a row for the breakdown.";
+        bindFmAllPager();
+        if (scrollTop) {
+          var sec = document.getElementById("view-transactions");
+          if (sec && sec.scrollIntoView) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       }
       function fmKV(k, v) {
         return '<div class="fm-kv"><span>' + esc(k) + '</span><strong>' + v + '</strong></div>';
@@ -5157,9 +5289,11 @@
       document.addEventListener("DOMContentLoaded", loadFund);
       document.addEventListener("turbo:load", loadFund);
       const refreshBtn = document.getElementById("fundRefresh");
-      if (refreshBtn) refreshBtn.addEventListener("click", loadFund);
+      if (refreshBtn) refreshBtn.addEventListener("click", function () { loadFund(true); });
       const fmRefreshBtn = document.getElementById("fmRefresh");
-      if (fmRefreshBtn) fmRefreshBtn.addEventListener("click", loadFund);
+      if (fmRefreshBtn) fmRefreshBtn.addEventListener("click", function () { loadFund(true); });
+      const fmAllRefreshBtn = document.getElementById("fmAllRefresh");
+      if (fmAllRefreshBtn) fmAllRefreshBtn.addEventListener("click", function () { loadAllMovements(fmAllPage, false); });
     })();
   </script>
   <script defer src="{% static 'js/push-init.js' %}?v=20260921push3"></script>
@@ -5167,5 +5301,71 @@
   <script defer src="{% static 'js/shared/fund_balance_live.js' %}?v=20261004fbl1" data-fund-balance-live data-channel="member" data-path="/ws/member-dashboard/"></script>
   <script defer src="{% static 'js/shared/pwa_install.js' %}"></script>
   <script defer src="{% static 'js/shared/simple_modal.js' %}"></script>
+  <!-- Shared top-center notification host (same system as officer dashboards) -->
+  <div class="notification-host" id="toastContainer"></div>
+  <script defer src="{% static 'js/shared/top_center_banner.js' %}"></script>
+  <script defer src="{% static 'js/backup-nudge.js' %}?v=20261006bn2"></script>
+  {% if show_backup_modal %}
+  {# First-login backup codes: shown ONCE, only to the signed-in member. #}
+  {# Codes are fetched on modal open (never in page HTML) and destroyed #}
+  {# server-side on first serve — refresh cannot reshow them. #}
+  <div id="caufa-backup-modal" style="position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);" role="dialog" aria-modal="true" aria-label="Save your backup codes">
+    <div style="background:#fff;border-radius:16px;max-width:480px;width:100%;padding:24px;box-shadow:0 12px 48px rgba(0,0,0,.3);">
+      <h2 style="margin:0 0 8px;color:#1b5e20;font-size:18px;"><i class="fa-solid fa-key"></i> Save your backup codes</h2>
+      <p style="margin:0 0 12px;font-size:13.5px;color:#37474f;line-height:1.55;">
+        Welcome! These <strong>10 codes</strong> are your emergency way back in if email
+        codes ever can't reach you. Each works <strong>once</strong>. They are shown
+        <strong>only this one time</strong> — write them down or print this screen now.
+      </p>
+      <div id="caufa-backup-loading" style="text-align:center;padding:16px;color:#78909c;font-size:13px;">
+        <i class="fa-solid fa-circle-notch fa-spin"></i> Loading your codes…
+      </div>
+      <div id="caufa-backup-grid" style="display:none;grid-template-columns:1fr 1fr;gap:6px 14px;font-family:monospace;font-size:15px;margin:10px 0;"></div>
+      <div id="caufa-backup-err" style="display:none;background:#fdecea;color:#b71c1c;border-radius:8px;padding:10px;font-size:13px;margin-top:8px;"></div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#37474f;margin-top:12px;cursor:pointer;">
+        <input type="checkbox" id="caufa-backup-saved" style="margin-top:3px;" /> I have saved these codes somewhere safe.
+      </label>
+      <button type="button" id="caufa-backup-done" disabled style="margin-top:12px;width:100%;background:#1b5e20;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:800;cursor:pointer;opacity:.5;">Done</button>
+      <p style="margin:10px 0 0;font-size:11.5px;color:#78909c;">Closing this without saving is fine — you can get fresh codes anytime from Settings → Security. Unsaved codes shown here still work until replaced.</p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var modal = document.getElementById("caufa-backup-modal");
+      var grid = document.getElementById("caufa-backup-grid");
+      var loading = document.getElementById("caufa-backup-loading");
+      var err = document.getElementById("caufa-backup-err");
+      var check = document.getElementById("caufa-backup-saved");
+      var done = document.getElementById("caufa-backup-done");
+      check.addEventListener("change", function () {
+        done.disabled = !check.checked;
+        done.style.opacity = check.checked ? "1" : ".5";
+        done.style.cursor = check.checked ? "pointer" : "not-allowed";
+      });
+      done.addEventListener("click", function () { modal.remove(); });
+      fetch("/api/auth/backup-codes/reveal/", { method: "GET", credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
+        .then(function (res) {
+          loading.style.display = "none";
+          var codes = res.body && res.body.backup_codes;
+          if (res.body && res.body.ok && codes && codes.length) {
+            grid.style.display = "grid";
+            grid.innerHTML = codes.map(function (c) { return "<span>" + c + "</span>"; }).join("");
+          } else {
+            err.style.display = "block";
+            err.textContent = (res.body && res.body.error) || "Codes are no longer available. Get fresh ones from Settings → Security.";
+            check.disabled = true;
+            done.disabled = false;
+            done.style.opacity = "1";
+          }
+        })
+        .catch(function () {
+          loading.style.display = "none";
+          err.style.display = "block";
+          err.textContent = "Network error. Reload the page to retry — codes are still reserved for you.";
+        });
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>
