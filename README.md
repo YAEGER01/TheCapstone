@@ -1,4 +1,4 @@
-# CAUFASYSTEM — ISU Cauayan Faculty Association Fund Management System
+# CAUFASYSTEM — ISU Cauayan Faculty Association Financial Management System
 
 <p>
   <img src="https://img.shields.io/badge/Django-5.1-092E20?style=for-the-badge&logo=django&logoColor=white" alt="Django 5.1" />
