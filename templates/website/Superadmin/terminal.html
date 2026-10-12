@@ -1,0 +1,157 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server Terminal — CAUFASYSTEM</title>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0b0f14; color: #c9d4e0; font-family: Consolas, Menlo, monospace; margin: 0; padding: 16px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 18px; color: #7ee787; margin: 0 0 4px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 14px; }
+  .sub a { color: #58a6ff; }
+  #screen { background: #010409; border: 1px solid #30363d; border-radius: 8px; padding: 12px; height: 52vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-size: 13.5px; line-height: 1.5; }
+  .cmdline { color: #7ee787; }
+  .err { color: #ff7b72; }
+  .ok { color: #7ee787; }
+  .dim { color: #8b949e; }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .prompt { color: #7ee787; font-weight: bold; padding-top: 9px; }
+  #cmd { flex: 1; background: #010409; border: 1px solid #30363d; border-radius: 6px; color: #c9d4e0; font: inherit; padding: 9px 10px; }
+  button { background: #1f6feb; border: 0; border-radius: 6px; color: #fff; font: inherit; padding: 9px 16px; cursor: pointer; }
+  button.ghost { background: transparent; border: 1px solid #30363d; color: #c9d4e0; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-top: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 8px; color: #e6edf3; }
+  .card label { display: block; font-size: 12px; color: #8b949e; margin: 8px 0 3px; }
+  .card input { width: 100%; background: #010409; border: 1px solid #30363d; border-radius: 6px; color: #c9d4e0; font: inherit; padding: 8px 10px; }
+  .pinbox { text-align: center; margin-top: 8vh; }
+  #pin { width: 11ch; font-size: 28px; letter-spacing: .6ch; text-align: center; text-transform: uppercase; background: #010409; border: 1px solid #30363d; border-radius: 8px; color: #7ee787; padding: 10px 6px 10px 12px; }
+  .hint { font-size: 12px; color: #8b949e; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>$ server-terminal <span class="dim">— {{ request.get_host }}</span></h1>
+  <div class="sub"><a href="/superadmin/">← back to Superadmin dashboard</a> · every command is audit-logged · PIN locks after 30 min idle</div>
+
+  {% if terminal_state == "disabled" %}
+  <div class="card">
+    <h2>Terminal is disabled</h2>
+    <p class="dim">On the server, open the app folder <b>.env</b> in File Manager and add:</p>
+    <pre class="cmdline">TERMINAL_ENABLED=True
+TERMINAL_PIN=K7Q2   (your own 4 letters/digits)</pre>
+    <p class="dim">Then Setup Python App → RESTART, and reopen this page. Keep the code secret like a password.</p>
+  </div>
+
+  {% elif terminal_state == "locked" %}
+  <div class="pinbox">
+    <h1>Enter dev code</h1>
+    <p class="dim">4 letters/digits from server <b>.env</b> → <b>TERMINAL_PIN</b>. 5 wrong tries = 15-min lockout.</p>
+    <form id="pinform" autocomplete="off">
+      {% csrf_token %}
+      <input id="pin" name="pin" maxlength="4" autocomplete="one-time-code" inputmode="text" placeholder="••••" aria-label="Dev code">
+      <div><button type="submit" id="pinbtn" style="margin-top:12px">Unlock terminal</button></div>
+    </form>
+    <div id="pinmsg" class="err"></div>
+    <p class="hint">Locked out? Wait 15 minutes — the counter resets by itself.</p>
+  </div>
+  <script>
+  function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?m.pop():'';}
+  document.getElementById('pinform').addEventListener('submit', function(e){
+    e.preventDefault();
+    var pin = document.getElementById('pin').value.trim();
+    var msg = document.getElementById('pinmsg');
+    var btn = document.getElementById('pinbtn');
+    btn.disabled = true; msg.textContent = '';
+    fetch("{% url 'terminal_unlock' %}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({pin: pin})
+    }).then(function(r){ return r.json().then(function(j){ return {s: r.status, j: j}; }); }).then(function(r){
+      if (r.j.ok) { location.reload(); }
+      else { msg.textContent = r.j.error || 'Incorrect code.'; btn.disabled = false; }
+    }).catch(function(){ msg.textContent = 'Network error. Try again.'; btn.disabled = false; });
+  });
+  </script>
+
+  {% else %}
+  <div id="screen"><span class="dim">{{ terminal_help|escape }}</span>
+<span class="dim">---</span></div>
+  <div class="row">
+    <span class="prompt">$</span>
+    <input id="cmd" autocomplete="off" spellcheck="false" placeholder="type 'help'…" aria-label="Command">
+    <button id="run">Run</button>
+    <button id="lockbtn" class="ghost" title="Lock the terminal">Lock</button>
+  </div>
+
+  <div class="card">
+    <h2>New Django /admin/ account <span class="dim">(NOT a dashboard login — the President makes dashboard accounts)</span></h2>
+    <form id="suform" autocomplete="off">
+      {% csrf_token %}
+      <label>Username (3+ chars)</label><input id="su-user" maxlength="150" autocomplete="off">
+      <label>Email</label><input id="su-email" maxlength="254" autocomplete="off">
+      <label>Password (8+ chars, upper + lower + number + special)</label><input id="su-pass" type="password" autocomplete="new-password">
+      <div style="margin-top:10px"><button type="submit" id="subtn">Create account</button></div>
+    </form>
+    <p class="hint">The password never appears on screen or in logs.</p>
+  </div>
+
+  <script>
+  function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?m.pop():'';}
+  var screen = document.getElementById('screen');
+  var input = document.getElementById('cmd');
+  var runBtn = document.getElementById('run');
+  var hist = [], hi = -1;
+  function print(t, cls){ var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = t + '\n'; screen.appendChild(s); screen.scrollTop = screen.scrollHeight; }
+  function post(payload, done){
+    fetch("{% url 'terminal_run' %}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json().then(function(j){ return {s: r.status, j: j}; }); }).then(done).catch(function(){ done({s: 0, j: {ok: false, error: 'Network error.'}}); });
+  }
+  function runCmd(raw){
+    if (!raw.trim()) return;
+    print('$ ' + raw, 'cmdline');
+    hist.unshift(raw); hi = -1;
+    input.value = ''; input.disabled = true; runBtn.disabled = true;
+    post({cmd: raw}, function(r){
+      var j = r.j || {};
+      if (j.locked) { location.reload(); return; }
+      print(j.output || j.error || '(no output)', j.ok ? '' : 'err');
+      if (j.ms !== undefined) print('[' + (j.ok ? 'exit 0' : 'exit 1') + ' · ' + j.ms + 'ms]', 'dim');
+      input.disabled = false; runBtn.disabled = false; input.focus();
+    });
+  }
+  runBtn.addEventListener('click', function(){ runCmd(input.value); });
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') runCmd(input.value);
+    else if (e.key === 'ArrowUp' && hist.length){ e.preventDefault(); hi = Math.min(hi + 1, hist.length - 1); input.value = hist[hi]; }
+    else if (e.key === 'ArrowDown' && hist.length){ e.preventDefault(); hi = Math.max(hi - 1, -1); input.value = hi === -1 ? '' : hist[hi]; }
+  });
+  document.getElementById('lockbtn').addEventListener('click', function(){
+    fetch("{% url 'terminal_lock' %}", {method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest'}}).then(function(){ location.reload(); });
+  });
+  document.getElementById('suform').addEventListener('submit', function(e){
+    e.preventDefault();
+    var u = document.getElementById('su-user').value.trim();
+    var m = document.getElementById('su-email').value.trim();
+    var p = document.getElementById('su-pass').value;
+    print('$ createsuperuser ' + u + '  (password hidden)', 'cmdline');
+    document.getElementById('subtn').disabled = true;
+    post({cmd: 'createsuperuser', username: u, email: m, password: p}, function(r){
+      var j = r.j || {};
+      print(j.output || j.error || '(no output)', j.ok ? 'ok' : 'err');
+      document.getElementById('su-pass').value = '';
+      document.getElementById('subtn').disabled = false;
+    });
+  });
+  input.focus();
+  </script>
+  {% endif %}
+</div>
+</body>
+</html>

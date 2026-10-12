@@ -15222,7 +15222,8 @@
         });
       })();
     </script>
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt13"></script>
+    <script>window.CAUFA_WARN_AUDIO_URL = "{% static 'audio/friendlyAlarm/loopAlarm.mp3' %}";</script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt14"></script>
     {% include "website/shared/zt_badge.html" %}
     {% include "website/partials/_officer_pin.html" %}
   <script>

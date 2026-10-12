@@ -217,6 +217,16 @@ URL_OBFUSCATION_EXEMPT_PREFIXES = (
     "/register/",
 )
 
+# -------------------------
+# Web terminal (/terminal/) — break-glass console for hosts with no SSH.
+# Triple-gated: TERMINAL_ENABLED flag + Superadmin login + 4-char dev PIN.
+# Everything else (runserver, git) stays on the dev PC: Passenger already
+# serves the site and uploads are zips, so neither makes sense on the server.
+TERMINAL_ENABLED = env_value("TERMINAL_ENABLED", "False", cast=bool)
+# Exactly 4 letters/digits (e.g. K7Q2). Anything else = terminal stays
+# locked (fail closed). Keep it in server .env only, like a password.
+TERMINAL_PIN = env_value("TERMINAL_PIN", "")
+
 # (X_FRAME_OPTIONS is set in the transport-security block above.)
 
 # AJAX-aware CSRF failure: fetch callers get JSON {"ok": False,

@@ -10,6 +10,10 @@
     var el = document.getElementById("caufa-login-sound");
     if (!el) return true;
     try {
+      // Tab icon with no audible sound is almost always device/mixer level
+      // (OS muted, wrong output, browser slider down) or a file that starts
+      // quiet — so force the element itself to full volume, unmuted.
+      try { el.muted = false; el.volume = 1.0; } catch (e) {}
       var p = el.play();
       if (p && typeof p.then === "function") {
         p.catch(function () { armFallback(); });
@@ -39,6 +43,26 @@
   function boot() { tryPlay(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
+  // One-click retest from the console: caufaTestLoginSound()
+  window.caufaTestLoginSound = function () {
+    var el = document.getElementById("caufa-login-sound");
+    if (!el) { try { console.warn("[login-sound] no audio element"); } catch (e) {} return; }
+    try { el.muted = false; el.volume = 1.0; el.currentTime = 0; } catch (e) {}
+    try {
+      var p = el.play();
+      if (p && typeof p.then === "function") {
+        p.then(function () { try { console.log("[login-sound] playing", el.currentSrc || el.src); } catch (e) {} },
+               function (err) { try { console.warn("[login-sound] blocked:", (err && err.name) || err); } catch (e) {} });
+      }
+    } catch (e) { try { console.warn("[login-sound] threw:", e); } catch (e2) {} }
+  };
+  try {
+    var _el = document.getElementById("caufa-login-sound");
+    if (_el) {
+      _el.addEventListener("error", function () { try { console.warn("[login-sound] file failed to load:", _el.currentSrc || _el.src); } catch (e) {} });
+      _el.addEventListener("ended", function () { try { console.log("[login-sound] finished"); } catch (e) {} });
+    }
+  } catch (e) {}
   document.addEventListener("turbo:load", function () {
     if (!window.__caufaLoginSoundRetried) {
       window.__caufaLoginSoundRetried = true;

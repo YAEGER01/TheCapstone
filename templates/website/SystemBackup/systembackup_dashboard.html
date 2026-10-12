@@ -1002,8 +1002,10 @@
     </script>
     <!-- CAUFA Zero Trust: screen lock, badge, hard-check interception -->
     <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20261008zt9" />
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt13"></script>
+    <script>window.CAUFA_WARN_AUDIO_URL = "{% static 'audio/friendlyAlarm/loopAlarm.mp3' %}";</script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt14"></script>
     <script src="{% static 'js/shared/sidebar_peek.js' %}?v=20260928sp2"></script>
     {% include "website/shared/zt_badge.html" %}
+    {% include "website/partials/_login_sound.html" %}
   </body>
 </html>

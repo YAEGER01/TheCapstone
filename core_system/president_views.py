@@ -271,6 +271,7 @@ def systembackup_dashboard(request):
         "officer_name": officer_full_name,
         "officer_role": officer_role,
         "access_token": request.session.get("access_token", ""),
+        "play_login_sound": request.session.pop("play_login_sound", False),
     }
 
     if not officer_full_name.strip():

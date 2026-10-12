@@ -120,6 +120,20 @@
 - Log in with the B9 admin, turn on MFA, done.
 - RESTART the app again after every `.env` or file change.
 
+**B11. Server terminal page (no SSH needed ever again)**
+
+- In server `.env`, add `TERMINAL_ENABLED=True` and `TERMINAL_PIN=K7Q2`
+  (your own 4 letters/digits) → Setup Python App → RESTART.
+- Open `https://DOMAIN/terminal/` → log in as Superadmin → type the 4-char code.
+- Type `help` inside. Useful commands: `migrate`, `collectstatic`, `check`,
+  `status`, `pip install`, `logs passenger`, `logs cron`,
+  `db tables`, `db count officer_user`, `db describe officer_user`.
+- New Django `/admin/` account: use the form under the terminal
+  (never type the password into the command line).
+- Press **Lock** (or type `lock`) when done. 5 wrong codes = 15-minute lockout.
+- NOT here on purpose: `runserver` (Passenger already serves the site),
+  `git` (deploys are zip uploads — git stays on your PC).
+
 ---
 
 ## PART C — Later updates and quick fixes
@@ -129,12 +143,19 @@
 - **Changed `.env`:** edit `APPDIR/.env` in File Manager → RESTART.
 - **Site shows error:** File Manager → `APPDIR/logs/passenger.log` (top lines say why).
   Usual causes: typo in `.env`, wrong `DB_*`, Python older than 3.10.
+  (Or open `/terminal/` → `logs passenger` — same file, no File Manager needed.)
 - **CSS/images broken:** redo B9 `collectstatic` + upload `staticfiles/`, check
   `CPANEL_MODE=True` in server `.env`, RESTART.
 - **Emails not sending:** check `APPDIR/logs/cron.log`, verify Gmail App Password
   and cPanel mailbox password in server `.env`.
 - **Backups:** download `/home/USER/caufa-backups/` via File Manager regularly and
   keep a copy off the server. Test-restore once a month.
+- **Terminal says "disabled":** set `TERMINAL_ENABLED=True` + a 4-char
+  `TERMINAL_PIN` in server `.env` → RESTART.
+- **Terminal says "incorrect code" / locked out:** wait 15 minutes (auto-resets),
+  then type the exact `TERMINAL_PIN` from server `.env`.
+- **Every terminal command is logged** to `APPDIR/logs/terminal.log` — check who
+  ran what, anytime.
 - **Host is missing something** (no Python 3.10+, no Remote MySQL, pip blocked):
   send support this: *"Hi, my account (USER) has no SSH. For my Django 5.1 app I
   need: (1) Python 3.10+ in Setup Python App, (2) Remote MySQL for my IP, (3) pip

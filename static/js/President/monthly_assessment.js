@@ -1107,6 +1107,9 @@
       latestAssessments = data.assessments || [];
       maPopulateMonthOptions();
       setBadge("ma-pending-dot", data.assessments.filter((a) => a.status === "pending_final").length);
+      // History-button red dot: mirrors the nav badge — shows the Pending
+      // President Approval (pending_final) count, hidden when zero.
+      setBadge("ma-history-count", data.assessments.filter((a) => a.status === "pending_final").length);
       const tbody = document.getElementById("ma-history-body");
       const historyList = document.getElementById("ma-history-list");
       const pager = document.getElementById("ma-history-pagination");
@@ -1398,12 +1401,29 @@
         const parts = name.split(/\s+/);
         return parts.length ? parts[parts.length - 1].toLocaleLowerCase() : "";
       };
-      const memberRows = (data.member_assessments || []).slice().sort((a, b) =>
-        memberSortKey(a.member_name).localeCompare(memberSortKey(b.member_name), "en", { sensitivity: "base" }) ||
-        String(a.member_name || "").localeCompare(String(b.member_name || ""), "en", { sensitivity: "base" })
-      );
-      const membersHtml = memberRows.map((ma) => {
-        allocData[ma.member_assessment_id] = ma;
+      const memberByName = (x, y) =>
+        memberSortKey(x.member_name).localeCompare(memberSortKey(y.member_name), "en", { sensitivity: "base" }) ||
+        String(x.member_name || "").localeCompare(String(y.member_name || ""), "en", { sensitivity: "base" });
+      /* Monthly Deductions table sorting — mirrors Auditor verify_deduction.js
+         (__avdSort / __avdApplySort / __avdFilteredRows / __avdRenderMemberRows).
+         One active sort at a time: Member = alphabetical toggle,
+         Department = similar departments grouped with most members on top,
+         Balance = largest unpaid on top. Filter pills (all/paid/unpaid) +
+         50/page pagination compose on top of the sorted rows. */
+      window.__maRows = (data.member_assessments || []).slice();
+      window.__maSort = { key: "member", dir: 1 };
+      window.__maFilter = "all";
+      window.__maPage = 1;
+      window.__maPageSize = 50;
+      const maDeptCounts = {};
+      window.__maRows.forEach((ma) => {
+        const d = String(ma.department || "—");
+        maDeptCounts[d] = (maDeptCounts[d] || 0) + 1;
+      });
+      window.__maDeptCounts = maDeptCounts;
+      window.__maRows.forEach((ma) => { allocData[ma.member_assessment_id] = ma; });
+      window.__maAllocData = allocData;
+      window.__maMemberRowHtml = function (ma) {
         const priorNote = ma.prior_outstanding > 0
           ? `<div style="font-size:0.75rem; font-weight:400; color:#8a6d3b;">prior ${PESO(ma.prior_outstanding)} from ${ma.prior_month_label || "previous month"} — collected ${PESO(ma.prior_outstanding_collected)}</div>`
           : "";
@@ -1421,8 +1441,132 @@
               <button type="button" class="btn-outline" style="padding:2px 10px; font-size:0.75rem;" onclick="maViewAllocations(${ma.member_assessment_id})">Allocations</button>
             </td>
           </tr>`;
-      }).join("");
-      window.__maAllocData = allocData;
+      };
+      window.__maStatusOf = function (ma) {
+        const balance = Number(ma.outstanding_balance) || 0;
+        if (balance > 0.005) return "unpaid";
+        return "paid";
+      };
+      window.__maSetSort = function (key) {
+        const s = window.__maSort || { key: "member", dir: 1 };
+        if (s.key === key && key === "member") {
+          window.__maSort = { key, dir: s.dir < 0 ? 1 : -1 };
+        } else {
+          window.__maSort = { key, dir: 1 };
+        }
+        window.__maPage = 1;
+        window.__maRenderMemberRows();
+      };
+      window.__maSetFilter = function (f) {
+        window.__maFilter = f || "all";
+        window.__maPage = 1;
+        window.__maRenderMemberRows();
+      };
+      window.__maGoPage = function (p) {
+        const filtered = window.__maFilteredRows ? window.__maFilteredRows() : (window.__maRows || []);
+        const pageSize = window.__maPageSize || 50;
+        const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+        window.__maPage = Math.min(Math.max(1, Number(p) || 1), pageCount);
+        window.__maRenderMemberRows();
+      };
+      window.__maFilteredRows = function () {
+        const sorted = window.__maApplySort();
+        const f = window.__maFilter || "all";
+        if (f === "all") return sorted;
+        return sorted.filter((ma) => window.__maStatusOf(ma) === f);
+      };
+      window.__maApplySort = function () {
+        const s = window.__maSort || { key: "member", dir: 1 };
+        const rows = (window.__maRows || []).slice();
+        if (s.key === "department") {
+          const counts = window.__maDeptCounts || {};
+          rows.sort((x, y) =>
+            ((counts[String(y.department || "—")] || 0) - (counts[String(x.department || "—")] || 0)) ||
+            String(x.department || "").localeCompare(String(y.department || ""), "en", { sensitivity: "base" }) ||
+            memberByName(x, y));
+        } else if (s.key === "unpaid") {
+          rows.sort((x, y) => ((Number(y.outstanding_balance) || 0) - (Number(x.outstanding_balance) || 0)) || memberByName(x, y));
+        } else {
+          rows.sort(memberByName);
+          if (s.dir < 0) rows.reverse();
+        }
+        return rows;
+      };
+      window.__maRenderMemberRows = function () {
+        const wrap = document.getElementById("ma-members-table-wrap");
+        const pager = document.getElementById("ma-members-pager");
+        const pageSize = window.__maPageSize || 50;
+        const filtered = window.__maFilteredRows();
+        const total = (window.__maRows || []).length;
+        const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+        window.__maPage = Math.min(Math.max(1, window.__maPage || 1), pageCount);
+        const start = (window.__maPage - 1) * pageSize;
+        const pageRows = filtered.slice(start, start + pageSize);
+        const rowsHtml = pageRows.map(window.__maMemberRowHtml).join("")
+          || '<tr><td colspan="7" style="text-align:center;color:#757575;padding:16px;">The Treasurer has not recorded deductions yet.</td></tr>';
+        const s = window.__maSort || { key: "member", dir: 1 };
+        const sortMark = (key) => {
+          if (s.key !== key) return ' <span style="color:#b9c2bb;">⇅</span>';
+          if (key === "member") return s.dir < 0 ? ' <span style="color:#1b5e20;">▼</span>' : ' <span style="color:#1b5e20;">▲</span>';
+          return ' <span style="color:#1b5e20;">▲</span>';
+        };
+        const sortTh = (key, label, extra) =>
+          `<th onclick="__maSetSort('${key}')" title="Sort by ${label} — one active at a time" style="white-space:nowrap;position:sticky;top:0;z-index:3;background:#eef6ee;box-shadow:0 1px 0 #d3e2d3;cursor:pointer;user-select:none;${extra || ""}">${label}${sortMark(key)}</th>`;
+        const sticky = "position:sticky;top:0;z-index:3;background:#eef6ee;box-shadow:0 1px 0 #d3e2d3;";
+        if (wrap) {
+          wrap.innerHTML = `<table class="custom-table" style="border-collapse:separate;border-spacing:0;"><thead style="position:sticky;top:0;z-index:3;"><tr>`
+            + sortTh("member", "Member")
+            + `<th style="${sticky}">Expected Collection / Per Member</th>`
+            + `<th style="${sticky}">Amount Deduction</th>`
+            + sortTh("unpaid", "Balance")
+            + `<th style="${sticky}">Employee ID</th>`
+            + sortTh("department", "Department")
+            + `<th style="text-align:center;${sticky}">Details</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot>${window.__maTotalsRow || ""}</tfoot></table>`;
+          void wrap.offsetHeight;
+        }
+        const counts = { all: total, paid: 0, unpaid: 0 };
+        (window.__maRows || []).forEach((ma) => {
+          const st = window.__maStatusOf(ma);
+          if (counts[st] != null) counts[st] += 1;
+        });
+        ["all", "paid", "unpaid"].forEach((k) => {
+          const el = document.getElementById("ma-count-" + k);
+          if (el) el.textContent = counts[k];
+        });
+        document.querySelectorAll("[data-ma-filter]").forEach((btn) => {
+          const on = (btn.dataset.maFilter === (window.__maFilter || "all"));
+          btn.style.background = on ? "#1b5e20" : "#fff";
+          btn.style.color = on ? "#fff" : "#374151";
+          btn.style.borderColor = on ? "#1b5e20" : "#d6ddd7";
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        if (pager) {
+          const from = filtered.length ? start + 1 : 0;
+          const to = Math.min(start + pageSize, filtered.length);
+          let nums = "";
+          const win = 2;
+          const lo = Math.max(1, window.__maPage - win);
+          const hi = Math.min(pageCount, window.__maPage + win);
+          for (let p = lo; p <= hi; p++) {
+            nums += `<button type="button" onclick="__maGoPage(${p})" ${p === window.__maPage ? "disabled" : ""} style="min-width:30px;padding:4px 8px;border-radius:6px;border:1px solid ${p === window.__maPage ? "#1b5e20" : "#d6ddd7"};background:${p === window.__maPage ? "#1b5e20" : "#fff"};color:${p === window.__maPage ? "#fff" : "#374151"};font-size:.78rem;font-weight:700;cursor:${p === window.__maPage ? "default" : "pointer"};">${p}</button>`;
+          }
+          pager.innerHTML = `
+            <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;">
+              <div style="font-size:.78rem;color:#5b6675;">Showing ${from}–${to} of ${filtered.length} (total ${total})</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <button type="button" onclick="__maGoPage(${window.__maPage - 1})" ${window.__maPage <= 1 ? "disabled" : ""} style="padding:4px 12px;border-radius:6px;border:1px solid #d6ddd7;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;opacity:${window.__maPage <= 1 ? ".45" : "1"};">Prev</button>
+                ${pageCount > 7 && lo > 1 ? `<button type="button" onclick="__maGoPage(1)" style="min-width:30px;padding:4px 8px;border-radius:6px;border:1px solid #d6ddd7;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;">1</button><span style="color:#8a949e;">…</span>` : ""}
+                ${nums}
+                ${pageCount > 7 && hi < pageCount ? `<span style="color:#8a949e;">…</span><button type="button" onclick="__maGoPage(${pageCount})" style="min-width:30px;padding:4px 8px;border-radius:6px;border:1px solid #d6ddd7;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;">${pageCount}</button>` : ""}
+                <button type="button" onclick="__maGoPage(${window.__maPage + 1})" ${window.__maPage >= pageCount ? "disabled" : ""} style="padding:4px 12px;border-radius:6px;border:1px solid #d6ddd7;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;opacity:${window.__maPage >= pageCount ? ".45" : "1"};">Next</button>
+              </div>
+            </div>`;
+        }
+        const titleEl = document.getElementById("ma-members-title");
+        if (titleEl) {
+          titleEl.textContent = "Member Deductions (" + total + ")";
+        }
+      };
 
       const totals = (data.member_assessments || []).reduce(
         (acc, m) => {
@@ -1434,45 +1578,158 @@
         },
         { standard: 0, deducted: 0, outstanding: 0, count: 0 }
       );
-      /* Collection Summary — mirrors Treasurer (mdDepositSummary) and Auditor
-         (avdDepositSummary). Total including unpaid = what members owed BEFORE
-         this collection (current dues + prior unpaid), NOT expected + after:
-         expected already counts this month's dues, so adding the leftover
-         `after` double-counts current and drops prior just collected
-         (e.g. 13100 current + 100 prior = 13200). */
-      const maSummary = (() => {
+      /* Collection Summary — 1:1 mirror of Auditor's avdDepositSummary /
+         avdSummaryCardHtml in static/js/Auditor/verify_deduction.js (which
+         itself mirrors the Treasurer's Submit-for-Deposit card). Expected
+         covers every member on the roster (excluded still owe); Collected
+         counts non-excluded rows. */
+      function maDepositSummary(rows) {
         let expected = 0, collected = 0, after = 0, before = 0;
-        (data.member_assessments || []).forEach((ma) => {
+        let dueTotal = 0, priorTotal = 0, excess = 0;
+        const itemApplied = {};
+        const itemIsDue = {};
+        const unpaidRows = [], priorRows = [], balanceRows = [];
+        (rows || []).forEach((ma) => {
+          const name = ma.member_name || "Member";
           expected += Number(ma.standard_assessment) || 0;
           const balance = Number(ma.outstanding_balance) || 0;
           after += balance;
+          if (balance > 0.005) unpaidRows.push({ name, amount: balance });
           const actual = Number(ma.actual_deduction) || 0;
           const change = Number(ma.change_amount) || 0;
-          before += Math.max(0, balance + (ma.is_excluded ? 0 : actual - change));
-          if (!ma.is_excluded) collected += actual;
+          const rowBefore = Math.max(0, balance + (ma.is_excluded ? 0 : actual - change));
+          before += rowBefore;
+          const priorOwed = Number(ma.prior_outstanding) || 0;
+          if (priorOwed > 0.005) balanceRows.push({ name, before: rowBefore, after: balance });
+          if (ma.is_excluded) return;
+          collected += actual;
+          const prior = Number(ma.prior_outstanding_collected) || 0;
+          priorTotal += prior;
+          if (prior > 0.005) priorRows.push({ name, amount: prior });
+          excess += change;
+          (ma.allocations || []).forEach((al) => {
+            const id = String(al.item_id != null ? al.item_id : al.purpose_label);
+            const label = al.purpose_label || al.purpose || "Item";
+            const isDue = al.purpose === "monthly_due" || /monthly due/i.test(String(label));
+            if (!(id in itemIsDue)) itemIsDue[id] = { isDue, label };
+            itemApplied[id] = (itemApplied[id] || 0) + (Number(al.applied) || 0);
+          });
         });
-        return { expected, collected, after, before };
-      })();
-      const maSummaryCard = `
-        <div style="background:#fff;border:1px solid #cfe0cf;border-radius:14px;box-sizing:border-box;box-shadow:0 4px 14px rgba(27,94,32,.08);font-family:inherit;color:#1c2430;overflow:hidden;">
-          <div style="padding:16px 18px 12px;">
-            <span style="display:block;font-weight:800;color:#1b5e20;font-size:.95rem;"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Collection Summary</span>
-            <span style="display:block;font-size:.75rem;color:#5b6675;margin-top:2px;">${(data.member_assessments || []).length} member${(data.member_assessments || []).length === 1 ? "" : "s"}${Number((a || {}).total_amount) ? ` &times; ${PESO(Number((a || {}).total_amount))} per member` : ""} &nbsp;•&nbsp; Collected ${PESO(maSummary.collected)} &nbsp;•&nbsp; Unpaid ${PESO(maSummary.after)}</span>
-          </div>
-          <div style="padding:0 18px 18px;">
+        const aidLines = Object.keys(itemApplied)
+          .filter((id) => !((itemIsDue[id] || {}).isDue) && (itemApplied[id] || 0) > 0.005)
+          .map((id) => ({ label: (itemIsDue[id] || {}).label || "Item", amount: itemApplied[id] }));
+        Object.keys(itemApplied).forEach((id) => {
+          if ((itemIsDue[id] || {}).isDue) dueTotal += itemApplied[id];
+        });
+        unpaidRows.sort((x, y) => y.amount - x.amount);
+        priorRows.sort((x, y) => y.amount - x.amount);
+        balanceRows.sort((x, y) => y.before - x.before);
+        return { expected, collected, before, after, unpaidRows, balanceRows, dueTotal, aidLines, priorTotal, priorRows, excess };
+      }
+
+      window.__maToggleSummary = function () {
+        const body = document.getElementById("ma-summary-body");
+        const chev = document.getElementById("ma-summary-chev");
+        const head = document.getElementById("ma-summary-head");
+        if (!body) return;
+        const isHidden = body.style.display === "none";
+        body.style.display = isHidden ? "" : "none";
+        if (chev) chev.style.transform = isHidden ? "" : "rotate(-90deg)";
+        if (head) head.setAttribute("aria-expanded", isHidden ? "true" : "false");
+      };
+
+      function maSummaryCardHtml(summary, assessment) {
+        summary = summary || {};
+        const expected = summary.expected || 0;
+        const collected = summary.collected || 0;
+        const after = summary.after != null ? summary.after : 0;
+        // Total including unpaid balances = what members owed BEFORE this
+        // collection (current dues + prior unpaid). `before` already sums
+        // per-row Before = outstanding + collected − excess, so it includes
+        // prior dues that were just collected (e.g. 13100 current + 100
+        // prior = 13200). Never use expected + after here: expected already
+        // counts this month's dues, so adding the leftover `after`
+        // double-counts the current portion and drops the prior paid.
+        const beforeTotal = summary.before != null ? summary.before : (expected + after);
+        const unpaidRows = summary.unpaidRows || [];
+        const balanceRows = summary.balanceRows || [];
+        const aidLines = summary.aidLines || [];
+        const priorRows = summary.priorRows || [];
+        const cap = (t) => `<div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">${t}</div>`;
+        const big = (amt, color) => `<div style="font-size:1.3rem;font-weight:800;color:${color || "#1c2430"};font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(amt)}</div>`;
+        const kv = (label, amt, color) => `
+          <div style="display:flex;align-items:flex-end;gap:8px;font-size:0.8rem;padding:3px 0;">
+            <span style="color:#5b6675;white-space:nowrap;">${esc(label)}</span>
+            <span style="flex:1 1 auto;border-bottom:2px dotted #b9c6bb;transform:translateY(-4px);min-width:20px;" aria-hidden="true"></span>
+            <span style="font-weight:700;color:${color || "#1c2430"};font-variant-numeric:tabular-nums;white-space:nowrap;">${PESO(amt)}</span>
+          </div>`;
+        const perMember = Number((assessment || {}).total_amount) || 0;
+        const count = (window.__maRows || []).length;
+        return `
+        <div id="ma-summary-card" style="background:#fff;border:1px solid #cfe0cf;border-radius:14px;box-sizing:border-box;box-shadow:0 4px 14px rgba(27,94,32,.08);font-family:inherit;color:#1c2430;overflow:hidden;">
+          <button type="button" id="ma-summary-head" onclick="__maToggleSummary()" aria-expanded="true" aria-controls="ma-summary-body" style="width:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:16px 18px 12px;text-align:left;font-family:inherit;">
+            <span style="flex:1;min-width:0;">
+              <span style="display:block;font-weight:800;color:#1b5e20;font-size:.95rem;"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Collection Summary</span>
+              <span style="display:block;font-size:.75rem;color:#5b6675;margin-top:2px;">${count} member${count === 1 ? "" : "s"}${perMember ? ` &times; ${PESO(perMember)} per member` : ""} &nbsp;•&nbsp; Collected ${PESO(collected)} &nbsp;•&nbsp; Unpaid ${PESO(after)}</span>
+            </span>
+            <i id="ma-summary-chev" class="fa-solid fa-chevron-down" style="color:#8a949e;font-size:.8rem;transition:transform .18s ease;flex:0 0 auto;"></i>
+          </button>
+          <div id="ma-summary-body" style="padding:0 18px 18px;">
+          <div style="margin-top:4px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
               <div style="min-width:0;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:8px 12px;box-sizing:border-box;">
-                <div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">Total Amount Expected</div>
-                <div style="font-size:1.3rem;font-weight:800;color:#1c2430;font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(maSummary.expected)}</div>
-                <div style="font-size:0.72rem;color:#8a949e;margin:-6px 0 0;">${PESO(maSummary.before)} if unpaid member balance is included</div>
+                ${cap("Total Amount Expected")}
+                ${big(expected)}
+                <div style="font-size:0.72rem;color:#8a949e;margin:-6px 0 0;">${PESO(beforeTotal)} if unpaid member balance is included</div>
               </div>
               <div style="min-width:0;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:8px 12px;box-sizing:border-box;">
-                <div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">Collected Amount</div>
-                <div style="font-size:1.3rem;font-weight:800;color:#1b5e20;font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(maSummary.collected)}</div>
+                ${cap("Collected Amount")}
+                ${big(collected, "#1b5e20")}
               </div>
             </div>
+            <div style="border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:6px 12px;margin:-4px 0 10px;box-sizing:border-box;">
+              ${kv("Due", summary.dueTotal || 0, "#1b5e20")}
+              ${aidLines.map((l) => kv(l.label, l.amount, "#1b5e20")).join("")}
+              ${kv("Balance Paid", summary.priorTotal || 0, "#1b5e20")}
+              ${priorRows.length ? `
+              <div style="max-height:120px;overflow-y:auto;margin:2px 0 4px;padding-left:14px;box-sizing:border-box;">
+                ${priorRows.map((r) => `<div style="font-size:0.78rem;color:#5b6675;padding:1px 0;font-variant-numeric:tabular-nums;">${PESO(r.amount)} - ${esc(r.name)}</div>`).join("")}
+              </div>` : ""}
+              ${(summary.excess || 0) > 0.005 ? kv("Excess to ISUCauFA funds", summary.excess, "#1b5e20") : ""}
+            </div>
+            ${cap("Unpaid Balances")}
+            ${big(after, after > 0.005 ? "#c62828" : "#1b5e20")}
+            ${balanceRows.length ? `
+            <div style="max-height:180px;overflow-y:auto;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:4px 12px;margin:6px 0 10px;box-sizing:border-box;">
+              <div style="font-size:0.66rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#8a949e;padding:6px 0 2px;">Members with prior unpaid balances</div>
+              ${balanceRows.map((r) => `
+              <div style="padding:5px 0;border-bottom:1px dashed #e6ebe7;">
+                <div style="font-size:0.8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">- ${esc(r.name)}</div>
+                <div style="font-size:0.78rem;font-variant-numeric:tabular-nums;margin-top:1px;">
+                  <span style="color:#5b6675;">Before: ${PESO(r.before)}</span>
+                  <span style="color:#8a949e;margin:0 6px;">|</span>
+                  <span style="color:${r.after > 0.005 ? "#c62828" : "#1b5e20"};font-weight:700;">After: ${PESO(r.after)}</span>
+                </div>
+              </div>`).join("")}
+            </div>` : `<div style="font-size:0.78rem;color:#8a949e;margin:6px 0 10px;">No prior unpaid balances.</div>`}
+          </div>
+          <div style="border-top:1px solid #e6ebe7;margin:12px 0 0;padding-top:10px;">
+            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#5b6675;margin-bottom:6px;">Unpaid Members${unpaidRows.length ? ` (${unpaidRows.length})` : ""}</div>
+            ${unpaidRows.length ? `
+            <div style="max-height:220px;overflow-y:auto;border:1px solid #f0e0e0;border-radius:10px;background:#fffafa;padding:4px 10px;box-sizing:border-box;">
+              ${unpaidRows.map((r) => `
+              <div style="display:flex;justify-content:space-between;gap:14px;font-size:0.8rem;padding:5px 0;border-bottom:1px dashed #f3dcdc;">
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">- ${esc(r.name)}</span>
+                <span style="font-weight:700;color:#c62828;font-variant-numeric:tabular-nums;white-space:nowrap;">${PESO(r.amount)}</span>
+              </div>`).join("")}
+            </div>` : `<div style="font-size:0.82rem;color:#1b5e20;font-weight:700;">All members fully paid.</div>`}
+          </div>
           </div>
         </div>`;
+      }
+
+      const maSummary = maDepositSummary(data.member_assessments || []);
+      const maSummaryCard = maSummaryCardHtml(maSummary, a);
       const totalsRow = totals.count ? `
         <tr style="background:#f5f5f5; font-weight:700; border-top:2px solid #1b5e20;">
           <td style="padding:6px 8px;">TOTAL (${totals.count} member${totals.count === 1 ? "" : "s"})</td>
@@ -1481,17 +1738,19 @@
           <td style="padding:6px 8px; ${totals.outstanding > 0 ? "color:#c62828;" : "color:#1b5e20;"}">${PESO(totals.outstanding)}</td>
           <td colspan="3"></td>
         </tr>` : "";
+      window.__maTotalsRow = totalsRow;
       document.getElementById("ma-detail-body").innerHTML = `
         <div style="display:flex; flex-direction:column; gap:20px;">
           ${maSummaryCard}
           <div>
-            <h4 style="margin:0 0 8px;">Member Deductions (${(data.member_assessments || []).length})</h4>
-            <div style="max-height:420px; overflow:auto;">
-            <table class="custom-table">
-              <thead><tr><th>Member</th><th>Expected Collection / Per Member</th><th>Amount Deduction</th><th>Balance</th><th>Employee ID</th><th>Department</th><th style="text-align:center;">Details</th></tr></thead>
-              <tbody>${membersHtml || '<tr><td colspan="7" style="text-align:center;color:#757575;padding:16px;">The Treasurer has not recorded deductions yet.</td></tr>'}</tbody><tfoot>${totalsRow}</tfoot>
-            </table>
+            <h4 style="margin:0 0 8px;"><span id="ma-members-title">Member Deductions (${(data.member_assessments || []).length})</span></h4>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;" role="group" aria-label="Filter by payment status">
+              <button type="button" data-ma-filter="all" onclick="__maSetFilter('all')" style="padding:5px 14px;border-radius:999px;border:1px solid #1b5e20;font-size:.78rem;font-weight:700;cursor:pointer;">All (<span id="ma-count-all">0</span>)</button>
+              <button type="button" data-ma-filter="paid" onclick="__maSetFilter('paid')" style="padding:5px 14px;border-radius:999px;border:1px solid #d6ddd7;font-size:.78rem;font-weight:700;cursor:pointer;">Paid (<span id="ma-count-paid">0</span>)</button>
+              <button type="button" data-ma-filter="unpaid" onclick="__maSetFilter('unpaid')" style="padding:5px 14px;border-radius:999px;border:1px solid #d6ddd7;font-size:.78rem;font-weight:700;cursor:pointer;">Unpaid (<span id="ma-count-unpaid">0</span>)</button>
             </div>
+            <div id="ma-members-table-wrap" data-skip-table-fixers style="max-height:420px; overflow:auto;"></div>
+            <div id="ma-members-pager"></div>
           </div>
           <div>
             <h4 style="margin:0 0 8px;">Breakdown</h4>
@@ -1517,6 +1776,8 @@
           ${typeof window.mdDepositEvidenceHtml === "function" ? window.mdDepositEvidenceHtml(a) : ""}
           ${typeof window.mdWorkflowTimelineHtml === "function" ? window.mdWorkflowTimelineHtml(data.workflow_logs || []) : ""}
         </div>`;
+
+      window.__maRenderMemberRows();
 
       const actions = document.getElementById("ma-detail-actions");
       if (actions) {
@@ -1718,7 +1979,10 @@
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === "deduction_counts") setBadge("ma-pending-dot", msg["pending_final"] || 0);
+        if (msg.type === "deduction_counts") {
+          setBadge("ma-pending-dot", msg["pending_final"] || 0);
+          setBadge("ma-history-count", msg["pending_final"] || 0);
+        }
       } catch (e) {}
     };
   } catch (e) {}

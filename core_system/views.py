@@ -996,6 +996,7 @@ def superadmin_dashboard(request: HttpRequest):
 
     context = _build_superadmin_dashboard_context(superadmin, president, system_backfill, form_feedback, threshold_feedback)
     context.update(_backup_scheduler_status_context())
+    context["play_login_sound"] = request.session.pop("play_login_sound", False)
     return render(request, "website/Superadmin/superadmin_dashboard.html", context)
 
 
@@ -1643,6 +1644,7 @@ def member_dashboard(request: HttpRequest):
         # NEVER embedded here — the modal fetches them once via the reveal
         # endpoint, which destroys them server-side on first serve.
         "show_backup_modal": bool(request.session.get("show_backup_modal")),
+        "play_login_sound": request.session.pop("play_login_sound", False),
     }
 
     return render(request, "website/Member/member_dashboard.html", context)

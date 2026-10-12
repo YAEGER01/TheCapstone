@@ -58,6 +58,7 @@ def pio_dashboard(request: HttpRequest):
         "history": _setting("history", ""),
         "core_values": _setting("core_values", ""),
         "org_structure": _setting("org_structure", ""),
+        "play_login_sound": request.session.pop("play_login_sound", False),
     })
 
 

@@ -8889,9 +8889,9 @@
                 #president-monthly-assessment .ma-history-toggle-btn .ma-history-count {
                   display:inline-flex; align-items:center; justify-content:center;
                   min-width:20px; height:20px; padding:0 6px; border-radius:999px;
-                  background:#e8f5e9; color:#1b5e20; font-size:0.72rem; font-weight:800;
+                  background:#ff5252; color:#fff; font-size:0.72rem; font-weight:800;
                 }
-                #president-monthly-assessment .ma-history-toggle-btn[aria-pressed="true"] .ma-history-count { background:rgba(255,255,255,0.22); color:#fff; }
+                #president-monthly-assessment .ma-history-toggle-btn[aria-pressed="true"] .ma-history-count { background:#ff5252; color:#fff; }
                 #president-monthly-assessment .ma-history-list {
                   display:flex; flex-direction:column; gap:12px;
                   padding:14px 16px; overflow-y:auto; min-height:0;
@@ -8935,6 +8935,11 @@
                 #president-monthly-assessment .ma-history-item.ma-st-pending_final .ma-h-foot,
                 #president-monthly-assessment .ma-history-item.ma-st-pending_audit .ma-h-foot,
                 #president-monthly-assessment .ma-history-item.ma-st-pending_treasurer .ma-h-foot { background:#fffbeb; }
+                #president-monthly-assessment .ma-history-item.ma-st-pending_final {
+                  border:2px solid #2e7d32;
+                  box-shadow:0 2px 10px rgba(46,125,50,.18);
+                }
+                #president-monthly-assessment .ma-history-item.ma-st-pending_final:hover { border-color:#1b5e20; box-shadow:0 4px 14px rgba(27,94,32,.25); }
                 #president-monthly-assessment .ma-detail-row { grid-column:1 / -1; }
                 @media (max-width: 1200px) {
                   #president-monthly-assessment .ma-two-col { grid-template-columns:minmax(0, 1fr); }
@@ -8977,7 +8982,7 @@
                   <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <span style="font-size:0.78rem; color:#8a949e;">Items are funded in the order listed — most important first</span>
                     <button type="button" class="ma-history-toggle-btn" id="ma-history-toggle-btn" onclick="maToggleHistory()" aria-pressed="false" aria-controls="ma-history-panel" title="Show / hide approval history">
-                      <i class="fas fa-clock-rotate-left"></i> History
+                      <i class="fas fa-clock-rotate-left"></i> History <span class="ma-history-count" id="ma-history-count" style="display:none"></span>
                     </button>
                   </div>
 
@@ -15941,7 +15946,8 @@
 
     </script>
 
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt13"></script>
+    <script>window.CAUFA_WARN_AUDIO_URL = "{% static 'audio/friendlyAlarm/loopAlarm.mp3' %}";</script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt14"></script>
 
     <script>
 
@@ -19174,6 +19180,12 @@
       }
       function formatAndSortMemberDisplays() {
         document.querySelectorAll("table").forEach(function (table) {
+          // Tables that manage their own row order (e.g. the President
+          // Monthly Deductions review table with interactive Member /
+          // Department / Balance sorts) opt out via data-skip-table-fixers —
+          // the auto-sort would otherwise relocate rows and fight the
+          // active sort (mirrors Treasurer dashboard guard).
+          if (table.closest("[data-skip-table-fixers]")) return;
           var header = table.querySelector("thead tr");
           if (!header) return;
           var memberIndex = Array.prototype.findIndex.call(header.children, function (cell) {

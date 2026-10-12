@@ -42,7 +42,18 @@
   var IDLE_LOCK_MS = 2 * 60 * 1000;  // screen lock after idle (superadmin-editable via status poll)
   var AUTO_SIGNOUT_MS = 5 * 60 * 1000;  // auto sign-out once locked (superadmin-editable via status poll)
   var WARN_BEFORE_LOCK_MS = 15000;  // independent warning overlay countdown before the lock overlay
-  var WARN_AUDIO_URL = "/static/audio/friendlyAlarm/loopAlarm.mp3";
+  // Audio URL is injected per-page via {% static %} so it respects
+  // STATIC_URL / subpaths / collectstatic. Hardcoded /static/ is only the
+  // fallback when the template forgot the inline snippet.
+  var WARN_AUDIO_FALLBACK_URL = "/static/audio/friendlyAlarm/loopAlarm.mp3";
+  function getWarnAudioUrl() {
+    try {
+      if (typeof window.CAUFA_WARN_AUDIO_URL === "string" && window.CAUFA_WARN_AUDIO_URL) {
+        return window.CAUFA_WARN_AUDIO_URL;
+      }
+    } catch (e) { /* best-effort */ }
+    return WARN_AUDIO_FALLBACK_URL;
+  }
 
   var state = {
     checked: false,
@@ -588,8 +599,14 @@
       lockState.warnAudio = audio;
     }
     try {
-      if (!audio.getAttribute("src")) {
-        audio.src = WARN_AUDIO_URL;
+      // Keep src cached across warnings (stop only pauses) so repeat
+      // warnings never re-download; re-point only when missing or stale
+      // (e.g. template injected a different STATIC_URL build).
+      var want = getWarnAudioUrl();
+      var cur = "";
+      try { cur = audio.getAttribute("src") || audio.src || ""; } catch (e) { cur = ""; }
+      if (!cur || cur.indexOf("loopAlarm.mp3") === -1) {
+        audio.src = want;
         try { audio.load(); } catch (e) { /* older engines */ }
       }
     } catch (e) { /* best-effort */ }
@@ -664,11 +681,12 @@
     } catch (e) { /* best-effort */ }
   }
 
+  var warnAudioGen = 0;  // guards late-resolving play() after a stop
   function startWarnAudio() {
-    // Kill anything lingering first: a pause() issued while play() is still
-    // pending can otherwise let the alarm start AFTER we stopped it and loop
-    // forever with no timer left to silence it.
+    // Pause anything lingering first (same element is reused with src cached).
     stopWarnAudio();
+    warnAudioGen += 1;
+    var myGen = warnAudioGen;
     try {
       var audio = ensureWarnAudio();
       try { audio.muted = false; audio.volume = 1.0; } catch (e) { /* best-effort */ }
@@ -682,6 +700,13 @@
         };
       } catch (e) { /* best-effort */ }
       var p = audio.play();
+      if (p && typeof p.then === "function") {
+        p.then(function () {
+          // A stop() that landed while play() was pending means this start
+          // is stale — silence it so no orphan loop survives.
+          try { if (myGen !== warnAudioGen) audio.pause(); } catch (e) {}
+        });
+      }
       if (p && typeof p.catch === "function") {
         p.catch(function (err) {
           try {
@@ -697,15 +722,18 @@
   }
 
   function stopWarnAudio() {
-    // Abort the element's load so a still-pending play() can never start
-    // late and loop with nothing left to stop it.
+    // Pause + rewind only — keep src cached so the NEXT warning replays
+    // instantly. (The old removeAttribute("src")+load() forced a re-download
+    // every cycle and raced with pending play() promises, which is how the
+    // alarm silently went missing "again".)
+    warnAudioGen += 1;
     stopFallbackBeeps();
     try {
       var audio = lockState.warnAudio;
       if (audio) {
         try { audio.onerror = null; } catch (e) { /* best-effort */ }
         try { audio.pause(); } catch (e) { /* best-effort */ }
-        try { audio.removeAttribute("src"); audio.load(); } catch (e) { /* best-effort */ }
+        try { audio.currentTime = 0; } catch (e) { /* best-effort */ }
       }
     } catch (e) { /* best-effort */ }
     try {
@@ -729,7 +757,7 @@
     say("Playing test sound…");
     var a = null;
     try {
-      a = new Audio(WARN_AUDIO_URL);
+      a = new Audio(getWarnAudioUrl());
       try { a.setAttribute("data-zt-warn", "1"); } catch (e) { /* best-effort */ }
     } catch (e) {
       say("Could not create audio. (" + e + ")");
@@ -748,7 +776,7 @@
         if (done) return;
         done = true;
         clearTimeout(okTimer);
-        say("Audio FILE failed to load (" + (a.currentSrc || WARN_AUDIO_URL) + "). Check that the URL returns the mp3.");
+        say("Audio FILE failed to load (" + (a.currentSrc || getWarnAudioUrl()) + "). Check that the URL returns the mp3.");
         ztAlarmDiag();
       };
       var p = a.play();

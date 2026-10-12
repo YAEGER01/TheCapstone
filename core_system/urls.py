@@ -20,6 +20,7 @@ from . import url_obfuscation_views
 from . import feedback_views
 from . import officer_pin_views
 from . import botcheck_views
+from . import terminal_views
 
 
 urlpatterns = [
@@ -517,6 +518,12 @@ urlpatterns = [
 
     # --- Superadmin Workspace Endpoints ---
     path("superadmin/", views.superadmin_dashboard, name="superadmin_dashboard"),
+
+    # --- Break-glass web terminal (no-SSH hosts): Superadmin + dev PIN ---
+    path("terminal/", terminal_views.terminal_page, name="terminal_page"),
+    path("terminal/unlock/", terminal_views.terminal_unlock, name="terminal_unlock"),
+    path("terminal/lock/", terminal_views.terminal_lock, name="terminal_lock"),
+    path("terminal/run/", terminal_views.terminal_run, name="terminal_run"),
 
     # --- Auditor Workspace Endpoints ---
     path("auditor/", auditor_views.auditor_dashboard, name="auditor_dashboard"),

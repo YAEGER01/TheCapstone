@@ -237,6 +237,7 @@ def secretary_dashboard(request: HttpRequest):
         'total_documents': total_documents,
         'pending_minutes': pending_minutes,
         'new_announcements': new_announcements,
+        'play_login_sound': request.session.pop("play_login_sound", False),
     })
 
 
