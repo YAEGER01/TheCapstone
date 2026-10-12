@@ -1864,7 +1864,17 @@ function printReport(reportType) {
         .header-actions { display: none !important; }
         .filter-section { display: none !important; }
         .rpt-sheet-brand img { max-width: 72px !important; max-height: 72px !important; }
-        @media print { body { -webkit-print-color-adjust: exact; } }
+        /* Print fragmentation: scroll wrappers and fixed min-widths come from
+           the on-screen layout — neutralize them so pages paginate cleanly
+           instead of painting overlapping/blank regions in the preview. */
+        div[style*="overflow"] { overflow: visible !important; }
+        table { min-width: 0 !important; max-width: 100% !important; }
+        table thead { display: table-header-group; }
+        table tr { page-break-inside: avoid; break-inside: avoid; }
+        th, td { overflow-wrap: anywhere; word-break: break-word; }
+        button { display: none !important; }
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style>
     </head>
     <body>
@@ -1873,12 +1883,28 @@ function printReport(reportType) {
         <p>Generated: ${new Date().toLocaleString()}</p>
       </div>
       ${contentClone.innerHTML}
+      <script>
+        // Print after content settles so the preview rasterizes complete pages.
+        (function () {
+          var done = false;
+          function go() { if (done) return; done = true; window.print(); }
+          var waited = 0;
+          var timer = setInterval(function () {
+            waited += 150;
+            var fontsOk = !document.fonts || !document.fonts.status || document.fonts.status === "loaded";
+            var imgs = Array.prototype.slice.call(document.images || []);
+            var imgsOk = imgs.every(function (im) { return im.complete; });
+            if ((fontsOk && imgsOk) || waited > 2500) { clearInterval(timer); setTimeout(go, 120); }
+          }, 150);
+          window.addEventListener("load", function () { setTimeout(go, 400); });
+          setTimeout(go, 3000);
+        })();
+      <\/script>
     </body>
     </html>
   `);
   printWindow.document.close();
   printWindow.focus();
-  printWindow.print();
 }
 
 // ==========================================================================

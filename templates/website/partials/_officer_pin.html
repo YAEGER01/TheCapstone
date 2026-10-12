@@ -1,0 +1,500 @@
+<!-- Officer personal action-PIN popups (offline, all roles).
+    Included once per officer dashboard. Auto-shows the centered setup
+    popup on every page load while the officer has no PIN set.
+
+    Exposes window.CaufaPin:
+      .status()                       -> Promise<{has_pin, locked, ...}>
+      .openSetup()                    -> show setup form (mode: setup|change)
+      .openChange()
+      .promptPin({title, subtitle})    -> Promise<string|null> (verify popup)
+      .fetchWithPin(url, opts)         -> fetch that auto-prompts + retries once
+-->
+<style>
+  #caufa-pin-overlay { position: fixed; inset: 0; background: rgba(10,18,30,.55); z-index: 100002; }
+  #caufa-pin-overlay[hidden], #caufa-pin-setup[hidden], #caufa-pin-verify[hidden] { display: none !important; }
+  #caufa-pin-setup, #caufa-pin-verify {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 100003; width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px); overflow-y: auto;
+    background: #fff; border-radius: 14px; box-shadow: 0 18px 60px rgba(0,0,0,.28);
+    border: 1px solid #e7eaef; font-family: Inter, system-ui, sans-serif; color: #1c2430;
+  }
+  .caufa-pin-head { padding: 16px 18px 0; }
+  .caufa-pin-title { font-weight: 800; font-size: 15px; }
+  .caufa-pin-sub { margin-top: 4px; font-size: 12px; color: #5b6675; line-height: 1.5; }
+  .caufa-pin-body { padding: 14px 18px 18px; }
+  .caufa-pin-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #5b6675; margin: 10px 0 6px; }
+  .caufa-pin-input {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 18px; letter-spacing: .35em;
+    text-align: center; border: 1.5px solid #dfe4ea; border-radius: 10px; outline: none;
+  }
+  .caufa-pin-input:focus { border-color: #1e8f4e; }
+  .caufa-pin-input:disabled { background: #f1f3f6; color: #8b93a1; }
+  .caufa-pin-text { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 14px; border: 1.5px solid #dfe4ea; border-radius: 10px; outline: none; }
+  .caufa-pin-text:focus { border-color: #1e8f4e; }
+  .caufa-pin-text:disabled, .caufa-pin-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .caufa-pin-err { min-height: 18px; margin-top: 8px; font-size: 12px; color: #c93a3a; }
+  .caufa-pin-lock { margin-top: 8px; font-size: 12px; color: #9a6a0a; }
+  .caufa-pin-row { display: flex; gap: 8px; margin-top: 12px; }
+  .caufa-pin-btn {
+    flex: 1; border: none; border-radius: 999px; padding: 11px 14px; font-size: 12px;
+    font-weight: 800; text-transform: uppercase; letter-spacing: .08em; cursor: pointer;
+  }
+  .caufa-pin-primary { background: #1e8f4e; color: #fff; }
+  .caufa-pin-primary:hover:not(:disabled) { background: #16703c; }
+  .caufa-pin-ghost { background: #eef1f5; color: #1c2430; }
+  .caufa-pin-foot { margin-top: 10px; font-size: 11px; color: #8b93a1; text-align: center; }
+  .caufa-pin-foot a { color: #1e8f4e; font-weight: 700; text-decoration: none; }
+</style>
+
+<div id="caufa-pin-overlay" hidden></div>
+
+<div id="caufa-pin-setup" hidden role="dialog" aria-modal="true" aria-label="Set up your action PIN">
+  <div class="caufa-pin-head">
+    <div class="caufa-pin-title" id="caufa-pin-setup-title">Set your 4-digit action PIN</div>
+    <div class="caufa-pin-sub">Needed to confirm final approvals and verifications. Different from your password, stored only as a secure hash on this server — works offline, no email codes.</div>
+  </div>
+  <div class="caufa-pin-body">
+    <label class="caufa-pin-label" for="caufa-pin-new">New 4-digit PIN</label>
+    <input class="caufa-pin-input" id="caufa-pin-new" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" />
+    <label class="caufa-pin-label" for="caufa-pin-confirm">Confirm PIN</label>
+    <input class="caufa-pin-input" id="caufa-pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" />
+    <div id="caufa-pin-setup-cur-wrap" hidden>
+      <label class="caufa-pin-label" for="caufa-pin-current">Current PIN</label>
+      <input class="caufa-pin-input" id="caufa-pin-current" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••" />
+    </div>
+    <label class="caufa-pin-label" for="caufa-pin-password">Login password (to confirm it's you)</label>
+    <input class="caufa-pin-text" id="caufa-pin-password" type="password" autocomplete="current-password" placeholder="Your login password" />
+    <div class="caufa-pin-err" id="caufa-pin-setup-err"></div>
+    <div class="caufa-pin-row">
+      <button type="button" class="caufa-pin-btn caufa-pin-ghost" id="caufa-pin-setup-later">Do it next time</button>
+      <button type="button" class="caufa-pin-btn caufa-pin-primary" id="caufa-pin-setup-save">Save PIN</button>
+    </div>
+    <div class="caufa-pin-foot"><a href="/logout/">Log out</a></div>
+  </div>
+</div>
+
+<div id="caufa-pin-verify" hidden role="dialog" aria-modal="true" aria-label="Enter your action PIN">
+  <div class="caufa-pin-head">
+    <div class="caufa-pin-title" id="caufa-pin-verify-title">Confirm with your action PIN</div>
+    <div class="caufa-pin-sub" id="caufa-pin-verify-sub">Enter your 4-digit PIN to approve this action.</div>
+  </div>
+  <div class="caufa-pin-body">
+    <label class="caufa-pin-label" for="caufa-pin-entry">4-digit PIN</label>
+    <input class="caufa-pin-input" id="caufa-pin-entry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••" />
+    <div class="caufa-pin-err" id="caufa-pin-verify-err"></div>
+    <div class="caufa-pin-lock" id="caufa-pin-verify-lock" hidden></div>
+    <div class="caufa-pin-row">
+      <button type="button" class="caufa-pin-btn caufa-pin-ghost" id="caufa-pin-verify-cancel">Cancel</button>
+      <button type="button" class="caufa-pin-btn caufa-pin-primary" id="caufa-pin-verify-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  if (window.CaufaPin) return;
+
+  function getCookie(name) {
+    if (window.getCookie) { try { return window.getCookie(name); } catch (e) {} }
+    var v = null;
+    if (document.cookie && document.cookie !== "") {
+      var parts = document.cookie.split(";");
+      for (var i = 0; i < parts.length; i++) {
+        var c = parts[i].trim();
+        if (c.substring(0, name.length + 1) === name + "=") { v = decodeURIComponent(c.substring(name.length + 1)); break; }
+      }
+    }
+    return v;
+  }
+
+  function jsonHeaders(extra) {
+    var h = { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" };
+    var csr = getCookie("csrftoken");
+    if (csr) h["X-CSRFToken"] = csr;
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  var overlay = document.getElementById("caufa-pin-overlay");
+  var setupBox = document.getElementById("caufa-pin-setup");
+  var verifyBox = document.getElementById("caufa-pin-verify");
+
+  function show(el) { if (el) el.hidden = false; if (overlay) overlay.hidden = false; }
+  function hide(el) {
+    if (el) el.hidden = true;
+    if (setupBox.hidden && verifyBox.hidden && overlay) overlay.hidden = true;
+  }
+
+  function setErr(id, msg) { var e = document.getElementById(id); if (e) e.textContent = msg || ""; }
+
+  function onlyDigits(s) { return (s || "").replace(/\D/g, "").slice(0, 4); }
+  ["caufa-pin-new", "caufa-pin-confirm", "caufa-pin-current", "caufa-pin-entry"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("input", function () { el.value = onlyDigits(el.value); });
+  });
+
+  // ---------- status ----------
+  var statusCache = null;
+  function status() {
+    return fetch("/api/officer/pin/status/", { credentials: "same-origin", headers: jsonHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { statusCache = d; return d; })
+      .catch(function () { return { ok: false }; });
+  }
+
+  // ---------- setup / change ----------
+  var setupMode = "setup"; // or "change"
+  function openSetup(mode) {
+    setupMode = (mode === "change") ? "change" : "setup";
+    document.getElementById("caufa-pin-setup-title").textContent =
+      setupMode === "change" ? "Change your 4-digit action PIN" : "Set your 4-digit action PIN";
+    document.getElementById("caufa-pin-setup-cur-wrap").hidden = (setupMode !== "change");
+    document.getElementById("caufa-pin-new").value = "";
+    document.getElementById("caufa-pin-confirm").value = "";
+    var cur = document.getElementById("caufa-pin-current"); if (cur) cur.value = "";
+    document.getElementById("caufa-pin-password").value = "";
+    setErr("caufa-pin-setup-err", "");
+    hide(verifyBox); show(setupBox);
+    setTimeout(function () { document.getElementById("caufa-pin-new").focus(); }, 50);
+  }
+
+  var dismissedForSession = false;
+  document.getElementById("caufa-pin-setup-save").addEventListener("click", function () {
+    var btn = this;
+    var pin = onlyDigits(document.getElementById("caufa-pin-new").value);
+    var confirm = onlyDigits(document.getElementById("caufa-pin-confirm").value);
+    var cur = onlyDigits((document.getElementById("caufa-pin-current") || {}).value || "");
+    var pw = document.getElementById("caufa-pin-password").value || "";
+    if (pin.length !== 4) { setErr("caufa-pin-setup-err", "PIN must be exactly 4 digits."); return; }
+    if (pin !== confirm) { setErr("caufa-pin-setup-err", "PIN and confirmation do not match."); return; }
+    if (!pw) { setErr("caufa-pin-setup-err", "Login password is required."); return; }
+    btn.disabled = true; setErr("caufa-pin-setup-err", "");
+    var url = setupMode === "change" ? "/api/officer/pin/change/" : "/api/officer/pin/setup/";
+    var payload = setupMode === "change"
+      ? { current_pin: cur, new_pin: pin, confirm_pin: confirm, password: pw }
+      : { pin: pin, confirm_pin: confirm, password: pw };
+    if (setupMode === "change" && cur.length !== 4) {
+      btn.disabled = false; setErr("caufa-pin-setup-err", "Current PIN is required."); return;
+    }
+    fetch(url, { method: "POST", credentials: "same-origin", headers: jsonHeaders(), body: JSON.stringify(payload) })
+      .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+      .then(function (out) {
+        btn.disabled = false;
+        if (out.d && out.d.ok) {
+          statusCache = { ok: true, has_pin: true };
+          hide(setupBox);
+        } else {
+          setErr("caufa-pin-setup-err", (out.d && (out.d.error || out.d.message)) || "Could not save PIN.");
+        }
+      })
+      .catch(function () { btn.disabled = false; setErr("caufa-pin-setup-err", "Network error. Try again."); });
+  });
+
+  var later = document.getElementById("caufa-pin-setup-later");
+  if (later) later.addEventListener("click", function (e) {
+    e.preventDefault();
+    dismissedForSession = true;
+    hide(setupBox);
+  });
+
+  // ---------- verify prompt ----------
+  var pending = null; // {resolve}
+  var lockTimer = null;
+
+  function fmtCountdown(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function setLockedUI(seconds) {
+    var entry = document.getElementById("caufa-pin-entry");
+    var ok = document.getElementById("caufa-pin-verify-ok");
+    var lock = document.getElementById("caufa-pin-verify-lock");
+    if (!seconds || seconds <= 0) {
+      entry.disabled = false; ok.disabled = false; lock.hidden = true;
+      if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
+      return;
+    }
+    entry.disabled = true; ok.disabled = true;
+    var left = seconds;
+    lock.hidden = false;
+    lock.textContent = "Locked after 3 wrong attempts. Try again in " + fmtCountdown(left) + ".";
+    if (lockTimer) clearInterval(lockTimer);
+    lockTimer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) { setLockedUI(0); setErr("caufa-pin-verify-err", ""); }
+      else lock.textContent = "Locked after 3 wrong attempts. Try again in " + fmtCountdown(left) + ".";
+    }, 1000);
+  }
+
+  function promptPin(opts) {
+    opts = opts || {};
+    document.getElementById("caufa-pin-verify-title").textContent = opts.title || "Confirm with your action PIN";
+    document.getElementById("caufa-pin-verify-sub").textContent = opts.subtitle || "Enter your 4-digit PIN to approve this action.";
+    document.getElementById("caufa-pin-entry").value = "";
+    setErr("caufa-pin-verify-err", "");
+    setLockedUI(0);
+    hide(setupBox); show(verifyBox);
+    setTimeout(function () { document.getElementById("caufa-pin-entry").focus(); }, 50);
+    return new Promise(function (resolve) { pending = { resolve: resolve }; });
+  }
+
+  function settle(val) {
+    hide(verifyBox);
+    if (pending) { var r = pending.resolve; pending = null; r(val); }
+  }
+
+  document.getElementById("caufa-pin-verify-cancel").addEventListener("click", function () { settle(null); });
+  document.getElementById("caufa-pin-entry").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); document.getElementById("caufa-pin-verify-ok").click(); }
+    if (e.key === "Escape") settle(null);
+  });
+
+  // Confirm button: validates locally via /api/officer/pin/verify/ so wrong
+  // attempts count toward the doubling lockout even before the real action.
+  document.getElementById("caufa-pin-verify-ok").addEventListener("click", function () {
+    var btn = this;
+    var pin = onlyDigits(document.getElementById("caufa-pin-entry").value);
+    if (pin.length !== 4) { setErr("caufa-pin-verify-err", "PIN must be exactly 4 digits."); return; }
+    btn.disabled = true;
+    fetch("/api/officer/pin/verify/", { method: "POST", credentials: "same-origin", headers: jsonHeaders(), body: JSON.stringify({ pin: pin }) })
+      .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+      .then(function (out) {
+        btn.disabled = false;
+        var d = out.d || {};
+        if (d.ok) { settle(pin); return; }
+        if (d.locked || out.s === 423) {
+          setLockedUI(d.retry_after_seconds || 60);
+          setErr("caufa-pin-verify-err", d.error || "PIN locked.");
+          return;
+        }
+        setErr("caufa-pin-verify-err", d.error || "Incorrect PIN.");
+      })
+      .catch(function () { btn.disabled = false; setErr("caufa-pin-verify-err", "Network error. Try again."); });
+  });
+
+  // ---------- fetch helper for approvals ----------
+  function withPin(url, opts, promptOpts) {
+    opts = opts || {};
+    function doFetch(pin) {
+      var o = { credentials: "same-origin", headers: jsonHeaders() };
+      for (var k in opts) if (k !== "body" && k !== "headers" && k !== "prompt") o[k] = opts[k];
+      var h = jsonHeaders(opts.headers || {});
+      var body = opts.body;
+      if (pin) {
+        var ct = (opts.headers && (opts.headers["Content-Type"] || opts.headers["content-type"])) || "";
+        if (body instanceof FormData) { try { body.append("action_pin", pin); } catch (e) {} }
+        else if (typeof body === "string" && ct.indexOf("json") >= 0) {
+          try { var j = JSON.parse(body || "{}"); j.action_pin = pin; body = JSON.stringify(j); } catch (e) {}
+        } else if (body == null && (o.method || "GET").toUpperCase() !== "GET") {
+          h["Content-Type"] = "application/json"; body = JSON.stringify({ action_pin: pin });
+        }
+        h["X-Action-PIN"] = pin;
+      }
+      o.headers = h;
+      if (body !== undefined) o.body = body;
+      if (!o.method) o.method = "POST";
+      return fetch(url, o);
+    }
+    return doFetch(null).then(function (res) {
+      if (res.status !== 403) return res;
+      return res.clone().json().then(function (d) {
+        if (!d || !d.code) return res;
+        if (d.code === "PIN_NOT_SET") { openSetup("setup"); return res; }
+        if (d.code === "PIN_REQUIRED" || d.code === "PIN_INVALID") {
+          return promptPin(promptOpts).then(function (pin) {
+            if (!pin) return res;
+            return doFetch(pin);
+          });
+        }
+        if (d.code === "PIN_LOCKED") {
+          promptPin(promptOpts);
+          setLockedUI(d.retry_after_seconds || 60);
+          setErr("caufa-pin-verify-err", d.error || "PIN locked.");
+          return res;
+        }
+        return res;
+      }).catch(function () { return res; });
+    });
+  }
+
+  // ---------- auto-show on every dashboard load while no PIN ----------
+  function autoCheck() {
+    status().then(function (d) {
+      if (d && d.ok && d.has_pin === false && !dismissedForSession) openSetup("setup");
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", autoCheck);
+  else autoCheck();
+
+  window.CaufaPin = {
+    status: status, openSetup: openSetup, openChange: function () { openSetup("change"); },
+    promptPin: promptPin, fetchWithPin: withPin
+  };
+
+  // ---------- global PIN guard for final approvals ----------
+  // Intercepts plain fetch() calls to PIN-gated endpoints and shows the
+  // action-PIN input popup above on 403 PIN_REQUIRED / PIN_INVALID.
+  // Call sites that already send X-Action-PIN (custom card prompts) are
+  // left untouched. Casual actions (filters, refresh, profile edits,
+  // downloads) never match the list below so they never prompt.
+  var PIN_GATED_PREFIXES = [
+    "/api/aids/presidential-decision",
+    "/api/payments/presidential-decision",
+    "/api/president/contribution-decision",
+    "/api/president/deductions/approve",
+    "/api/president/monthly-dues/approve",
+    "/api/president/payroll-batches/",
+    "/api/president/aid-post-finish-approve",
+    "/api/president/aid-post-finish-reject",
+    "/api/president/fund-reports/",
+    "/api/president/auditor-reports/",
+    "/api/treasurer/monthly-dues/approve",
+    "/api/treasurer/deductions/record",
+    "/api/treasurer/deductions/deposit",
+    "/api/treasurer/other-transactions/record",
+    "/api/treasurer/aid-post-member-pay",
+    "/api/treasurer/aid-post-finish",
+    "/api/treasurer/aid-post-paid-with-funds",
+    "/api/treasurer/aid-post-mark-finished",
+    "/api/treasurer/aid-post-release",
+    "/api/treasurer/external-aid-turnover",
+    "/api/treasurer/aid-post-close-repayment",
+    "/api/auditor/verify-payment",
+    "/api/auditor/verify-aid",
+    "/api/auditor/verify-membership-fee",
+    "/api/auditor/verify-batch",
+    "/api/auditor/payroll-batches/",
+    "/api/auditor/registration-requests/",
+    "/api/auditor/fund-reports/",
+    "/api/auditor/deductions/verify",
+    "/api/auditor/aid-post-verify-finish"
+  ];
+
+  function pinTitleFor(url) {
+    var u = String(url || "");
+    if (u.indexOf("/api/president/officers/") >= 0) return { title: "Officer Account Action", subtitle: "Enter your 4-digit action PIN to confirm this officer account change." };
+    if (u.indexOf("/api/president/bylaws/constants/update/") >= 0) return { title: "Policy Constants", subtitle: "Enter your 4-digit action PIN to save policy constant changes." };
+    if (u.indexOf("presidential-decision") >= 0) return { title: "Presidential Decision", subtitle: "Enter your 4-digit action PIN to approve or reject this item." };
+    if (u.indexOf("contribution-decision") >= 0) return { title: "Contribution Decision", subtitle: "Enter your 4-digit action PIN to confirm this contribution decision." };
+    if (u.indexOf("fund-reports") >= 0) return { title: "Fund Report Sign-Off", subtitle: "Enter your 4-digit action PIN to verify, approve, or return this report." };
+    if (u.indexOf("auditor-reports") >= 0) return { title: "Report Approval", subtitle: "Enter your 4-digit action PIN to approve this report." };
+    if (u.indexOf("payroll-batches") >= 0) return { title: "Payroll Batch", subtitle: "Enter your 4-digit action PIN to verify, approve, or reject this batch." };
+    if (u.indexOf("aid-post-finish") >= 0 || u.indexOf("verify-finish") >= 0) return { title: "Finish Verification", subtitle: "Enter your 4-digit action PIN to verify this finish request." };
+    if (u.indexOf("aid-post-release") >= 0) return { title: "Release Aid", subtitle: "Enter your 4-digit action PIN to release this aid payout." };
+    if (u.indexOf("external-aid-turnover") >= 0) return { title: "Turnover Aid", subtitle: "Enter your 4-digit action PIN to turn over this aid." };
+    if (u.indexOf("aid-post-member-pay") >= 0) return { title: "Record Payment", subtitle: "Enter your 4-digit action PIN to record this payment." };
+    if (u.indexOf("paid-with-funds") >= 0 || u.indexOf("mark-finished") >= 0 || u.indexOf("close-repayment") >= 0) return { title: "Aid Repayment", subtitle: "Enter your 4-digit action PIN to confirm this repayment action." };
+    if (u.indexOf("deductions/approve") >= 0) return { title: "Final Approval", subtitle: "Enter your 4-digit action PIN to approve or return this deduction." };
+    if (u.indexOf("deductions/verify") >= 0) return { title: "Verify & Endorse", subtitle: "Enter your 4-digit action PIN to verify this deduction." };
+    if (u.indexOf("deductions/record") >= 0) return { title: "Record Deductions", subtitle: "Enter your 4-digit action PIN to record these deductions." };
+    if (u.indexOf("deductions/deposit") >= 0) return { title: "Deposit Collection", subtitle: "Enter your 4-digit action PIN to record this deposit." };
+    if (u.indexOf("monthly-dues/approve") >= 0) return { title: "Monthly Dues", subtitle: "Enter your 4-digit action PIN to approve these dues." };
+    if (u.indexOf("other-transactions/record") >= 0) return { title: "Record Transaction", subtitle: "Enter your 4-digit action PIN to record this transaction." };
+    if (u.indexOf("verify-payment") >= 0 || u.indexOf("verify-aid") >= 0 || u.indexOf("verify-membership") >= 0 || u.indexOf("verify-batch") >= 0) return { title: "Audit Verification", subtitle: "Enter your 4-digit action PIN to verify or return these items." };
+    if (u.indexOf("registration-requests") >= 0) return { title: "Registration Review", subtitle: "Enter your 4-digit action PIN to verify this registration." };
+    return { title: "Confirm with your action PIN", subtitle: "Enter your 4-digit PIN to approve this action." };
+  }
+
+  function isPinGated(url, method) {
+    var u = String(url || "");
+    var m = String(method || "GET").toUpperCase();
+    if (m === "GET" || m === "HEAD" || m === "OPTIONS") return false;
+    // OTP send / polling must never prompt.
+    if (u.indexOf("/aid-post-release/otp") >= 0) return false;
+    if (u.indexOf("/api/officer/pin/") >= 0) return false;
+    if (u.indexOf("/api/auth/mfa/") >= 0) return false;
+    // Officer account Save (create/update) and policy-constant saves are
+    // PIN-gated, but deactivation and self-enrollment use their own flows —
+    // never prompt for those.
+    if (u.indexOf("/api/president/officers/") >= 0) {
+      if (u.indexOf("/deactivate/") >= 0) return false;
+      if (u.indexOf("/self-enroll/") >= 0) return false;
+      return true;
+    }
+    if (u.indexOf("/api/president/bylaws/constants/update/") >= 0) return true;
+    for (var i = 0; i < PIN_GATED_PREFIXES.length; i++) {
+      if (u.indexOf(PIN_GATED_PREFIXES[i]) >= 0) return true;
+    }
+    return false;
+  }
+
+  function hasPinHeader(headers) {
+    if (!headers) return false;
+    try {
+      if (typeof Headers !== "undefined" && headers instanceof Headers) {
+        return !!(headers.get("X-Action-PIN") || headers.get("x-action-pin"));
+      }
+      for (var k in headers) {
+        if (String(k).toLowerCase() === "x-action-pin" && headers[k]) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  if (!window.__caufaFetchPatched && window.fetch) {
+    window.__caufaFetchPatched = true;
+    var __origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      var url = (typeof input === "string") ? input : (input && input.url) || "";
+      var method = (init && init.method) || (typeof input !== "string" && input && input.method) || "GET";
+      var headers = (init && init.headers) || (typeof input !== "string" && input && input.headers);
+      if (!isPinGated(url, method) || hasPinHeader(headers)) {
+        return __origFetch(input, init);
+      }
+      return __origFetch(input, init).then(function (res) {
+        if (res.status !== 403) return res;
+        return res.clone().json().then(function (d) {
+          if (!d || !d.code) return res;
+          if (d.code === "PIN_NOT_SET") { try { openSetup("setup"); } catch (e) {} return res; }
+          if (d.code === "PIN_REQUIRED" || d.code === "PIN_INVALID") {
+            var promptOpts = pinTitleFor(url);
+            return promptPin(promptOpts).then(function (pin) {
+              if (!pin) return res;
+              var retryInit = {};
+              if (init) for (var k in init) retryInit[k] = init[k];
+              retryInit.method = method && String(method).toUpperCase() !== "GET" ? method : "POST";
+              retryInit.credentials = retryInit.credentials || "same-origin";
+              var h = {};
+              if (headers) {
+                if (typeof Headers !== "undefined" && headers instanceof Headers) {
+                  headers.forEach(function (v, kk) { h[kk] = v; });
+                } else {
+                  for (var hk in headers) h[hk] = headers[hk];
+                }
+              }
+              h["X-Action-PIN"] = pin;
+              var body = retryInit.body;
+              if (typeof input !== "string" && input && input.body !== undefined && body === undefined) {
+                try { body = input.body; } catch (e) {}
+              }
+              try {
+                if (body instanceof FormData) { body.append("action_pin", pin); }
+                else if (typeof body === "string" && (h["Content-Type"] || h["content-type"] || "").indexOf("json") >= 0) {
+                  var j = JSON.parse(body || "{}"); j.action_pin = pin; body = JSON.stringify(j);
+                } else if (body == null) {
+                  h["Content-Type"] = h["Content-Type"] || "application/json";
+                  body = JSON.stringify({ action_pin: pin });
+                }
+              } catch (e) {}
+              retryInit.headers = h;
+              if (body !== undefined) retryInit.body = body;
+              return __origFetch(url || input, retryInit);
+            });
+          }
+          if (d.code === "PIN_LOCKED") {
+            promptPin(pinTitleFor(url));
+            setLockedUI(d.retry_after_seconds || 60);
+            setErr("caufa-pin-verify-err", d.error || "PIN locked.");
+            return res;
+          }
+          return res;
+        }).catch(function () { return res; });
+      });
+    };
+  }
+})();
+</script>

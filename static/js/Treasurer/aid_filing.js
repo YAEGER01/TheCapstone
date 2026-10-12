@@ -1205,5 +1205,41 @@
       onDeathRelChange();
       updateDeathChecklist();
     },
+    // Name fallback for jump-in links (e.g. Unfiled AIDS "File Aid"): same
+    // order-proof token match the server uses. Returns true when picked.
+    pickMedMemberByName: function (name) {
+      const m = findFilingMemberByName(name);
+      if (!m) return false;
+      window.nxAidFiling.pickMedMember(String(m.member_id_PK || m.member_id || m.id));
+      return true;
+    },
+    pickDeathMemberByName: function (name) {
+      const m = findFilingMemberByName(name);
+      if (!m) return false;
+      window.nxAidFiling.pickDeathMember(String(m.member_id_PK || m.member_id || m.id));
+      return true;
+    },
   };
+
+  // Order-proof member lookup shared by the ByName pickers above.
+  function findFilingMemberByName(name) {
+    const toks = function (s) {
+      return String(s || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (t) { return t.length >= 2; });
+    };
+    const want = toks(name);
+    if (!want.length) return null;
+    const list = allFilingMembers();
+    const norm = function (s) { return String(s || "").trim().toLowerCase(); };
+    const exact = list.find(function (x) { return norm(x.full_name || x.name) === norm(name); });
+    if (exact) return exact;
+    let best = null;
+    list.forEach(function (x) {
+      const got = toks(x.full_name || x.name);
+      const hasAll = want.every(function (t) { return got.indexOf(t) !== -1; });
+      if (!hasAll) return;
+      const extra = got.length - want.length;
+      if (!best || extra < best.extra) best = { m: x, extra: extra };
+    });
+    return best ? best.m : null;
+  }
 })();

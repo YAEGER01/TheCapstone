@@ -73,6 +73,20 @@
     return `<span style="display:inline-block;max-width:100%;box-sizing:border-box;background:${bg};color:${fg};padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;line-height:1.25;text-align:center;white-space:normal;overflow-wrap:anywhere;">${label || status}</span>`;
   }
 
+  /* Breakdown editability (mirrors _president_can_edit_breakdown on the
+     server): drafts are editable; rejected/returned months are editable only
+     when nothing was recorded against them. Once the Treasurer has recorded
+     member rows, the breakdown is frozen — a rejected month goes back to the
+     Treasurer for re-recording, never back to the President for rewriting. */
+  function maIsEditable(a) {
+    if (!a) return true;
+    if (a.status === "draft") return true;
+    if (a.status === "rejected" || a.status === "returned") {
+      return !(Number(a.recorded_count) > 0);
+    }
+    return false;
+  }
+
   let defaultMonthlyDue = 200;
   let defaultMedicalAid = 100;
   let defaultDeathAid = 500;
@@ -264,8 +278,10 @@
     // Submitted months are view-only for the breakdown: the save buttons
     // stand down and the item rows lock. Attachments stay manageable so a
     // wrong scan can still be fixed. A month still awaiting the Treasurer
-    // can be recalled to draft for correction.
-    const locked = Boolean(existing && existing.status !== "draft");
+    // can be recalled to draft for correction. A rejected/returned month
+    // with recorded deductions is frozen for the same reason — it belongs
+    // to the Treasurer's re-record queue, not to this form.
+    const locked = Boolean(existing && !maIsEditable(existing));
     const recallable = Boolean(existing && existing.status === "pending_treasurer");
     document.querySelectorAll(
       "#president-monthly-assessment .ma-btn-primary, #president-monthly-assessment .ma-btn-secondary"
@@ -419,7 +435,7 @@
     const existing = month
       ? latestAssessments.find((a) => String(a.month || "").slice(0, 7) === month)
       : null;
-    const locked = Boolean(existing && existing.status !== "draft");
+    const locked = Boolean(existing && !maIsEditable(existing));
     const complete = maDocsState(month).complete;
     const ok = Boolean(month) && complete && !locked;
     btn.disabled = !ok;
@@ -1092,38 +1108,71 @@
       maPopulateMonthOptions();
       setBadge("ma-pending-dot", data.assessments.filter((a) => a.status === "pending_final").length);
       const tbody = document.getElementById("ma-history-body");
-      if (tbody) {
+      const historyList = document.getElementById("ma-history-list");
+      const pager = document.getElementById("ma-history-pagination");
+      if (tbody || historyList) {
         const all = data.assessments || [];
-        const PAGE_SIZE = 8;
+        const PAGE_SIZE = 10;
         const pageCount = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
         maHistoryPage = Math.min(Math.max(maHistoryPage, 1), pageCount);
         const pageItems = all.slice((maHistoryPage - 1) * PAGE_SIZE, maHistoryPage * PAGE_SIZE);
-        const pager = document.getElementById("ma-history-pagination");
-        tbody.innerHTML = "";
+        if (tbody) tbody.innerHTML = "";
+        if (historyList) historyList.innerHTML = "";
         if (!all.length) {
-          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#757575;padding:18px;">No deduction records yet. Create one above.</td></tr>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#757575;padding:18px;">No deduction records yet. Create one above.</td></tr>`;
+          if (historyList) historyList.innerHTML = `<div style="text-align:center;color:#757575;padding:22px 12px;font-size:0.84rem;">No deduction records yet.<br>Create one using the form.</div>`;
           if (pager) pager.innerHTML = "";
-        }
-        pageItems.forEach((a) => {
-          const editable = ["draft", "rejected", "returned"].includes(a.status);
-          const editBtn = editable
-            ? ` <button type="button" class="btn-outline" style="padding:3px 10px;font-size:0.8rem;margin:2px 4px 2px 0;" onclick="maEditAssessment(${a.assessment_id})">Edit</button>`
-            : "";
-          tbody.innerHTML += `<tr>
-            <td style="padding:6px 8px;">${a.month_label}</td>
-            <td style="padding:6px 8px;">${PESO(a.total_amount)}</td>
-            <td style="padding:6px 8px;">${a.recorded_count}</td>
-            <td style="padding:6px 8px;">${PESO(a.total_recorded)}</td>
-            <td style="padding:6px 8px;">${PESO(a.total_outstanding)}</td>
-            <td style="padding:6px 8px;">${statusBadge(a.status, a.status_label)}</td>
-            <td style="padding:6px 8px; width:15%; max-width:15%; white-space:normal; overflow-wrap:anywhere; word-break:break-word;">${a.auditor_remarks || a.president_remarks || "—"}</td>
-            <td style="padding:6px 8px;">
-              <button type="button" class="btn-outline" style="padding:3px 10px;font-size:0.8rem;margin:2px 4px 2px 0;" onclick="maReviewAssessment(${a.assessment_id})">${a.status === "final_approved" ? "View" : "Review"}</button>${editBtn}
-            </td>
-          </tr>`;
-        });
-        if (pager && typeof UniPager !== "undefined" && all.length) {
-          pager.innerHTML = UniPager.html(maHistoryPage, pageCount, "window.__maHistoryGoPage(PAGE)", UniPager.count(maHistoryPage, PAGE_SIZE, all.length));
+        } else {
+          pageItems.forEach((a) => {
+            const editable = maIsEditable(a);
+            const editBtn = editable
+              ? ` <button type="button" class="btn-outline" style="padding:3px 10px;font-size:0.8rem;margin:2px 4px 2px 0;" onclick="maEditAssessment(${a.assessment_id})">Edit</button>`
+              : "";
+            if (tbody) {
+              tbody.innerHTML += `<tr>
+              <td style="padding:6px 8px;">${a.month_label}</td>
+              <td style="padding:6px 8px;">${PESO(a.total_amount)}</td>
+              <td style="padding:6px 8px;">${a.recorded_count}</td>
+              <td style="padding:6px 8px;">${PESO(a.total_recorded)}</td>
+              <td style="padding:6px 8px;">${PESO(a.total_outstanding)}</td>
+              <td style="padding:6px 8px;">${statusBadge(a.status, a.status_label)}</td>
+              <td style="padding:6px 8px; width:15%; max-width:15%; white-space:normal; overflow-wrap:anywhere; word-break:break-word;">${esc(a.auditor_remarks || a.president_remarks || "—")}</td>
+              <td style="padding:6px 8px;">
+                <button type="button" class="btn-outline" style="padding:3px 10px;font-size:0.8rem;margin:2px 4px 2px 0;" onclick="maReviewAssessment(${a.assessment_id})">${a.status === "final_approved" ? "View" : "Review"}</button>${editBtn}
+              </td>
+            </tr>`;
+            }
+            if (historyList) {
+              const remarks = esc(a.auditor_remarks || a.president_remarks || "");
+              const st = esc(String(a.status || "draft"));
+              historyList.innerHTML += `<article class="ma-history-item ma-st-${st}">
+              <header class="ma-h-head">
+                <div>
+                  <div class="ma-h-title">${esc(a.month_label)}</div>
+                  <div class="ma-h-sub">${PESO(a.total_amount)} / member &middot; ${esc(String(a.recorded_count || 0))} active</div>
+                </div>
+                <div class="ma-h-actions">
+                  <button type="button" class="btn-outline" onclick="maReviewAssessment(${a.assessment_id})">${a.status === "final_approved" ? "View" : "Review"}</button>${editable ? `<button type="button" class="btn-outline" onclick="maEditAssessment(${a.assessment_id})">Edit</button>` : ""}
+                </div>
+              </header>
+              <div class="ma-h-grid">
+                <div class="ma-h-cell"><span>Per member</span><strong>${PESO(a.total_amount)}</strong></div>
+                <div class="ma-h-cell"><span>Active</span><strong>${esc(String(a.recorded_count || 0))}</strong></div>
+                <div class="ma-h-cell"><span>Collected</span><strong>${PESO(a.total_recorded)}</strong></div>
+                <div class="ma-h-cell"><span>Unpaid</span><strong>${PESO(a.total_outstanding)}</strong></div>
+              </div>
+              <footer class="ma-h-foot">
+                <div class="ma-h-status">${statusBadge(a.status, a.status_label)}</div>
+                <p class="ma-h-remarks">${remarks}</p>
+              </footer>
+            </article>`;
+            }
+          });
+          if (pager && typeof UniPager !== "undefined" && all.length) {
+            pager.innerHTML = UniPager.html(maHistoryPage, pageCount, "window.__maHistoryGoPage(PAGE)", UniPager.count(maHistoryPage, PAGE_SIZE, all.length));
+          } else if (pager && all.length <= PAGE_SIZE) {
+            pager.innerHTML = "";
+          }
         }
       }
     } catch (e) {
@@ -1280,6 +1329,11 @@
       const data = await resp.json();
       if (!data.ok) { toast(data.error || "Failed to load the deduction.", true); return; }
       const a = data.assessment;
+      const hasRows = ((data.member_assessments || []).length > 0) || (Number(a.recorded_count) > 0);
+      if (!maIsEditable({ status: a.status, recorded_count: hasRows ? 1 : 0 })) {
+        toast(`${a.month_label} already has recorded member deductions (${a.status_label || a.status}) so its breakdown is frozen. The Treasurer must re-record the month.`, true);
+        return;
+      }
       const monthInput = document.getElementById("ma-month");
       const itemsBody = document.getElementById("ma-items-body");
       if (!monthInput || !itemsBody) return;
@@ -1322,6 +1376,7 @@
     const panel = document.getElementById("ma-detail-panel");
     if (!panel) return;
     panel.style.display = "block";
+    try { panel.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { panel.scrollIntoView(); }
     try {
       const resp = await fetch(`/api/president/monthly-assessment/${assessmentId}/`, { cache: "no-store" });
       const data = await resp.json();
@@ -1379,6 +1434,45 @@
         },
         { standard: 0, deducted: 0, outstanding: 0, count: 0 }
       );
+      /* Collection Summary — mirrors Treasurer (mdDepositSummary) and Auditor
+         (avdDepositSummary). Total including unpaid = what members owed BEFORE
+         this collection (current dues + prior unpaid), NOT expected + after:
+         expected already counts this month's dues, so adding the leftover
+         `after` double-counts current and drops prior just collected
+         (e.g. 13100 current + 100 prior = 13200). */
+      const maSummary = (() => {
+        let expected = 0, collected = 0, after = 0, before = 0;
+        (data.member_assessments || []).forEach((ma) => {
+          expected += Number(ma.standard_assessment) || 0;
+          const balance = Number(ma.outstanding_balance) || 0;
+          after += balance;
+          const actual = Number(ma.actual_deduction) || 0;
+          const change = Number(ma.change_amount) || 0;
+          before += Math.max(0, balance + (ma.is_excluded ? 0 : actual - change));
+          if (!ma.is_excluded) collected += actual;
+        });
+        return { expected, collected, after, before };
+      })();
+      const maSummaryCard = `
+        <div style="background:#fff;border:1px solid #cfe0cf;border-radius:14px;box-sizing:border-box;box-shadow:0 4px 14px rgba(27,94,32,.08);font-family:inherit;color:#1c2430;overflow:hidden;">
+          <div style="padding:16px 18px 12px;">
+            <span style="display:block;font-weight:800;color:#1b5e20;font-size:.95rem;"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Collection Summary</span>
+            <span style="display:block;font-size:.75rem;color:#5b6675;margin-top:2px;">${(data.member_assessments || []).length} member${(data.member_assessments || []).length === 1 ? "" : "s"}${Number((a || {}).total_amount) ? ` &times; ${PESO(Number((a || {}).total_amount))} per member` : ""} &nbsp;•&nbsp; Collected ${PESO(maSummary.collected)} &nbsp;•&nbsp; Unpaid ${PESO(maSummary.after)}</span>
+          </div>
+          <div style="padding:0 18px 18px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+              <div style="min-width:0;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:8px 12px;box-sizing:border-box;">
+                <div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">Total Amount Expected</div>
+                <div style="font-size:1.3rem;font-weight:800;color:#1c2430;font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(maSummary.expected)}</div>
+                <div style="font-size:0.72rem;color:#8a949e;margin:-6px 0 0;">${PESO(maSummary.before)} if unpaid member balance is included</div>
+              </div>
+              <div style="min-width:0;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:8px 12px;box-sizing:border-box;">
+                <div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">Collected Amount</div>
+                <div style="font-size:1.3rem;font-weight:800;color:#1b5e20;font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(maSummary.collected)}</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
       const totalsRow = totals.count ? `
         <tr style="background:#f5f5f5; font-weight:700; border-top:2px solid #1b5e20;">
           <td style="padding:6px 8px;">TOTAL (${totals.count} member${totals.count === 1 ? "" : "s"})</td>
@@ -1389,6 +1483,7 @@
         </tr>` : "";
       document.getElementById("ma-detail-body").innerHTML = `
         <div style="display:flex; flex-direction:column; gap:20px;">
+          ${maSummaryCard}
           <div>
             <h4 style="margin:0 0 8px;">Member Deductions (${(data.member_assessments || []).length})</h4>
             <div style="max-height:420px; overflow:auto;">
@@ -1429,6 +1524,7 @@
         actions.dataset.assessmentId = a.assessment_id;
         document.getElementById("ma-decision-remarks").value = "";
       }
+      try { panel.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { panel.scrollIntoView(); }
     } catch (e) {
       console.error("Failed to load assessment details", e);
       toast("Failed to load assessment details.", true);
@@ -1478,6 +1574,65 @@
   };
 
 
+  /* Action-PIN prompt as a standalone 3:4 vertical card (no outer modal
+     chrome). Shown AFTER the Final Approval confirm so the officer can
+     complete the PIN-gated approval on the same request. */
+  function maPromptActionPin(opts) {
+    opts = opts || {};
+    const subtitle = opts.subtitle || "Enter your 4-digit action PIN to confirm this action.";
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (val) => { if (!settled) { settled = true; cleanup(); resolve(val); } };
+      const overlay = document.createElement("div");
+      overlay.id = "ma-pin-overlay";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", opts.heading || "Enter Action PIN");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:6000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+      overlay.innerHTML = `
+          <style>#ma-pin-entry::-ms-reveal,#ma-pin-entry::-ms-clear{display:none;}#ma-pin-entry::-webkit-credentials-auto-fill-button{visibility:hidden;pointer-events:none;}</style>
+          <div class="ma-pin-card" style="aspect-ratio:3/4;width:min(300px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:22px 18px;background:linear-gradient(180deg,#f3faf4 0%,#ffffff 60%);border:1px solid #cfe0cf;border-radius:18px;box-sizing:border-box;box-shadow:0 18px 60px rgba(0,0,0,.28);font-family:Inter,system-ui,sans-serif;color:#1c2430;">
+            <div style="width:52px;height:52px;border-radius:50%;background:#1b5e20;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem;box-shadow:0 4px 12px rgba(27,94,32,.3);"><i class="fa-solid fa-lock"></i></div>
+            <div style="font-weight:800;color:#1b5e20;font-size:0.95rem;letter-spacing:0.02em;">${esc(opts.heading || "Final Approval")}</div>
+            <div style="font-size:0.78rem;color:#5b6675;line-height:1.5;max-width:220px;">${esc(subtitle)}</div>
+            <input id="ma-pin-entry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••"
+              style="width:170px;box-sizing:border-box;text-align:center;font-size:1.6rem;letter-spacing:0.45em;text-indent:0.45em;padding:10px 8px;border:1.5px solid #cfe0cf;border-radius:10px;outline:none;" />
+            <div id="ma-pin-err" style="min-height:18px;font-size:0.76rem;color:#c62828;"></div>
+            <div style="display:flex;gap:8px;width:100%;margin-top:2px;">
+              <button type="button" id="ma-pin-cancel" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#eef1f5;color:#1c2430;">Cancel</button>
+              <button type="button" id="ma-pin-ok" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#1e8f4e;color:#fff;box-shadow:0 4px 12px rgba(30,143,78,.35);">Confirm</button>
+            </div>
+          </div>`;
+      function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); document.removeEventListener("keydown", onKey); }
+      function onKey(e) { if (e.key === "Escape") done(null); }
+      document.addEventListener("keydown", onKey);
+      document.body.appendChild(overlay);
+      const entry = overlay.querySelector("#ma-pin-entry");
+      const errEl = overlay.querySelector("#ma-pin-err");
+      const okBtn = overlay.querySelector("#ma-pin-ok");
+      const cancelBtn = overlay.querySelector("#ma-pin-cancel");
+      if (okBtn) okBtn.addEventListener("mouseover", () => { okBtn.style.background = "#16703c"; });
+      if (okBtn) okBtn.addEventListener("mouseout", () => { okBtn.style.background = "#1e8f4e"; });
+      const fail = (msg) => { if (errEl) errEl.textContent = msg || ""; };
+      if (entry) {
+        entry.addEventListener("input", () => {
+          entry.value = String(entry.value || "").replace(/\D/g, "").slice(0, 4);
+          fail("");
+        });
+        entry.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); okBtn && okBtn.click(); }
+        });
+        setTimeout(() => entry.focus(), 50);
+      }
+      if (cancelBtn) cancelBtn.addEventListener("click", () => done(null));
+      if (okBtn) okBtn.addEventListener("click", () => {
+        const pin = String((entry && entry.value) || "").replace(/\D/g, "").slice(0, 4);
+        if (pin.length !== 4) { fail("PIN must be exactly 4 digits."); if (entry) entry.focus(); return; }
+        done(pin);
+      });
+    });
+  }
+
   window.maDecide = async function maDecide(action) {
     const actions = document.getElementById("ma-detail-actions");
     if (!actions) return;
@@ -1495,16 +1650,30 @@
       if (!proceed) return;
     }
 
+    // Action PIN is enforced server-side (@require_action_pin_view) on this
+    // endpoint — prompt for it AFTER the confirm above so the input always
+    // appears instead of failing with "Action PIN is required".
+    const pinOpts = action === "approve"
+      ? { heading: "Final Approval", subtitle: "Enter your 4-digit action PIN to approve & email members." }
+      : { heading: "Return to Treasurer", subtitle: "Enter your 4-digit action PIN to return this entry." };
+    const actionPin = await maPromptActionPin(pinOpts);
+    if (!actionPin) return;
+
     const csrf = needCsrfToken(); if (!csrf) return;
     try {
       const resp = await fetch("/api/president/deductions/approve/", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrf },
-        body: JSON.stringify({ assessment_id: Number(assessmentId), action, notes }),
+        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrf, "X-Action-PIN": actionPin },
+        body: JSON.stringify({ assessment_id: Number(assessmentId), action, notes, action_pin: actionPin }),
       });
-      const data = await resp.json();
-      if (!data.ok) { toast(data.error || "Action failed.", true); return; }
+      const data = await resp.json().catch(() => ({}));
+      if (!data.ok) {
+        if (data.code === "PIN_NOT_SET" && window.CaufaPin && CaufaPin.openSetup) {
+          CaufaPin.openSetup("setup");
+        }
+        toast(data.error || "Action failed.", true); return;
+      }
       toast(data.message || "Done.", false);
       loadMonthlyAssessments();
       maReviewAssessment(assessmentId);

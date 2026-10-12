@@ -411,6 +411,9 @@
 
   html, body {
     background: #fff !important;
+    /* The modal sets body overflow:hidden inline while open — that clips
+       paged output in Chromium and leaves blank/overlapping preview pages. */
+    overflow: visible !important;
   }
 
   body > *:not(#report-preview-overlay) {
@@ -433,6 +436,7 @@
     border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    overflow: visible !important;
   }
 
   .rpt-modal-header,
@@ -445,6 +449,46 @@
     overflow: visible !important;
     padding: 0 !important;
     background: #fff !important;
+  }
+
+  .rpt-report-shell,
+  .rpt-report-sheet {
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .rpt-modal-table-wrap {
+    overflow: visible !important;
+    border: none !important;
+  }
+
+  .rpt-modal-table {
+    page-break-inside: auto;
+  }
+
+  .rpt-modal-table thead {
+    display: table-header-group;
+  }
+
+  .rpt-modal-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .rpt-modal-table th,
+  .rpt-modal-table td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .rpt-modal-summary-item,
+  .rpt-modal-section-title {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  img {
+    max-width: 100%;
   }
 
   .rpt-sheet-title,

@@ -27,6 +27,7 @@ from channels.layers import get_channel_layer
 from core_system.constants.status_constants import RegistrationStatus, Status, is_pending
 from core_system.constants.policy_constants import get_medical_aid_contribution_amount
 from core_system.guards import require_role, check_zero_trust
+from core_system.officer_pin import require_action_pin_view
 from core_system.services.email_service import (
     send_html_email_async,
     send_registration_status_update_email,
@@ -56,7 +57,7 @@ from core_system.models import (
     TransactionVerification,
     MemberLedger,
 )
-from core_system.services.notifications import notify_member
+from core_system.services.notifications import notify_member, notify_officer
 from core_system.services.status_service import (
     MODEL_MAP as _SVC_MODEL_MAP,
     set_auditor_verified,
@@ -193,6 +194,7 @@ def auditor_dashboard(request):
         "officer_role": officer_role,
         "officer_user_id": officer_user_id,
         "access_token": request.session.get("access_token", ""),
+        "play_login_sound": request.session.pop("play_login_sound", False),
     }
 
     if not officer_full_name.strip():
@@ -747,6 +749,7 @@ def auditor_pending_aids(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_payment(request: HttpRequest):
     guard = require_role(request, role="Auditor")
     if guard is not None:
@@ -991,6 +994,7 @@ def auditor_verify_payment(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_aid(request: HttpRequest):
     guard = require_role(request, role="Auditor")
     if guard is not None:
@@ -1205,6 +1209,7 @@ def auditor_pending_membership_fees(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_membership_fee(request: HttpRequest):
     data = request.POST.copy()
     for mf_key, p_key in [("mfAuditID", "pAuditID"), ("mfAuditRemarks", "pAuditRemarks"),
@@ -1217,6 +1222,7 @@ def auditor_verify_membership_fee(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_membership_fee_batch(request: HttpRequest):
     guard = require_role(request, role="Auditor")
     if guard is not None:
@@ -1351,6 +1357,7 @@ def _batch_verify_core(request, officer, items, result, remarks):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_batch(request: HttpRequest):
     guard = require_role(request, role="Auditor")
     if guard is not None:
@@ -1377,6 +1384,7 @@ def auditor_verify_batch(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def reject_transaction(request: HttpRequest):
 
     guard = require_role(request, role="Auditor")
@@ -1873,6 +1881,7 @@ def auditor_finish_request_details(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_post_finish(request: HttpRequest):
     guard = require_role(request, role="Auditor")
     if guard is not None:
@@ -2291,6 +2300,7 @@ def auditor_payroll_batch_detail(request: HttpRequest, batch_id: int):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_payroll_batch(request: HttpRequest, batch_id: int):
     """Mark a PayrollBatch as Auditor Verified."""
     guard = require_role(request, role="Auditor")
@@ -2336,6 +2346,7 @@ def auditor_verify_payroll_batch(request: HttpRequest, batch_id: int):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_reject_payroll_batch(request: HttpRequest, batch_id: int):
     """Return a PayrollBatch for revision."""
     guard = require_role(request, role="Auditor")
@@ -2427,6 +2438,7 @@ def auditor_registration_requests_list(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def auditor_verify_registration_request(request: HttpRequest, request_id: int):
     """Auditor verifies or returns a registration request."""
     guard = require_role(request, role="Auditor")
@@ -3543,3 +3555,293 @@ def auditor_aid_tracking_notify(request: HttpRequest):
         "sent": sent,
         "results": results,
     })
+
+
+AID_EXPEDITE_TYPE = "AID_FILE_EXPEDITE"
+
+
+def _expedite_key(kind: str, ref_id: int) -> str:
+    return f"AID-EXPEDITE-{kind.upper()}-{int(ref_id)}"
+
+
+def _resolve_expedite_member_ids(names) -> dict:
+    """Map recipient display names to Member IDs (order-proof token match).
+
+    Shared by the expedite list so NoticeCard File Aid buttons can preselect
+    the member. Retired members are excluded to mirror the filing picker.
+    """
+    import re as _re3
+
+    def _toks(s):
+        return {
+            t for t in _re3.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).split()
+            if len(t) >= 2
+        }
+
+    names = {n for n in (names or []) if n and n != "—"}
+    if not names:
+        return {}
+    try:
+        pool = list(Member.objects.exclude(
+            member_classification__iexact="Retired",
+        ).exclude(
+            membership_status__iexact="Retired",
+        ).values("member_id_PK", "full_name"))
+    except Exception:
+        return {}
+    by_exact = {}
+    for m in pool:
+        by_exact.setdefault((m["full_name"] or "").strip().lower(), m["member_id_PK"])
+    scored = [(_toks(m["full_name"]), m["member_id_PK"]) for m in pool]
+    out = {}
+    for n in names:
+        key = n.strip().lower()
+        if key in by_exact:
+            out[n] = by_exact[key]
+            continue
+        want = _toks(n)
+        if not want:
+            continue
+        best = None
+        for got, mid in scored:
+            if want <= got:
+                extra = len(got - want)
+                if best is None or extra < best[0]:
+                    best = (extra, mid)
+                    if extra == 0:
+                        break
+        if best is not None:
+            out[n] = best[1]
+    return out
+
+
+@require_POST
+def auditor_notify_unfiled_aid(request: HttpRequest):
+    """Auditor expedites an unfiled/unreleased aid — asks the Treasurer to file it.
+
+    Body (JSON): {"assessment_item_id": int, "recipient": str, "aid_label": str,
+    "case_suffix": str, "collected": number, "set_aside": number,
+    "message": optional custom line}
+
+    Fans out an in-app + push notice (Notification rows, one per officer) to
+    all active Treasurer / President / Auditor officers so the expedite shows
+    on every role's NoticeCard. Deduped per assessment item while unread.
+    """
+    guard = require_role(request, role=["Auditor", "President"])
+    if guard is not None:
+        return guard
+
+    officer = resolve_officer_from_session(request)
+    if officer is None:
+        return JsonResponse({"ok": False, "error": "Officer session missing."}, status=401)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+    kind = (payload.get("kind") or "item").strip().lower()
+    if kind not in ("item", "post"):
+        kind = "item"
+    try:
+        ref_id = int(payload.get("item_id") or payload.get("assessment_item_id") or payload.get("post_id") or 0)
+    except (TypeError, ValueError):
+        ref_id = 0
+    if ref_id <= 0:
+        return JsonResponse({"ok": False, "error": "A valid aid reference id is required."}, status=400)
+
+    import re as _re2
+    recipient = (payload.get("recipient") or "").strip() or "—"
+    aid_label = (payload.get("aid_label") or "").strip() or "Aid"
+    # Strip legacy "Set-aside ·" dev prefix — frontend now sends just the month.
+    case_suffix = _re2.sub(
+        r"(?i)^set-aside\s*[·•\-–—]\s*", "", (payload.get("case_suffix") or "").strip()
+    ).strip()
+    custom_message = (payload.get("message") or "").strip()
+    try:
+        collected = float(payload.get("collected") or 0)
+    except (TypeError, ValueError):
+        collected = 0.0
+    try:
+        set_aside = float(payload.get("set_aside") or 0)
+    except (TypeError, ValueError):
+        set_aside = 0.0
+
+    key = _expedite_key(kind, ref_id)
+    if Notification.objects.filter(
+        notification_type=AID_EXPEDITE_TYPE, receipt_number=key, is_read=False
+    ).exists():
+        return JsonResponse({
+            "ok": False,
+            "error": "This aid is already being expedited — see the NoticeCard.",
+        }, status=409)
+
+    case_bit = f" ({case_suffix})" if case_suffix else ""
+    message = (
+        f"{officer.full_name} ({officer.role}) asked the Treasurer to file "
+        f"{aid_label} for {recipient}{case_bit} "
+        f"(collected ₱{collected:,.2f}, available ₱{set_aside:,.2f})."
+    )
+    if custom_message:
+        message += f" Note: {custom_message[:280]}"
+
+    targets = list(OfficerUser.objects.filter(
+        role__in=["Treasurer", "President", "Auditor"],
+        account_status__iexact="active",
+    ))
+    if not targets:
+        return JsonResponse({"ok": False, "error": "No active officers to notify."}, status=404)
+
+    role_url = {"Treasurer": "/treasurer/", "President": "/president/", "Auditor": "/auditor/"}
+    for t in targets:
+        try:
+            notify_officer(
+                t,
+                notification_type=AID_EXPEDITE_TYPE,
+                message=message,
+                category="aid",
+                url=role_url.get(t.role, "/"),
+                receipt_number=key,
+            )
+        except Exception:
+            logger.exception("Expedite fan-out failed for officer %s", getattr(t, "user_id_PK", "?"))
+
+    _record_audit_trail(
+        table="notification",
+        record_id=0,
+        action="AID_FILE_EXPEDITED",
+        actor=officer,
+        new={
+            "expedite_kind": kind,
+            "expedite_ref": ref_id,
+            "recipient": recipient,
+            "aid_label": aid_label,
+            "notified_officers": len(targets),
+        },
+        ip=request.META.get("REMOTE_ADDR"),
+        notes=f"Auditor expedited filing of {aid_label} for {recipient}.",
+    )
+    try:
+        _broadcast_to_group("treasurer_dashboard", {"type": "data_changed", "section": "notices"})
+        _broadcast_to_group("auditor_dashboard", {"type": "data_changed", "section": "notices"})
+        _broadcast_to_group("president_dashboard", {"type": "data_changed", "section": "notices"})
+    except Exception:
+        pass
+
+    return JsonResponse({
+        "ok": True,
+        "message": f"Treasurer notified — {aid_label} for {recipient} is now on the NoticeCard.",
+        "notified": len(targets),
+    })
+
+
+@require_GET
+def officer_expedite_notices(request: HttpRequest):
+    """NoticeCard feed: AID_FILE_EXPEDITE notices for the logged-in officer."""
+    guard = require_role(request, role=["Auditor", "President", "Treasurer"])
+    if guard is not None:
+        return guard
+
+    officer = resolve_officer_from_session(request)
+    if officer is None:
+        return JsonResponse({"ok": False, "error": "Officer session missing."}, status=401)
+
+    import re as _re
+
+    def _sanitize(message: str) -> str:
+        """Scrub legacy dev wording so old + new rows read the same."""
+        msg = message or ""
+        # "(Set-aside · Apr 2026)" -> "(Apr 2026)"
+        msg = _re.sub(r"(?i)\bset-aside\s*[·•]\s*", "", msg)
+        # "(collected ₱.., set-aside ₱..)" -> "(collected ₱.., available ₱..)"
+        msg = _re.sub(r"(?i)\bset-aside\b", "available", msg)
+        return _re.sub(r"[ \t]{2,}", " ", msg).strip()
+
+    def _parse(message: str):
+        m = _re.search(r"to file (.+?) for (.+?)(?: \(|$)", message)
+        aid_label = m.group(1).strip() if m else ""
+        recipient = m.group(2).strip() if m else ""
+        cm = _re.search(r"\(([A-Za-z]{3,9}\s+20\d{2})\)", message)
+        case_month = cm.group(1) if cm else ""
+        am = _re.search(
+            r"collected ₱([\d,]+\.\d{2}).*?available ₱([\d,]+\.\d{2})", message)
+        collected = am.group(1) if am else ""
+        available = am.group(2) if am else ""
+        title = f"{aid_label} for {recipient}" if (aid_label and recipient) else message[:60]
+        return aid_label, recipient, case_month, collected, available, title
+
+    rows = (
+        Notification.objects.filter(
+            recipient_type="officer",
+            recipient_id=officer.user_id_PK,
+            notification_type=AID_EXPEDITE_TYPE,
+        )
+        .order_by("-sent_at")[:30]
+    )
+    # Order-proof recipient -> member resolution (same token rule as the
+    # unfiled-aids table) so the NoticeCard File Aid button can preselect.
+    member_ids = _resolve_expedite_member_ids(
+        {r for r in (
+            _parse(_sanitize(n.message))[1] for n in rows
+        ) if r and r != "—"})
+    items = []
+    for n in rows:
+        clean = _sanitize(n.message)
+        aid_label, recipient, case_month, collected, available, title = _parse(clean)
+        kind = "death" if "death" in aid_label.lower() else "medical"
+        items.append({
+            "id": n.notification_id_PK,
+            "message": clean,
+            "title": title,
+            "aid_label": aid_label,
+            "aid_kind": kind,
+            "recipient": recipient,
+            "member_id": member_ids.get(recipient),
+            "case_month": case_month,
+            "collected": collected,
+            "available": available,
+            "sender_name": n.sender_name or "",
+            "sender_role": n.sender_role or "",
+            "is_read": bool(n.is_read),
+            "sent_at": n.sent_at.isoformat() if n.sent_at else "",
+        })
+    unread = Notification.objects.filter(
+        recipient_type="officer",
+        recipient_id=officer.user_id_PK,
+        notification_type=AID_EXPEDITE_TYPE,
+        is_read=False,
+    ).count()
+    return JsonResponse({"ok": True, "notices": items, "unread": unread})
+
+
+@require_POST
+def officer_expedite_notices_mark_read(request: HttpRequest):
+    """Mark the officer's expedite notices read (clears the NoticeCard dot)."""
+    guard = require_role(request, role=["Auditor", "President", "Treasurer"])
+    if guard is not None:
+        return guard
+
+    officer = resolve_officer_from_session(request)
+    if officer is None:
+        return JsonResponse({"ok": False, "error": "Officer session missing."}, status=401)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    raw_ids = payload.get("ids")
+    qs = Notification.objects.filter(
+        recipient_type="officer",
+        recipient_id=officer.user_id_PK,
+        notification_type=AID_EXPEDITE_TYPE,
+        is_read=False,
+    )
+    if isinstance(raw_ids, list) and raw_ids:
+        try:
+            ids = {int(v) for v in raw_ids}
+        except (TypeError, ValueError):
+            ids = set()
+        if ids:
+            qs = qs.filter(notification_id_PK__in=ids)
+    updated = qs.update(is_read=True)
+    return JsonResponse({"ok": True, "marked": updated})

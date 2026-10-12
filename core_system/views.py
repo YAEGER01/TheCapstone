@@ -1087,6 +1087,7 @@ def fund_ledger_list(request: HttpRequest):
             "direction": e.direction,
             "amount": float(e.amount),
             "source_type": e.source_type,
+            "source_id": e.source_id,
             "description": e.description,
             "reference_number": e.reference_number or "",
             "recorded_by": e.recorded_by_user_id_FK.full_name if e.recorded_by_user_id_FK else "",

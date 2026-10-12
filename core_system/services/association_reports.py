@@ -22,6 +22,7 @@ Money values are plain rounded floats (the exporters add the peso sign).
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 
 from django.db.models import Q, Sum
@@ -824,13 +825,23 @@ def build_audit_trail_export(request):
 
     rows = []
     for trail in qs[:limit]:
+        def _short(value, cap=120):
+            try:
+                text = json.dumps(value, default=str) if not isinstance(value, str) else value
+            except (TypeError, ValueError):
+                text = str(value or "")
+            text = (text or "").strip()
+            return (text[:cap] + "…") if len(text) > cap else text
         rows.append({
             "timestamp": trail.timestamp.strftime("%Y-%m-%d %H:%M:%S") if trail.timestamp else "N/A",
             "actor": trail.actor_name or "System",
+            "actor_type": trail.actor_type or "",
             "action": trail.action,
             "table": trail.table_name,
             "record_id": trail.record_id,
             "result": trail.result or "N/A",
+            "old_value": _short(trail.old_values) or "—",
+            "new_value": _short(trail.new_values) or "—",
             "notes": (trail.notes or "")[:200],
         })
 

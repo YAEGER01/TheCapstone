@@ -2126,7 +2126,7 @@
       }
       .overview-card-value { font-size: 1.6rem; font-weight: 700; color: #1b5e20; text-align: center; }
     </style>
-    <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20260930zt6">
+    <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20261008zt9">
   <!-- nx-legacy-css-end -->
   <style id="nx-modern-layer">
 /* ============================================================
@@ -3954,7 +3954,7 @@ input:checked + .slider{background-color:var(--green);}
   <div class="nav-group-title">SYSTEM</div>
   <div class="nav-item menu-item" data-target="audit-trail"><span class="ico"><i class="fas fa-clipboard-list"></i></span><span class="menu-text">Audit Trail</span></div>
   <div class="nav-item menu-item" data-target="view-help"><span class="ico"><i class="fas fa-circle-question"></i></span><span class="menu-text">Help</span></div>
-  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Backup sign-in codes"><span class="ico"><i class="fas fa-key"></i></span><span class="menu-text">Backup sign-in codes</span></div>
+  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Security Settings"><span class="ico"><i class="fas fa-shield-halved"></i></span><span class="menu-text">Security Settings</span></div>
   <div class="nav-item menu-item" onclick="confirmLogout()" title="Logout"><span class="ico"><i class="fas fa-right-from-bracket"></i></span><span class="menu-text">Logout</span></div>
 
   <!-- Hidden dot IDs for production JS backward compat -->
@@ -4063,7 +4063,7 @@ input:checked + .slider{background-color:var(--green);}
             <ul class="hn-menu">
               <li><button type="button" class="hn-item" data-target="audit-trail"><i class="fas fa-clipboard-list"></i>Audit Trail</button></li>
               <li><button type="button" class="hn-item" data-target="view-help"><i class="fas fa-circle-question"></i>Help</button></li>
-              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-key"></i>Backup sign-in codes</button></li>
+              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-shield-halved"></i>Security Settings</button></li>
               <li><button type="button" class="hn-item" data-hn-logout="1"><i class="fas fa-right-from-bracket"></i>Logout</button></li>
             </ul>
           </div>
@@ -7345,6 +7345,121 @@ input:checked + .slider{background-color:var(--green);}
               Aid submitted by the President through the monthly dues — see who has paid their share per department and send a friendly reminder to those who haven't.
             </p>
 
+            <div class="pd-card" style="margin:12px 16px 4px;">
+              <div class="pd-card-head">
+                <div>
+                  <div class="pd-card-title">UNFILED / UNRELEASED AIDS</div>
+                  <div class="pd-card-sub">Aid cases with collected set-aside that are not yet filed or released — notify the Treasurer to file them. Notified cases appear on everyone's NoticeCard.</div>
+                </div>
+                <button type="button" class="btn-brand btn-brand-primary" onclick="audUnfiledLoad(true)" style="padding:6px 14px; font-size:0.8rem;">
+                  <i class="fas fa-rotate"></i> Refresh
+                </button>
+              </div>
+              <div class="table-wrap">
+                <table class="data">
+                  <thead><tr><th>Recipient</th><th>Aid Case</th><th>Status</th><th style="text-align:center;">Collected</th><th style="text-align:center;">Set-Aside</th><th>Action</th></tr></thead>
+                  <tbody id="audUnfiledBody"><tr><td colspan="6"><div class="atk-empty">Loading...</div></td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <script>
+            (function () {
+              "use strict";
+              function esc(v) {
+                return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+                  return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+                });
+              }
+              function peso(v) {
+                var n = parseFloat(v);
+                if (isNaN(n)) n = 0;
+                return "\u20B1" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              }
+              function cookie(name) {
+                var m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+                return m ? m.pop() : "";
+              }
+              var FILED_OUT = ["pending_release", "released", "completed", "complete", "repayment", "rejected"];
+              function pretty(s) {
+                var v = String(s || "").trim() || "tracking";
+                return v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ");
+              }
+              window.audUnfiledLoad = async function () {
+                var tb = document.getElementById("audUnfiledBody");
+                if (!tb) return;
+                tb.innerHTML = '<tr><td colspan="6"><div class="atk-empty"><i class="fas fa-spinner fa-spin"></i> Loading...</div></td></tr>';
+                try {
+                  var results = await Promise.all([
+                    fetch("/api/treasurer/approved-aid-posts/", { credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return null; }),
+                    fetch("/api/treasurer/aid-release/unfiled-setasides/", { credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return null; })
+                  ]);
+                  var posts = results[0], extra = results[1];
+                  var rows = (((posts && posts.posts) || []).concat((extra && extra.unfiled) || []))
+                    .filter(function (p) { return FILED_OUT.indexOf(String(p.finish_status || "").toLowerCase()) === -1; });
+                  if (!rows.length) {
+                    tb.innerHTML = '<tr><td colspan="6"><div class="atk-empty">All aid cases filed — nothing waiting.</div></td></tr>';
+                    return;
+                  }
+                  tb.innerHTML = rows.map(function (p) {
+                    var isItem = p.post_id == null;
+                    var kind = isItem ? "item" : "post";
+                    var refId = isItem ? (p.assessment_item_id || 0) : p.post_id;
+                    var recipient = ((p.is_external && (p.external_display || p.member_name)) ? (p.external_display || p.member_name) : (p.member_name || "\u2014"));
+                    var caseLabel = (p.aid_label || "Aid") + (p.case_suffix ? " \u00B7 " + p.case_suffix : (p.post_id ? " \u00B7 Post #" + p.post_id : ""));
+                    var canNotify = !!refId;
+                    return "<tr>" +
+                      "<td><b>" + esc(recipient) + "</b></td><td>" + esc(caseLabel) + "</td>" +
+                      '<td><span class="atk-chip atk-chip-pending">' + esc(pretty(p.finish_status)) + "</span></td>" +
+                      '<td style="text-align:center;">' + peso(p.total_collected || 0) + "</td>" +
+                      '<td style="text-align:center;font-weight:700;color:#00695c;">' + peso(p.set_aside_available || 0) + "</td>" +
+                      "<td>" + (canNotify
+                        ? '<button type="button" class="atk-notify-btn" data-kind="' + kind + '" data-ref="' + refId + '" data-recipient="' + esc(recipient) + '" data-aid="' + esc(p.aid_label || "Aid") + '" data-case="' + esc(p.case_suffix || "") + '" data-collected="' + (parseFloat(p.total_collected || 0)) + '" data-setaside="' + (parseFloat(p.set_aside_available || 0)) + '" onclick="audNotifyFile(this)"><i class="fas fa-paper-plane"></i> Notify Treasurer</button>'
+                        : '<span style="font-size:0.75rem;color:#9ca3af;">—</span>') + "</td></tr>";
+                  }).join("");
+                } catch (e) {
+                  tb.innerHTML = '<tr><td colspan="6"><div class="atk-empty">Could not load unfiled aids.</div></td></tr>';
+                }
+              };
+              window.audNotifyFile = async function (btn) {
+                if (!btn || btn.disabled) return;
+                var payload = {
+                  kind: btn.getAttribute("data-kind") || "item",
+                  item_id: parseInt(btn.getAttribute("data-ref") || "0", 10),
+                  recipient: btn.getAttribute("data-recipient") || "",
+                  aid_label: btn.getAttribute("data-aid") || "Aid",
+                  case_suffix: btn.getAttribute("data-case") || "",
+                  collected: parseFloat(btn.getAttribute("data-collected") || "0"),
+                  set_aside: parseFloat(btn.getAttribute("data-setaside") || "0")
+                };
+                btn.disabled = true;
+                var old = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                try {
+                  var res = await fetch("/api/auditor/unfiled-aids/notify/", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": cookie("csrftoken") },
+                    body: JSON.stringify(payload)
+                  });
+                  var data = await res.json().catch(function () { return {}; });
+                  if (res.ok && data.ok) {
+                    if (typeof window.aidTrackToast === "function") window.aidTrackToast(data.message || "Treasurer notified.");
+                    btn.innerHTML = '<i class="fas fa-check"></i> On NoticeCard';
+                    if (typeof window.ncRefresh === "function") window.ncRefresh();
+                  } else {
+                    if (typeof window.aidTrackToast === "function") window.aidTrackToast(data.error || "Could not notify.", false);
+                    btn.disabled = false;
+                    btn.innerHTML = old;
+                  }
+                } catch (e) {
+                  if (typeof window.aidTrackToast === "function") window.aidTrackToast("Network error — please try again.", false);
+                  btn.disabled = false;
+                  btn.innerHTML = old;
+                }
+              };
+            })();
+            </script>
+
             <div style="padding:10px 16px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
               <button type="button" class="atk-filter atk-filter-active" data-state="all" onclick="aidTrackSetFilter('all')">All</button>
               <button type="button" class="atk-filter" data-state="pending" onclick="aidTrackSetFilter('pending')">Pending</button>
@@ -7938,7 +8053,8 @@ input:checked + .slider{background-color:var(--green);}
              ========================================================================== -->
           <section id="audit-verify-deduction" class="dashboard-module module-fade-in">
             <style>
-              #audit-verify-deduction .avd-layout{display:grid;grid-template-columns:20fr 60fr 20fr;gap:20px;align-items:start;}
+              #audit-verify-deduction{position:relative;}
+              #audit-verify-deduction .avd-layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start;}
               #audit-verify-deduction .avd-layout>.dashboard-panel{min-width:0;}
               #audit-verify-deduction .avd-card-list{display:flex;flex-direction:column;gap:10px;padding:0 14px 14px;max-height:calc(100vh - 210px);overflow-y:auto;}
               #audit-verify-deduction .avd-card{background:#fff;border:1px solid #dfe9df;border-left:4px solid #2e7d32;border-radius:10px;padding:10px 12px;cursor:pointer;transition:box-shadow .15s ease,border-color .15s ease,background .15s ease;}
@@ -7955,27 +8071,93 @@ input:checked + .slider{background-color:var(--green);}
               #audit-verify-deduction .avd-card-btn{display:block;width:100%;margin-top:9px;text-align:center;padding:4px 10px;font-size:.78rem;}
               #audit-verify-deduction .avd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;color:#757575;background:#fafcfb;border:1px dashed #cfdccc;border-radius:10px;padding:34px 16px;font-size:.85rem;}
               #audit-verify-deduction .avd-empty i{font-size:1.5rem;color:#a5d6a7;}
+              #audit-verify-deduction #avd-recent-list{align-items:stretch;}
+              /* --- History cards: same header / grid / footer structure as the President history --- */
               #audit-verify-deduction #avd-recent-list .avd-hist-card{
-                width:100%;
-                background:var(--avd-status-bg,#fff);
-                border-left-color:var(--avd-status-fg,#2e7d32);
+                width:100%;max-width:100%;box-sizing:border-box;flex:0 0 auto;height:auto;
+                background:#fff;border:1px solid #e5eae5;border-radius:12px;
+                overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:0;
               }
+              #audit-verify-deduction #avd-recent-list .avd-hist-card:hover{border-color:#c8d4c8;box-shadow:0 2px 10px rgba(27,94,32,.06);background:#fff;}
+              #audit-verify-deduction #avd-recent-list .avd-hist-card:focus-visible{outline:2px solid #1565c0;outline-offset:2px;}
               #audit-verify-deduction #avd-recent-list .avd-hist-card.active{outline:2px solid #1565c0;outline-offset:-1px;}
-              #audit-verify-deduction .avd-hist-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
-              #audit-verify-deduction .avd-hist-titles{display:flex;flex-direction:column;gap:2px;min-width:0;}
-              #audit-verify-deduction .avd-hist-status{font-size:.63rem;font-weight:700;letter-spacing:.02em;line-height:1.2;}
-              #audit-verify-deduction .avd-hist-head:focus-visible{outline:2px solid #1565c0;outline-offset:2px;border-radius:6px;}
-              #audit-verify-deduction .avd-hist-chev{margin-left:auto;color:#8a949e;font-size:.72rem;transition:transform .18s ease;flex:0 0 auto;}
-              #audit-verify-deduction .avd-hist-card.open .avd-hist-chev{transform:rotate(180deg);}
-              #audit-verify-deduction .avd-hist-body{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed #dfe9df;}
-              #audit-verify-deduction .avd-hist-card.open .avd-hist-body{display:block;}
-              #audit-verify-deduction .avd-hist-body .avd-card-stats{margin-bottom:2px;}
+              #audit-verify-deduction .avd-h-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-bottom:1px solid #eef1ee;background:#fbfdfb;}
+              #audit-verify-deduction .avd-h-title{font-weight:800;font-size:.92rem;color:#111827;line-height:1.2;overflow-wrap:anywhere;}
+              #audit-verify-deduction .avd-h-sub{font-size:.75rem;color:#6b7280;margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+              #audit-verify-deduction .avd-h-actions{display:flex;gap:6px;flex-shrink:0;}
+              #audit-verify-deduction .avd-h-actions .btn-outline{padding:4px 11px;font-size:.76rem;white-space:nowrap;background:#fff;border:1px solid #cfdccc;color:#374151;border-radius:8px;font-weight:600;font-family:"Inter",sans-serif;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.06);transition:all .25s ease;cursor:pointer;}
+              #audit-verify-deduction .avd-h-actions .btn-outline:hover{background:#f4f7f4;border-color:#2e7d32;color:#1b5e20;transform:translateY(-1px);box-shadow:0 4px 12px rgba(27,94,32,.18);}
+              #audit-verify-deduction .avd-h-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-rows:auto;gap:1px;background:#eef1ee;border-bottom:1px solid #eef1ee;}
+              #audit-verify-deduction .avd-h-cell{background:#fff;padding:8px 13px;min-width:0;}
+              #audit-verify-deduction .avd-h-cell span{display:block;font-size:.66rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#8a949e;margin-bottom:1px;}
+              #audit-verify-deduction .avd-h-cell strong{font-size:.85rem;color:#1f2937;font-variant-numeric:tabular-nums;display:block;white-space:normal;overflow:visible;overflow-wrap:anywhere;word-break:break-word;}
+              #audit-verify-deduction .avd-h-foot{display:flex;flex-direction:column;gap:6px;padding:10px 13px 12px;background:#f8faf8;}
+              #audit-verify-deduction .avd-h-status{display:flex;align-items:center;justify-content:flex-start;}
+              #audit-verify-deduction .avd-h-remarks{font-size:.78rem;color:#4b5563;margin:0;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;}
+              #audit-verify-deduction .avd-h-remarks:empty{display:none;}
+              #audit-verify-deduction .avd-hist-card.avd-st-rejected .avd-h-foot,
+              #audit-verify-deduction .avd-hist-card.avd-st-returned .avd-h-foot{background:#fef2f2;}
+              #audit-verify-deduction .avd-hist-card.avd-st-final_approved .avd-h-foot{background:#f0fdf4;}
+              #audit-verify-deduction .avd-hist-card.avd-st-pending_final .avd-h-foot,
+              #audit-verify-deduction .avd-hist-card.avd-st-pending_audit .avd-h-foot,
+              #audit-verify-deduction .avd-hist-card.avd-st-pending_treasurer .avd-h-foot{background:#fffbeb;}
               #audit-verify-deduction .avd-card .btn-outline{
                 background:var(--green) !important;
                 border:1px solid var(--green) !important;
                 color:#fff !important;
                 border-radius:6px;
               }
+              /* --- Hideable History: button under pending card + slide-over drawer (right side) --- */
+              #audit-verify-deduction .avd-history-fab{
+                display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+                margin:12px 14px 14px;width:calc(100% - 28px);box-sizing:border-box;
+                background:#1b5e20;color:#fff;border:1px solid #1b5e20;cursor:pointer;font-family:inherit;
+                font-size:.85rem;font-weight:700;letter-spacing:.02em;
+                padding:9px 14px;border-radius:8px;
+                box-shadow:0 2px 8px rgba(27,94,32,.25);
+                transition:background .2s ease,box-shadow .2s ease;
+              }
+              #audit-verify-deduction .avd-history-fab:hover{background:#2e7d32;border-color:#2e7d32;box-shadow:0 4px 12px rgba(27,94,32,.35);}
+              #audit-verify-deduction .avd-history-fab .avd-fab-dot{
+                background:#ff5252;color:#fff;
+                font-size:.66rem;font-weight:800;min-width:20px;height:20px;
+                border-radius:999px;display:none;align-items:center;justify-content:center;padding:0 5px;
+              }
+              #audit-verify-deduction .avd-history-overlay{
+                position:fixed;inset:0;background:rgba(17,24,39,.38);
+                opacity:0;pointer-events:none;transition:opacity .32s ease;z-index:1055;
+              }
+              #audit-verify-deduction .avd-history-overlay.open{opacity:1;pointer-events:auto;}
+              #audit-verify-deduction .avd-history-drawer{
+                position:fixed;top:0;right:0;height:100vh;height:100dvh;width:min(410px,94vw);
+                background:#fff;border-left:1px solid #dfe9df;border-radius:14px 0 0 14px;
+                box-shadow:-18px 0 45px rgba(0,0,0,.18);
+                transform:translateX(108%);transition:transform .38s cubic-bezier(.22,.9,.3,1),visibility .38s;
+                z-index:1060;display:flex;flex-direction:column;overflow:hidden;
+                will-change:transform;visibility:hidden;
+                padding:0;margin:0;
+              }
+              #audit-verify-deduction .avd-history-drawer.open{transform:translateX(0);visibility:visible;}
+              #audit-verify-deduction .avd-history-drawer .panel-header-row{
+                display:flex;align-items:center;justify-content:space-between;gap:10px;
+                padding:16px 16px 12px;margin:0;border-bottom:2px solid #f6fbf6;flex:0 0 auto;
+              }
+              #audit-verify-deduction .avd-history-drawer .panel-title{margin:0;font-size:1rem;}
+              #audit-verify-deduction .avd-history-drawer .avd-card-list{
+                flex:1 1 auto;min-height:0;overflow-y:auto;
+                max-height:calc((100vh - 70px) * 0.9);max-height:calc((100dvh - 70px) * 0.9);
+              }
+              #audit-verify-deduction #avd-recent-pagination{
+                flex:0 0 auto;margin-top:auto;background:#fff;
+                position:sticky;bottom:0;z-index:2;
+                padding:10px 16px 12px;border-top:1px solid #f0f4f0;
+              }
+              #audit-verify-deduction .avd-history-close{
+                display:inline-flex;align-items:center;gap:6px;background:#1b5e20;color:#fff;
+                border:none;border-radius:8px;padding:6px 14px;font-size:.8rem;font-weight:700;
+                cursor:pointer;font-family:inherit;transition:background .15s ease;
+              }
+              #audit-verify-deduction .avd-history-close:hover{background:#2e7d32;}
               @media (max-width:1280px){
                 #audit-verify-deduction .avd-layout{grid-template-columns:1fr;}
                 #audit-verify-deduction .avd-card-list{max-height:none;}
@@ -7994,6 +8176,9 @@ input:checked + .slider{background-color:var(--green);}
                 <div class="avd-card-list" id="avd-pending-list">
                   <div class="avd-empty"><i class="fa-solid fa-inbox"></i>Loading pending records…</div>
                 </div>
+                <button type="button" class="avd-history-fab" id="avd-history-fab" onclick="avdToggleHistory()" aria-expanded="false" aria-controls="avd-history-drawer" title="Show history">
+                  <i class="fa-solid fa-clock-rotate-left"></i> History <span class="avd-fab-dot" id="avd-history-count"></span>
+                </button>
               </div>
 
               <div class="dashboard-panel" id="avd-detail-panel">
@@ -8021,16 +8206,74 @@ input:checked + .slider{background-color:var(--green);}
                 </div>
               </div>
 
-              <div class="dashboard-panel">
+              <div class="dashboard-panel avd-history-drawer" id="avd-history-drawer" role="dialog" aria-label="Verification history" aria-hidden="true">
                 <div class="panel-header-row">
                   <h3 class="panel-title">History</h3>
+                  <button type="button" class="avd-history-close" onclick="avdCloseHistory()" aria-label="Close history panel">
+                    <i class="fa-solid fa-xmark"></i> Close
+                  </button>
                 </div>
                 <div class="avd-card-list" id="avd-recent-list">
                   <div class="avd-empty"><i class="fa-solid fa-clock-rotate-left"></i>Loading history…</div>
                 </div>
-                <div id="avd-recent-pagination" style="padding:0 16px 12px;"></div>
+                <div id="avd-recent-pagination"></div>
               </div>
             </div>
+            <div class="avd-history-overlay" id="avd-history-overlay" onclick="avdCloseHistory()"></div>
+            <script>
+              (function(){
+                if (window.__avdHistoryInit) return;
+                window.__avdHistoryInit = true;
+                function drawer(){ return document.getElementById('avd-history-drawer'); }
+                function overlay(){ return document.getElementById('avd-history-overlay'); }
+                function fab(){ return document.getElementById('avd-history-fab'); }
+                function syncCount(){
+                  var dot = document.getElementById('avd-history-count');
+                  var list = document.getElementById('avd-recent-list');
+                  if(!dot) return;
+                  var n = list ? list.querySelectorAll('.avd-hist-card').length : 0;
+                  if(n > 0){ dot.textContent = n; dot.style.display = 'inline-flex'; }
+                  else { dot.textContent = ''; dot.style.display = 'none'; }
+                }
+                window.avdOpenHistory = function(){
+                  var d = drawer(), o = overlay(), f = fab();
+                  if(!d) return;
+                  d.classList.add('open');
+                  d.setAttribute('aria-hidden','false');
+                  if(o) o.classList.add('open');
+                  if(f) f.setAttribute('aria-expanded','true');
+                  document.body.style.overflow = 'hidden';
+                };
+                window.avdCloseHistory = function(){
+                  var d = drawer(), o = overlay(), f = fab();
+                  if(d) { d.classList.remove('open'); d.setAttribute('aria-hidden','true'); }
+                  if(o) o.classList.remove('open');
+                  if(f) f.setAttribute('aria-expanded','false');
+                  document.body.style.overflow = '';
+                };
+                window.avdToggleHistory = function(force){
+                  var d = drawer();
+                  if(!d) return;
+                  var willOpen = (typeof force === 'boolean') ? force : !d.classList.contains('open');
+                  if(willOpen) window.avdOpenHistory(); else window.avdCloseHistory();
+                };
+                document.addEventListener('keydown', function(e){
+                  if(e.key === 'Escape'){
+                    var d = drawer();
+                    if(d && d.classList.contains('open')) window.avdCloseHistory();
+                  }
+                });
+                // Auto-close (and restore scroll) when leaving this tab.
+                new MutationObserver(function(){
+                  var sec = document.getElementById('audit-verify-deduction');
+                  if(sec && !sec.classList.contains('active')) window.avdCloseHistory();
+                }).observe(document.getElementById('audit-verify-deduction'), {attributes:true, attributeFilter:['class']});
+                // Keep the floating-button count in sync when history re-renders.
+                new MutationObserver(syncCount).observe(document.getElementById('avd-recent-list') || document.body, {childList:true, subtree:true});
+                document.addEventListener('DOMContentLoaded', syncCount);
+                setTimeout(syncCount, 1500);
+              })();
+            </script>
           </section>
 
           <!-- ==========================================================================
@@ -8353,7 +8596,7 @@ input:checked + .slider{background-color:var(--green);}
     </div>
     <script src="{% static 'js/Auditor/toast.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/shared/top_center_banner.js' %}?v=20260927tcb3"></script>
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt13"></script>
     <script src="{% static 'js/status-utils.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/shared/fund_display.js' %}?v=20260902bust5"></script>
     <script src="{% static 'js/Auditor/auditor_dashboard.js' %}?v=20260928aud23"></script>
@@ -8367,7 +8610,7 @@ input:checked + .slider{background-color:var(--green);}
     <script src="{% static 'js/shared/overview_dashboard.js' %}?v=ovd14"></script>
     <script src="{% static 'js/Auditor/websocket.js' %}?v=20260913bust6"></script>
     <script src="{% static 'js/shared/fund_balance_live.js' %}?v=20261004fbl1" data-fund-balance-live data-channel="auditor" data-path="/ws/auditor-dashboard/"></script>
-    <script src="{% static 'js/Auditor/verify_deduction.js' %}?v=20260927vd45"></script>
+    <script src="{% static 'js/Auditor/verify_deduction.js' %}?v=20260927vd46"></script>
     <script src="{% static 'js/shared/realtime.js' %}?v=20260929rt1"></script>
     <script src="{% static 'js/shared/live_tables.js' %}?v=20260930lt1"></script>
     <script src="{% static 'js/Auditor/realtime_queues.js' %}?v=20260929rq1"></script>
@@ -9133,6 +9376,7 @@ input:checked + .slider{background-color:var(--green);}
       });
     </script>
     {% include "website/shared/zt_badge.html" %}
+    {% include "website/partials/_officer_pin.html" %}
   
     <!-- nx: welcome banner clock (visual only) -->
     <script>
@@ -9235,6 +9479,9 @@ input:checked + .slider{background-color:var(--green);}
     "compliance-aid-tracking": function(){
       if (typeof window.aidTrackingLoad === "function") {
         try { window.aidTrackingLoad(); } catch(e) {}
+      }
+      if (typeof window.audUnfiledLoad === "function") {
+        try { window.audUnfiledLoad(); } catch(e) {}
       }
     },
     "treasurer-reports-management": function(){
@@ -10055,6 +10302,9 @@ input:checked + .slider{background-color:var(--green);}
       displayObserver.observe(document.body, { childList: true, subtree: true });
     })();
   </script>
-  
+
+    {% include "website/partials/_login_sound.html" %}
+    {% include "website/partials/_notice_card.html" %}
+
   </body>
 </html>

@@ -4,6 +4,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from core_system.guards import require_role, check_zero_trust
+from core_system.officer_pin import require_action_pin_view
 from core_system.models import AuditFindingsReport
 from core_system.services.reporting import (
     create_auditor_report,
@@ -112,6 +113,7 @@ def president_auditor_reports_list(request: HttpRequest):
 
 
 @require_POST
+@require_action_pin_view
 def president_approve_report(request: HttpRequest, report_id: int):
     guard = require_role(request, role="president")
     if guard:

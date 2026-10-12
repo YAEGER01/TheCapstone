@@ -11,6 +11,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 
 from core_system.guards import require_role, check_zero_trust
+from core_system.officer_pin import require_action_pin_view
 from core_system.models import OfficerUser, OrganizationFundReport, Member, Document, DocumentActivity
 from core_system.services.reporting import (
     REPORT_TYPES,
@@ -431,6 +432,7 @@ def auditor_fund_reports_list(request: HttpRequest):
 
 
 @require_POST
+@require_action_pin_view
 def auditor_verify_fund_report(request: HttpRequest, report_id: int):
     """Auditor verifies a Treasurer-submitted report and forwards it to the
     President for final approval (mockup: Submitted -> Auditor Verified)."""
@@ -482,6 +484,7 @@ def auditor_verify_fund_report(request: HttpRequest, report_id: int):
 
 
 @require_POST
+@require_action_pin_view
 def auditor_return_fund_report(request: HttpRequest, report_id: int):
     """Auditor returns a Treasurer-submitted report for revision
     (mockup: Submitted -> Returned to Treasurer, reason required)."""
@@ -648,6 +651,7 @@ def president_fund_reports_list(request: HttpRequest):
 
 
 @require_POST
+@require_action_pin_view
 def president_approve_fund_report(request: HttpRequest, report_id: int):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -679,6 +683,7 @@ def president_approve_fund_report(request: HttpRequest, report_id: int):
 
 
 @require_POST
+@require_action_pin_view
 def president_reject_fund_report(request: HttpRequest, report_id: int):
     guard = require_role(request, role="President")
     if guard is not None:

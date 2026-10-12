@@ -1,0 +1,59 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Officer account {{ action_label }} - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}President {{ president_name }} {{ action_label }} the {{ target_role }} officer account.{% endblock %}
+{% block header_title %}Officer Account {{ action_label|title }}{% endblock %}
+{% block header_sub %}President {{ president_name }} performed an account action.{% endblock %}
+{% block content %}
+<p style="font-size:16px; line-height:1.6; margin:0 0 16px;">
+  Dear <strong>{{ recipient_name|default:"Officer" }}</strong>,
+</p>
+<p style="font-size:15px; line-height:1.7; margin:0 0 16px;">
+  President <strong>{{ president_name }}</strong> {{ action_label }} the officer account
+  for <strong>{{ target_role }}</strong> &mdash; <strong>{{ target_name }}</strong>
+  {% if target_username %}({{ target_username }}){% endif %}.
+</p>
+
+<table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 16px;">
+  {% for c in changes %}
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; width:170px; vertical-align:top;">{{ c.label }}:</td>
+    <td>
+      {% if c.old and c.new and c.old != c.new %}
+        {{ c.old }} &nbsp;&rarr;&nbsp; <strong>{{ c.new }}</strong>
+      {% elif c.new %}
+        <strong>{{ c.new }}</strong>
+      {% else %}
+        {{ c.old }}
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td>No field details available.</td></tr>
+  {% endfor %}
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; vertical-align:top;">Password:</td>
+    <td>
+      {% if password_changed %}
+        Reset for the new officer assignment <span style="color:#666;">(value hidden for security)</span>
+      {% else %}
+        Unchanged
+      {% endif %}
+    </td>
+  </tr>
+  {% if security_reset %}
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; vertical-align:top;">Security reset:</td>
+    <td>
+      Previous holder's credentials cleared ({{ security_reset|join:", " }}).
+      The new officer must set up a fresh action PIN, authenticator, and backup codes.
+    </td>
+  </tr>
+  {% endif %}
+</table>
+
+<p style="font-size:13px; line-height:1.6; margin:0; color:#666666; border-top:1px solid #eeeeee; padding-top:16px;">
+  This is an automated security notice so all officers stay aware of account changes.
+  If you did not expect this change, please contact the President immediately.
+  Password values are never included in email.
+</p>
+{% endblock %}

@@ -117,6 +117,52 @@
       }
       .sec-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(27, 94, 63, 0.35); }
       .sec-btn:focus-visible { outline: 3px solid #FCD34D; outline-offset: 2px; }
+      /* Offline-check info "i": JS positions the card where it fully fits
+         (below / above / left / right of the dot); pure hover is only a
+         fallback before JS positions it. */
+      .offline-info-wrap { position: relative; display: inline-flex; align-items: center; }
+      .offline-info-dot {
+        width: 17px; height: 17px; border-radius: 50%;
+        background: #fff; border: 1.5px solid #1b5e20; color: #1b5e20;
+        font-size: 11px; font-weight: 800; line-height: 1; font-style: normal; font-family: inherit;
+        display: inline-flex; align-items: center; justify-content: center;
+        cursor: help; padding: 0;
+      }
+      .offline-info-dot:hover, .offline-info-wrap:focus-within .offline-info-dot { background: #1b5e20; color: #fff; }
+      .offline-info-dot:focus-visible { outline: 2px solid #1b5e20; outline-offset: 2px; }
+      .offline-info-card {
+        display: none; position: fixed; left: 0; top: 0;
+        width: 264px; max-width: calc(100vw - 16px);
+        background: #fff; border: 1px solid #cfe0cf; border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 10px 12px;
+        font-size: 11.5px; line-height: 1.55; color: #333; text-align: left; z-index: 10000;
+        font-weight: 400;
+      }
+      .offline-info-card.offline-show { display: block; }
+      .offline-info-card::before {
+        content: ""; position: absolute; width: 10px; height: 10px; background: #fff;
+      }
+      .offline-info-card.place-bottom::before {
+        top: -6px; left: var(--arrow-left, 50%);
+        transform: translateX(-50%) rotate(45deg);
+        border-left: 1px solid #cfe0cf; border-top: 1px solid #cfe0cf;
+      }
+      .offline-info-card.place-top::before {
+        bottom: -6px; top: auto; left: var(--arrow-left, 50%);
+        transform: translateX(-50%) rotate(45deg);
+        border-right: 1px solid #cfe0cf; border-bottom: 1px solid #cfe0cf;
+      }
+      .offline-info-card.place-right::before {
+        left: -6px; top: var(--arrow-top, 50%);
+        transform: translateY(-50%) rotate(45deg);
+        border-left: 1px solid #cfe0cf; border-bottom: 1px solid #cfe0cf;
+      }
+      .offline-info-card.place-left::before {
+        right: -6px; left: auto; top: var(--arrow-top, 50%);
+        transform: translateY(-50%) rotate(45deg);
+        border-right: 1px solid #cfe0cf; border-top: 1px solid #cfe0cf;
+      }
+      .offline-info-card strong { color: #1b5e20; }
     </style>
     {% if turnstile_enabled %}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
@@ -265,6 +311,23 @@
                 ></div>
                 <p id="turnstileStatus" class="turnstile-status" style="display:none;font-size:12px;margin:0;text-align:center;"></p>
                 <button type="button" id="turnstileRetryBtn" style="display:none;font-size:12px;font-weight:600;padding:6px 16px;border-radius:8px;border:1px solid #d6ddd7;background:#fff;color:#1b5e20;cursor:pointer;font-family:inherit;">Try again</button>
+                <span style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                  <button type="button" id="offlineCheckBtn" style="display:none;font-size:12px;font-weight:600;padding:6px 16px;border-radius:8px;border:1px solid #1b5e20;background:#e8f5e9;color:#1b5e20;cursor:pointer;font-family:inherit;">Use offline check instead</button>
+                  <span id="offlineInfoWrap" class="offline-info-wrap" style="display:none;">
+                    <button type="button" class="offline-info-dot" aria-label="How does the offline check work?" aria-describedby="offlineInfoCard">i</button>
+                    <span id="offlineInfoCard" class="offline-info-card" role="tooltip">
+                      <strong>Why this appears:</strong> Cloudflare Turnstile couldn't load on this device (no connection to Cloudflare, ad-blocker, or VPN).<br />
+                      <strong>How the offline check works:</strong> this server gives your browser a one-time challenge; your device finds a number (nonce) so that SHA-256(challenge:nonce) starts with enough zero bits — a small proof-of-work that takes a few seconds (watch the progress bar). The server re-checks it once, then burns it: each challenge works <strong>once</strong> and only for the <strong>username you typed</strong>.
+                    </span>
+                  </span>
+                </span>
+                <div id="offlineCheckBox" style="display:none;width:100%;max-width:300px;">
+                  <p id="offlineCheckStatus" style="font-size:12px;margin:0 0 6px;text-align:center;color:#5b6675;"></p>
+                  <div style="height:6px;background:#eef1ee;border-radius:999px;overflow:hidden;">
+                    <div id="offlineCheckFill" style="height:100%;width:0%;background:#1b5e20;"></div>
+                  </div>
+                </div>
+                <input type="hidden" name="offline_bot_proof" id="offlineBotProof" value="" />
               </div>
             </div>
             {% endif %}
@@ -360,7 +423,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/login-improved.js' %}"></script>
+    <script src="{% static 'js/login-improved.js' %}?v=20261008bot1"></script>
     {% include "website/partials/_cookie_notice.html" %}
     
     {% if form.mfa_required %}

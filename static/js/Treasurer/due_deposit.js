@@ -257,6 +257,64 @@
     bindFormCard(host);
   }
 
+  /* Action-PIN prompt as a standalone 3:4 vertical card (no outer chrome).
+     The deposit endpoint is PIN-gated server-side (@require_action_pin_view),
+     so the PIN is collected BEFORE posting (FormData action_pin + header). */
+  function ddPromptActionPin(subtitle) {
+    return new Promise(function (resolve) {
+      let settled = false;
+      const done = function (val) { if (!settled) { settled = true; cleanup(); resolve(val); } };
+      const overlay = document.createElement("div");
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", "Enter Action PIN");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:6001;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+      overlay.innerHTML =
+        "<style>#dd-pin-entry::-ms-reveal,#dd-pin-entry::-ms-clear{display:none;}#dd-pin-entry::-webkit-credentials-auto-fill-button{visibility:hidden;pointer-events:none;}</style>" +
+        '<div style="aspect-ratio:3/4;width:min(300px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:22px 18px;background:linear-gradient(180deg,#f3faf4 0%,#ffffff 60%);border:1px solid #cfe0cf;border-radius:18px;box-sizing:border-box;box-shadow:0 18px 60px rgba(0,0,0,.28);font-family:Inter,system-ui,sans-serif;color:#1c2430;">' +
+          '<div style="width:52px;height:52px;border-radius:50%;background:#1b5e20;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem;box-shadow:0 4px 12px rgba(27,94,32,.3);"><i class="fa-solid fa-lock"></i></div>' +
+          '<div style="font-weight:800;color:#1b5e20;font-size:0.95rem;letter-spacing:0.02em;">Deposit Batch</div>' +
+          '<div style="font-size:0.78rem;color:#5b6675;line-height:1.5;max-width:220px;">' + esc(subtitle || "Enter your 4-digit action PIN to deposit this batch.") + "</div>" +
+          '<input id="dd-pin-entry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••" ' +
+            'style="width:170px;box-sizing:border-box;text-align:center;font-size:1.6rem;letter-spacing:0.45em;text-indent:0.45em;padding:10px 8px;border:1.5px solid #cfe0cf;border-radius:10px;outline:none;" />' +
+          '<div id="dd-pin-err" style="min-height:18px;font-size:0.76rem;color:#c62828;"></div>' +
+          '<div style="display:flex;gap:8px;width:100%;margin-top:2px;">' +
+            '<button type="button" id="dd-pin-cancel" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#eef1f5;color:#1c2430;">Cancel</button>' +
+            '<button type="button" id="dd-pin-ok" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#1e8f4e;color:#fff;box-shadow:0 4px 12px rgba(30,143,78,.35);">Confirm</button>' +
+          "</div>" +
+        "</div>";
+      function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); document.removeEventListener("keydown", onKey); }
+      function onKey(e) { if (e.key === "Escape") done(null); }
+      document.addEventListener("keydown", onKey);
+      document.body.appendChild(overlay);
+      const entry = overlay.querySelector("#dd-pin-entry");
+      const errEl = overlay.querySelector("#dd-pin-err");
+      const okBtn = overlay.querySelector("#dd-pin-ok");
+      const cancelBtn = overlay.querySelector("#dd-pin-cancel");
+      if (okBtn) {
+        okBtn.addEventListener("mouseover", function () { okBtn.style.background = "#16703c"; });
+        okBtn.addEventListener("mouseout", function () { okBtn.style.background = "#1e8f4e"; });
+      }
+      const fail = function (msg) { if (errEl) errEl.textContent = msg || ""; };
+      if (entry) {
+        entry.addEventListener("input", function () {
+          entry.value = String(entry.value || "").replace(/\D/g, "").slice(0, 4);
+          fail("");
+        });
+        entry.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") { e.preventDefault(); if (okBtn) okBtn.click(); }
+        });
+        setTimeout(function () { entry.focus(); }, 50);
+      }
+      if (cancelBtn) cancelBtn.addEventListener("click", function () { done(null); });
+      if (okBtn) okBtn.addEventListener("click", function () {
+        const pin = String((entry && entry.value) || "").replace(/\D/g, "").slice(0, 4);
+        if (pin.length !== 4) { fail("PIN must be exactly 4 digits."); if (entry) entry.focus(); return; }
+        done(pin);
+      });
+    });
+  }
+
   async function submitDeposit() {
     if (busy) return;
     const host = document.getElementById("dd-form");
@@ -288,6 +346,13 @@
       return;
     }
 
+    // PIN-gated endpoint — prompt BEFORE locking the button so a cancel
+    // leaves the form untouched instead of failing with "Action PIN is required".
+    const actionPin = await ddPromptActionPin(
+      "Enter your 4-digit action PIN to deposit " + (c.month_label || "this batch") + "."
+    );
+    if (!actionPin) return;
+
     busy = true;
     if (submit) {
       submit.disabled = true;
@@ -299,14 +364,18 @@
       fd.append("deposit_reference", ref);
       fd.append("deposited_amount", amountVal.toFixed(2));
       fd.append("proof", file);
+      fd.append("action_pin", actionPin);
       const res = await fetch(DEPOSIT_URL, {
         method: "POST",
         credentials: "same-origin",
-        headers: { "X-CSRFToken": getCSRFToken() },
+        headers: { "X-CSRFToken": getCSRFToken(), "X-Action-PIN": actionPin },
         body: fd,
       });
       const d = await res.json().catch(function () { return {}; });
       if (!res.ok || !d.ok) {
+        if (d.code === "PIN_NOT_SET" && window.CaufaPin && window.CaufaPin.openSetup) {
+          try { window.CaufaPin.openSetup("setup"); } catch (e2) {}
+        }
         const err = new Error(d.error || "Deposit failed for " + (c.month_label || c.assessment_id) + ".");
         err.status = res.status;
         throw err;

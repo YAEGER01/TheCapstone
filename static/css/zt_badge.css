@@ -553,3 +553,123 @@ body.zt-locked #zt-toast-wrap {
   border: 1px solid #546e7a;
   cursor: pointer;
 }
+
+/* ------------------------------------------------------------------
+   Pre-lock warning: independent lockout-style overlay with the 15s
+   countdown. Owns #zt-lock-warn-overlay the way the lock screen owns
+   #zt-lock-overlay — not part of the toast/banner system.
+   ------------------------------------------------------------------ */
+
+#zt-lock-warn-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 15000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(10, 18, 30, 0.72) !important;
+  margin: 0 !important;
+}
+
+#zt-lock-warn-overlay[hidden] {
+  display: none !important;
+}
+
+.zt-warn-card {
+  width: min(300px, calc(100vw - 32px)) !important;
+  aspect-ratio: 3 / 4 !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8e2 !important;
+  border-top: 6px solid #1b5e20 !important;
+  border-radius: 16px !important;
+  padding: 24px 20px !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35) !important;
+  text-align: center !important;
+  font-family: inherit !important;
+  animation: zt-warn-pop 0.25s ease !important;
+}
+
+@keyframes zt-warn-pop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.zt-warn-kicker {
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: #7a8a7e !important;
+}
+
+.zt-warn-title {
+  font-weight: 800 !important;
+  color: #1f2937 !important;
+  font-size: 1.25rem !important;
+}
+
+.zt-warn-count {
+  font-size: 3.4rem !important;
+  font-weight: 800 !important;
+  color: #1b5e20 !important;
+  line-height: 1.1 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.zt-warn-bar {
+  width: 100% !important;
+  height: 8px !important;
+  background: #e8f0e9 !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+  margin: 2px 0 !important;
+}
+
+.zt-warn-bar > div {
+  height: 100% !important;
+  width: 100% !important;
+  background: #2e7d32 !important;
+}
+
+.zt-warn-sub {
+  color: #5b6675 !important;
+  font-size: 0.82rem !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
+}
+
+.zt-warn-btn {
+  width: 100% !important;
+  background: #1b5e20 !important;
+  border: 1px solid #1b5e20 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  padding: 11px 18px !important;
+  font-size: 0.85rem !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+.zt-warn-btn:hover {
+  background: #256b29 !important;
+}
+
+.zt-warn-linkbtn {
+  margin-top: 8px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #8a949e !important;
+  font-size: 0.78rem !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  text-decoration: underline !important;
+}

@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ISUCauFA | Sign-in Backup Options</title>
+    <title>ISUCauFA | Security Settings</title>
     <link rel="icon" type="image/png" href="{% static 'img/isu_caufa_official.png' %}" />
     <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}" />
     <link rel="stylesheet" href="{% static 'vendor/css/fonts.css' %}" />
@@ -31,13 +31,32 @@
       .sec-alert { border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; display: none; }
       .sec-alert.err { display: block; background: #fdecea; color: #b71c1c; }
       .sec-alert.ok { display: block; background: #e8f5e9; color: #1b5e20; }
+      .pin-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #cfd8dc; flex-shrink: 0; }
+      .pin-dot.ok { background: #2e7d32; }
+      .pin-dot.bad { background: #c62828; }
+      .pin-field { display: flex; align-items: center; gap: 6px; }
+      .sec-input::placeholder { font-size: 12px; letter-spacing: normal; }
     </style>
   </head>
   <body>
     <div class="sec-page">
       <p class="sec-note"><a href="javascript:history.back()" style="color:inherit;font-weight:700;">&larr; Back</a></p>
-      <h1 style="color:#1b5e20;margin:8px 0 0;">Sign-in backup options</h1>
-      <p class="sec-note">If the email code can't reach you, these fallbacks still let you sign in securely.</p>
+      <h1 style="color:#1b5e20;margin:8px 0 0;">Security settings</h1>
+      <p class="sec-note">Manage your password and sign-in backup options. If the email code can't reach you, the fallbacks below still let you sign in securely.</p>
+
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-lock"></i> Change password</h2>
+        <p>Update the password you use to sign in. You'll need your current password to confirm it's you.</p>
+        <div style="display:grid;gap:10px;max-width:340px;margin-top:10px;">
+          <input class="sec-input" id="pwCurrent" type="password" autocomplete="current-password" placeholder="Current password" style="letter-spacing:normal;font-size:14px;" />
+          <input class="sec-input" id="pwNew" type="password" autocomplete="new-password" placeholder="New password" style="letter-spacing:normal;font-size:14px;" />
+          <input class="sec-input" id="pwConfirm" type="password" autocomplete="new-password" placeholder="Confirm new password" style="letter-spacing:normal;font-size:14px;" />
+        </div>
+        <div class="sec-row">
+          <button class="btn-sec primary" type="button" id="pwChangeBtn">Change password</button>
+        </div>
+        <div class="sec-alert" id="pwMsg"></div>
+      </div>
 
       <div class="sec-card">
         <h2><i class="fa-solid fa-envelope"></i> Email code <span class="pill on">Always on</span></h2>
@@ -104,6 +123,72 @@
           <div class="backup-grid" id="freshBackupCodes" style="display:none;"></div>
           <div class="sec-alert" id="enrollMsg"></div>
         </div>
+      </div>
+      <div class="sec-card">
+        <h2><i class="fa-solid fa-keyboard"></i> Action PIN (approvals)
+          {% if action_pin_set %}<span class="pill on" id="pinPill">Set{% if action_pin_set_at %} since {{ action_pin_set_at|date:"M d, Y" }}{% endif %}</span>
+          {% else %}<span class="pill off" id="pinPill">Not set up</span>{% endif %}
+        </h2>
+        <p>4-digit PIN that confirms <strong>final approvals and verifications</strong> (president approvals, auditor verifications, treasurer releases). Different from your password and stored only as a secure hash — works offline, no email codes. This PIN <strong>cannot sign you in</strong>; it only approves actions after you're logged in.</p>
+
+        <div class="sec-row">
+          <button class="btn-sec {% if action_pin_set %}ghost{% else %}primary{% endif %}" type="button" id="pinModeSetup" {% if action_pin_set %}disabled title="PIN already set"{% endif %}>Set Up Pin</button>
+          <button class="btn-sec {% if action_pin_set %}primary{% else %}ghost{% endif %}" type="button" id="pinModeChange">Change PIN</button>
+          <button class="btn-sec ghost" type="button" id="pinModeForgot">Forgot Pin</button>
+        </div>
+        <div id="pinSetupPanel" {% if action_pin_set %}style="display:none;"{% endif %}>
+          <p><strong>Set up PIN</strong> — type your 4-digit PIN twice. Pasting is blocked so you prove you know it by heart.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <span class="pin-field">
+              <input class="sec-input" id="pinNew" type="password" inputmode="numeric" maxlength="4" placeholder="Enter 4-digit PIN" style="max-width:170px;text-align:center;" />
+              <span class="pin-dot" id="pinDotNew" title="PIN entered"></span>
+            </span>
+            <span class="pin-field">
+              <input class="sec-input" id="pinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" style="max-width:170px;text-align:center;" />
+              <span class="pin-dot" id="pinDotConfirm" title="PINs match"></span>
+            </span>
+          </div>
+          <div class="sec-row">
+            <button class="btn-sec primary" type="button" id="pinSetupBtn" {% if action_pin_set %}disabled title="PIN already set"{% endif %}>Set Up Pin</button>
+          </div>
+          <p class="sec-note">4 digits, avoid 0000 / 1111 / 1234.</p>
+        </div>
+
+        <div id="pinChangePanel" {% if not action_pin_set %}style="display:none;"{% endif %}>
+            <p><strong>Change PIN</strong> — needs current PIN + password.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input class="sec-input" id="pinCurrent" type="password" inputmode="numeric" maxlength="4" placeholder="Current PIN" style="max-width:150px;text-align:center;" />
+              <input class="sec-input" id="pinNew2" type="password" inputmode="numeric" maxlength="4" placeholder="New PIN" style="max-width:150px;text-align:center;" />
+              <input class="sec-input" id="pinConfirm2" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm New PIN" style="max-width:150px;text-align:center;" />
+              <input class="sec-input" id="pinPassword2" type="password" autocomplete="current-password" placeholder="Login password" style="max-width:220px;" />
+              <button class="btn-sec primary" type="button" id="pinChangeBtn">Change PIN</button>
+            </div>
+        </div>
+        <div id="pinForgotPanel" style="display:none;">
+            <p><strong>Forgot PIN — step 1:</strong> enter a code from your email, authenticator app, or a backup code.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input class="sec-input" id="pinResetCode" maxlength="12" placeholder="Verification code" style="max-width:200px;text-align:center;" />
+              <button class="btn-sec ghost" type="button" id="pinSendCodeBtn">Send email code</button>
+              <button class="btn-sec primary" type="button" id="pinVerifyCodeBtn">Verify code</button>
+            </div>
+            <div id="pinForgotStep2" style="display:none;margin-top:10px;opacity:.45;">
+              <p><strong>Step 2:</strong> enter your new PIN twice.</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                <span class="pin-field">
+                  <input class="sec-input" id="pinNew3" type="password" inputmode="numeric" maxlength="4" placeholder="New PIN" style="max-width:170px;text-align:center;" disabled />
+                  <span class="pin-dot" id="pinDotNew3" title="PIN entered"></span>
+                </span>
+                <span class="pin-field">
+                  <input class="sec-input" id="pinConfirm3" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm new PIN" style="max-width:170px;text-align:center;" disabled />
+                  <span class="pin-dot" id="pinDotConfirm3" title="PINs match"></span>
+                </span>
+                <button class="btn-sec primary" type="button" id="pinResetBtn" disabled>Save new PIN</button>
+              </div>
+            </div>
+        </div>
+
+        <div class="sec-alert" id="pinMsg"></div>
+        <p class="sec-note" id="pinLock" style="display:none;"></p>
       </div>
     </div>
 
@@ -247,6 +332,225 @@
             grid.innerHTML = (d.backup_codes || []).map(function (c) { return "<span>" + c + "</span>"; }).join("");
           }
         }
+
+        // ---- Change password (self-service) ----
+        (function initPasswordChange() {
+          var btn = document.getElementById("pwChangeBtn");
+          var msg = document.getElementById("pwMsg");
+          if (!btn || !msg) return;
+          btn.addEventListener("click", function () {
+            var cur = (document.getElementById("pwCurrent").value || "");
+            var nw = (document.getElementById("pwNew").value || "");
+            var cf = (document.getElementById("pwConfirm").value || "");
+            if (!cur || !nw || !cf) { flash(msg, false, "Fill in all three password fields."); return; }
+            if (nw !== cf) { flash(msg, false, "New passwords do not match."); return; }
+            btn.disabled = true;
+            fetch("/api/officer/password/change/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+              body: JSON.stringify({ current_password: cur, new_password: nw, confirm_password: cf }),
+            }).then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+            .then(function (out) {
+              btn.disabled = false;
+              var d = out.d || {};
+              if (d.ok) {
+                flash(msg, true, d.message || "Password changed successfully.");
+                document.getElementById("pwCurrent").value = "";
+                document.getElementById("pwNew").value = "";
+                document.getElementById("pwConfirm").value = "";
+              } else {
+                flash(msg, false, d.error || "Could not change password.");
+              }
+            }).catch(function () {
+              btn.disabled = false;
+              flash(msg, false, "Network error. Try again.");
+            });
+          });
+        })();
+
+        // ---- Action PIN (approvals, offline) ----
+        (function initActionPin() {
+          var msg = document.getElementById("pinMsg");
+          var lock = document.getElementById("pinLock");
+          if (!msg || !document.getElementById("pinSetupBtn")) return;
+          function digits(id) {
+            var el = document.getElementById(id);
+            if (!el) return "";
+            el.value = (el.value || "").replace(/\D/g, "").slice(0, 4);
+            return el.value;
+          }
+          ["pinNew", "pinConfirm", "pinCurrent", "pinNew2", "pinConfirm2", "pinNew3", "pinConfirm3"].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener("input", function () { digits(id); refreshDots(); });
+          });
+          // Confirm fields must be typed out again — no copy-paste.
+          ["pinConfirm", "pinConfirm2", "pinConfirm3"].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) {
+              el.addEventListener("paste", function (e) { e.preventDefault(); });
+              el.addEventListener("drop", function (e) { e.preventDefault(); });
+            }
+          });
+          // Match dots: green = match, red = mismatch, gray = incomplete.
+          function paintPair(pinId, confirmId, dotPin, dotConfirm) {
+            var a = document.getElementById(pinId), b = document.getElementById(confirmId);
+            var da = document.getElementById(dotPin), db = document.getElementById(dotConfirm);
+            if (!a || !b) return;
+            var va = a.value || "", vb = b.value || "";
+            if (da) da.className = "pin-dot" + (va.length === 4 ? " ok" : "");
+            if (!db) return;
+            db.className = "pin-dot";
+            if (vb.length === 4) db.className += (va === vb ? " ok" : " bad");
+          }
+          var setupBtn = document.getElementById("pinSetupBtn");
+          function refreshDots() {
+            paintPair("pinNew", "pinConfirm", "pinDotNew", "pinDotConfirm");
+            paintPair("pinNew3", "pinConfirm3", "pinDotNew3", "pinDotConfirm3");
+          }
+          var lockTimer = null;
+          function setLocked(sec, text) {
+            if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
+            if (!sec || sec <= 0) { lock.style.display = "none"; return; }
+            var left = Math.ceil(sec);
+            function paint() {
+              var m = Math.floor(left / 60), s = left % 60;
+              lock.textContent = (text || "PIN locked.") + " Try again in " + m + ":" + (s < 10 ? "0" : "") + s + ".";
+              lock.style.display = "";
+            }
+            paint();
+            lockTimer = setInterval(function () {
+              left -= 1;
+              if (left <= 0) { clearInterval(lockTimer); lockTimer = null; lock.style.display = "none"; }
+              else paint();
+            }, 1000);
+          }
+          function pinJson(url, payload, btn, after) {
+            btn.disabled = true;
+            return fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+              body: JSON.stringify(payload),
+            }).then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+            .then(function (out) {
+              btn.disabled = false;
+              var d = out.d || {};
+              if (d.ok) {
+                flash(msg, true, d.message || "Done.");
+                setLocked(0);
+                if (after) after(d);
+                return;
+              }
+              if (out.s === 423 || d.locked) setLocked(d.retry_after_seconds || 60, d.error);
+              flash(msg, false, d.error || "Could not save PIN.");
+            }).catch(function () {
+              btn.disabled = false;
+              flash(msg, false, "Network error. Try again.");
+            });
+          }
+          setupBtn.addEventListener("click", function () {
+            var pin = digits("pinNew"), c = digits("pinConfirm");
+            if (pin.length !== 4) { flash(msg, false, "PIN must be exactly 4 digits."); return; }
+            if (pin !== c) { flash(msg, false, "PINs don't match — type both again."); return; }
+            var btn = this;
+            pinJson("/api/officer/pin/setup/", { pin: pin, confirm_pin: c }, btn, function () {
+              btn.disabled = true;
+              setTimeout(function () { location.reload(); }, 1200);
+            });
+          });
+          var pinPanels = ["pinSetupPanel", "pinChangePanel", "pinForgotPanel"];
+          var pinModes = ["pinModeSetup", "pinModeChange", "pinModeForgot"];
+          function showPinPanel(name) {
+            pinPanels.forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) el.style.display = (id === name) ? "" : "none";
+            });
+            pinModes.forEach(function (id, i) {
+              var b = document.getElementById(id);
+              if (!b || b.disabled) return;
+              b.className = "btn-sec " + ((pinPanels[i] === name) ? "primary" : "ghost");
+            });
+          }
+          pinModes.forEach(function (id, i) {
+            var b = document.getElementById(id);
+            if (b) b.addEventListener("click", function () { showPinPanel(pinPanels[i]); });
+          });
+          var cb = document.getElementById("pinChangeBtn");
+          if (cb) cb.addEventListener("click", function () {
+            var cur = digits("pinCurrent"), pin = digits("pinNew2"), c = digits("pinConfirm2");
+            var pw = document.getElementById("pinPassword2").value || "";
+            if (cur.length !== 4) { flash(msg, false, "Current PIN is required."); return; }
+            if (pin.length !== 4) { flash(msg, false, "New PIN must be exactly 4 digits."); return; }
+            if (pin !== c) { flash(msg, false, "New PINs don't match."); return; }
+            pinJson("/api/officer/pin/change/", { current_pin: cur, new_pin: pin, confirm_pin: c, password: pw }, this);
+          });
+          // Forgot PIN step 1: verify a login code (email / app / backup).
+          var sendBtn = document.getElementById("pinSendCodeBtn");
+          if (sendBtn) sendBtn.addEventListener("click", function () {
+            var btn = this;
+            btn.disabled = true;
+            fetch("/api/officer/pin/reset/code/", {
+              method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() }, body: "{}",
+            }).then(function (r) { return r.json(); }).then(function (d) {
+              btn.disabled = false;
+              flash(msg, !!d.ok, d.message || d.error || "");
+            }).catch(function () {
+              btn.disabled = false;
+              flash(msg, false, "Network error. Try again.");
+            });
+          });
+          function enableStep2() {
+            var box = document.getElementById("pinForgotStep2");
+            box.style.display = "";
+            box.style.opacity = "";
+            ["pinNew3", "pinConfirm3", "pinResetBtn"].forEach(function (id) {
+              document.getElementById(id).disabled = false;
+            });
+            refreshDots();
+            document.getElementById("pinNew3").focus();
+          }
+          var vb = document.getElementById("pinVerifyCodeBtn");
+          if (vb) vb.addEventListener("click", function () {
+            var code = (document.getElementById("pinResetCode").value || "").trim();
+            if (!code) { flash(msg, false, "Enter the verification code."); return; }
+            var btn = this;
+            btn.disabled = true;
+            fetch("/api/officer/pin/reset/verify/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+              body: JSON.stringify({ code: code }),
+            }).then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+            .then(function (out) {
+              btn.disabled = false;
+              if (out.d && out.d.ok) {
+                flash(msg, true, "Code verified — now set your new PIN.");
+                enableStep2();
+              } else {
+                flash(msg, false, (out.d && out.d.error) || "Invalid code.");
+              }
+            }).catch(function () {
+              btn.disabled = false;
+              flash(msg, false, "Network error. Try again.");
+            });
+          });
+          var rb = document.getElementById("pinResetBtn");
+          if (rb) rb.addEventListener("click", function () {
+            var pin = digits("pinNew3"), c = digits("pinConfirm3");
+            if (pin.length !== 4) { flash(msg, false, "New PIN must be exactly 4 digits."); return; }
+            if (pin !== c) { flash(msg, false, "New PINs don't match."); return; }
+            pinJson("/api/officer/pin/reset/", { new_pin: pin, confirm_pin: c }, this, function () {
+              setTimeout(function () { location.reload(); }, 1200);
+            });
+          });
+          // Keep the Set-Up button honest if state changed in another tab.
+          fetch("/api/officer/pin/status/", { headers: { "X-CSRFToken": csrf() } })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d && d.ok && d.has_pin) {
+                setupBtn.disabled = true;
+                setupBtn.title = "PIN already set";
+              }
+            }).catch(function () {});
+          refreshDots();
+        })();
       })();
     </script>
   </body>

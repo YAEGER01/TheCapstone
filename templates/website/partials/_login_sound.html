@@ -1,0 +1,50 @@
+{% load static %}
+{% if play_login_sound %}
+<audio id="caufa-login-sound" preload="auto" src="{% static 'audio/friendlyAlarm/progressive.mp3' %}"></audio>
+<script>
+(function () {
+  "use strict";
+  if (window.__caufaLoginSoundPlayed) return;
+  window.__caufaLoginSoundPlayed = true;
+  function tryPlay() {
+    var el = document.getElementById("caufa-login-sound");
+    if (!el) return true;
+    try {
+      var p = el.play();
+      if (p && typeof p.then === "function") {
+        p.catch(function () { armFallback(); });
+        return true;
+      }
+      return true;
+    } catch (e) {
+      armFallback();
+      return false;
+    }
+  }
+  var armed = false;
+  function armFallback() {
+    if (armed) return;
+    armed = true;
+    var unlock = function () {
+      var el = document.getElementById("caufa-login-sound");
+      if (el) { try { el.play().catch(function () {}); } catch (e) {} }
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+      document.removeEventListener("touchstart", unlock);
+    };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    document.addEventListener("touchstart", unlock);
+  }
+  function boot() { tryPlay(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+  document.addEventListener("turbo:load", function () {
+    if (!window.__caufaLoginSoundRetried) {
+      window.__caufaLoginSoundRetried = true;
+      tryPlay();
+    }
+  });
+})();
+</script>
+{% endif %}

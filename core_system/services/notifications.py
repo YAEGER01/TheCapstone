@@ -877,6 +877,7 @@ def notify_officer(
     category: str | None = None,
     url: str = "/",
     send_push: bool = True,
+    receipt_number: str = "",
 ) -> None:
     """Notify an OfficerUser instance (in-app + phone push + live bell dot)."""
     if officer is None:
@@ -890,6 +891,7 @@ def notify_officer(
         recipient_contact=getattr(officer, "email", "") or "",
         category=category,
         url=url,
+        receipt_number=receipt_number,
         ws_group=f"{str(officer.role or '').lower()}_dashboard",
         ws_payload={
             "type": "notification_created",

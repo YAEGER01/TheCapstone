@@ -40,6 +40,7 @@ from core_system.aid_setaside import (
     recipient_member_lookup,
 )
 from core_system.guards import require_role
+from core_system.officer_pin import require_action_pin_view
 from core_system.ledger_utils import (
     approved_member_assessments,
     build_member_assessment_breakdown,
@@ -987,6 +988,26 @@ def _assessment_month_context(assessment: MonthlyAssessment, member_assessment: 
 # President endpoints
 # ---------------------------------------------------------------------------
 
+def _president_can_edit_breakdown(assessment: MonthlyAssessment) -> bool:
+    """Whether the President may rewrite the breakdown of an existing month.
+
+    The breakdown freezes the moment the Treasurer records anything against
+    the month: recorded member rows and their per-item allocations reference
+    the exact breakdown lines, so a wholesale replace would orphan or
+    corrupt them (and yank a rejected/returned month out of the Treasurer's
+    re-record queue). Drafts — and the rare rejected/returned month with no
+    recorded rows — stay editable.
+    """
+    if assessment.status == MonthlyAssessment.STATUS_DRAFT:
+        return True
+    if assessment.status in (
+        MonthlyAssessment.STATUS_REJECTED,
+        MonthlyAssessment.STATUS_RETURNED,
+    ):
+        return not assessment.member_assessments.exists()
+    return False
+
+
 @require_GET
 def president_monthly_assessment_list(request: HttpRequest):
     """List every monthly assessment with its breakdown (President)."""
@@ -1194,11 +1215,17 @@ def president_save_monthly_assessment(request: HttpRequest):
             created = assessment is None
             if created:
                 assessment = MonthlyAssessment(month=month, created_by_id_FK=officer)
-            elif assessment.status not in (
-                MonthlyAssessment.STATUS_DRAFT,
-                MonthlyAssessment.STATUS_REJECTED,
-                MonthlyAssessment.STATUS_RETURNED,
-            ):
+            elif not _president_can_edit_breakdown(assessment):
+                if assessment.member_assessments.exists():
+                    return JsonResponse({
+                        "ok": False,
+                        "error": (
+                            f"{assessment.month_label} already has recorded member deductions "
+                            f"({assessment.get_status_display()}) so its breakdown is frozen. "
+                            "The Treasurer must re-record the month from the current breakdown "
+                            "— the breakdown itself can no longer be changed."
+                        ),
+                    }, status=409)
                 already_sent = assessment.status == MonthlyAssessment.STATUS_PENDING_TREASURER
                 return JsonResponse({
                     "ok": False,
@@ -1640,6 +1667,7 @@ def officer_assessment_document_file(request: HttpRequest, document_id: int):
 
 
 @require_POST
+@require_action_pin_view
 def president_approve_monthly_deductions(request: HttpRequest):
     """Final approval (or return) of a verified monthly deduction (President).
 
@@ -2721,6 +2749,7 @@ def treasurer_generate_catchup_dues(request: HttpRequest):
 
 
 @require_POST
+@require_action_pin_view
 def treasurer_record_monthly_deductions(request: HttpRequest):
     """Record actual deductions per member, auto-allocating by priority (Treasurer).
 
@@ -3297,6 +3326,7 @@ def treasurer_pending_deposit_collections(request: HttpRequest):
 
 
 @require_POST
+@require_action_pin_view
 def treasurer_deposit_collection(request: HttpRequest):
     """Record the bank deposit of a recorded batch (Treasurer).
 
@@ -3611,6 +3641,7 @@ def auditor_monthly_deduction_detail(request: HttpRequest, assessment_id: int):
 
 
 @require_POST
+@require_action_pin_view
 def auditor_verify_monthly_deductions(request: HttpRequest):
     """Verify or reject the Treasurer's recorded deductions (Auditor)."""
     guard = require_role(request, role="Auditor")
@@ -4290,6 +4321,7 @@ def notify_outstanding_members(request: HttpRequest):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@require_action_pin_view
 def auditor_verify_selected_members(request: HttpRequest):
     """Auditor verifies or returns selected member records in one batch.
 

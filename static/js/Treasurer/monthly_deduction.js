@@ -1264,6 +1264,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
   // member linked to the monthly due aid item.
   window.mdGoFileAid = async function mdGoFileAid(btn) {
     const memberId = btn && btn.getAttribute ? btn.getAttribute("data-aid-member") : "";
+    const memberName = btn && btn.getAttribute ? (btn.getAttribute("data-aid-name") || "") : "";
     const kind = btn && btn.getAttribute ? (btn.getAttribute("data-aid-kind") || "medical") : "medical";
     const target = btn && btn.getAttribute ? (btn.getAttribute("data-aid-target") || "aid-file-medical") : "aid-file-medical";
     try {
@@ -1273,7 +1274,7 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
     try {
       if (typeof SimpleModal !== "undefined" && typeof SimpleModal.close === "function" && SimpleModal.isOpen()) SimpleModal.close();
     } catch (e) {}
-    if (!memberId) return;
+    if (!memberId && !memberName) return;
     const isMedical = kind !== "death";
     // The filing member list loads async — load the module once, then pick
     // the linked member (retry the pick while the list is still loading).
@@ -1283,17 +1284,29 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
         else if (!isMedical && typeof window.nxAidFiling.loadDeath === "function") await window.nxAidFiling.loadDeath();
       }
     } catch (e) {}
+    const cardId = isMedical ? "afm_member_card" : "afd_member_card";
+    const isPicked = function () {
+      try {
+        const card = document.getElementById(cardId);
+        return !!(card && card.textContent && card.textContent.indexOf("No member selected") === -1);
+      } catch (e) { return false; }
+    };
     for (let attempt = 0; attempt < 10; attempt += 1) {
       try {
         if (window.nxAidFiling) {
-          const pick = isMedical ? window.nxAidFiling.pickMedMember : window.nxAidFiling.pickDeathMember;
-          if (typeof pick !== "function") return;
-          pick(String(memberId));
+          if (memberId) {
+            const pick = isMedical ? window.nxAidFiling.pickMedMember : window.nxAidFiling.pickDeathMember;
+            if (typeof pick === "function") pick(String(memberId));
+          }
+          // ID missed (stale list or unresolved recipient) — fall back to
+          // order-proof name match against the live filing roster.
+          if (!isPicked() && memberName) {
+            const pickByName = isMedical ? window.nxAidFiling.pickMedMemberByName : window.nxAidFiling.pickDeathMemberByName;
+            if (typeof pickByName === "function") pickByName(memberName);
+          }
           // Confirm the member card rendered; stop retrying once selected.
           await new Promise((r) => setTimeout(r, 300));
-          const cardId = isMedical ? "afm_member_card" : "afd_member_card";
-          const card = document.getElementById(cardId);
-          if (card && card.textContent && card.textContent.indexOf("No member selected") === -1) return;
+          if (isPicked()) return;
         }
       } catch (e) {}
       await new Promise((r) => setTimeout(r, 500));
@@ -3342,6 +3355,228 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
 
   /* ---------- submit ---------- */
   let mdSubmitInFlight = false;
+
+  /* Totals for the Submit-for-Deposit summary card. Mirrors mdUpdateSummary:
+     Expected covers every member on the roster (excluded still owe), while
+     Collected counts ticked non-excluded rows only. Before/After: per-row
+     Before = outstanding + collected − excess (excluded rows settle nothing,
+     so Before = outstanding there). */
+  function mdDepositSummary(rows) {
+    let expected = 0, collected = 0, after = 0, before = 0;
+    let dueTotal = 0, priorTotal = 0, excess = 0;
+    const items = (state.roster && state.roster.items) || [];
+    const itemMeta = {};
+    items.forEach((i) => {
+      const label = i.purpose_label || i.purpose || "Item";
+      itemMeta[String(i.item_id)] = {
+        label,
+        isDue: i.purpose === "monthly_due" || /monthly due/i.test(String(label)),
+      };
+    });
+    const itemApplied = {};
+    const unpaidRows = [], priorRows = [], balanceRows = [];
+    (rows || []).forEach((row) => {
+      const rowName = row.dataset.name || "Member";
+      expected += Number(row.dataset.standard) || 0;
+      const balance = Number(row.dataset.outstanding) || 0;
+      after += balance;
+      if (balance > 0.005) unpaidRows.push({ name: rowName, amount: balance });
+      const actual = parseFloat(row.querySelector(".md-actual-input")?.value) || 0;
+      const change = Number(row.dataset.change) || 0;
+      // This member's own balance before this collection (excluded rows
+      // settle nothing, so Before = their outstanding).
+      const rowBefore = Math.max(0, balance + (row.dataset.excluded === "1" ? 0 : actual - change));
+      before += rowBefore;
+      // List only members carrying actual prior (past-month) unpaid dues —
+      // not everyone merely paying this month's current due.
+      const priorOwed = Number(row.dataset.unpaidTotal) || Number(row.dataset.prior) || 0;
+      if (priorOwed > 0.005) balanceRows.push({ name: rowName, before: rowBefore, after: balance });
+      if (row.dataset.excluded === "1") return;
+      if (!row.querySelector(".md-member-check")?.checked) return;
+      collected += actual;
+      const prior = Number(row.dataset.priorApplied) || 0;
+      priorTotal += prior;
+      if (prior > 0.005) priorRows.push({ name: row.dataset.name || "Member", amount: prior });
+      excess += change;
+      row.querySelectorAll(".md-item-chip").forEach((chip) => {
+        if (chip.dataset.selected !== "1") return;
+        const id = chip.dataset.itemId;
+        itemApplied[id] = (itemApplied[id] || 0) + (Number(chip.dataset.itemAmount) || 0);
+      });
+      row.querySelectorAll(".md-item-amount-input").forEach((inp) => {
+        const id = inp.dataset.itemId;
+        itemApplied[id] = (itemApplied[id] || 0) + (parseFloat(inp.value) || 0);
+      });
+    });
+    Object.keys(itemMeta).forEach((id) => {
+      const amt = itemApplied[id] || 0;
+      if (itemMeta[id].isDue) dueTotal += amt;
+    });
+    const aidLines = Object.keys(itemMeta)
+      .filter((id) => !itemMeta[id].isDue && (itemApplied[id] || 0) > 0.005)
+      .map((id) => ({ label: itemMeta[id].label, amount: itemApplied[id] }));
+    unpaidRows.sort((a, b) => b.amount - a.amount);
+    priorRows.sort((a, b) => b.amount - a.amount);
+    balanceRows.sort((a, b) => b.before - a.before);
+    return { expected, collected, before, after, unpaidRows, balanceRows, dueTotal, aidLines, priorTotal, priorRows, excess };
+  }
+
+  /* Deposit summary card (standalone overlay, no outer modal chrome):
+     stacked totals with the collected-amount breakdown, Before/After unpaid,
+     then the unpaid-members list. */
+  function mdDepositConfirmModal(summary, count, excludedCount) {
+    summary = summary || {};
+    const expected = summary.expected || 0;
+    const collected = summary.collected || 0;
+    const after = summary.after != null ? summary.after : 0;
+    // Total including unpaid balances = what members owed BEFORE this
+    // collection (current dues + prior unpaid). `before` already sums
+    // per-row Before = outstanding + collected − excess, so it includes
+    // prior dues that were just collected (e.g. 13100 current + 100 prior
+    // = 13200). Never use expected + after here: expected already counts
+    // this month's dues, so adding the leftover `after` double-counts the
+    // current portion and drops the prior that was paid.
+    const beforeTotal = summary.before != null ? summary.before : (expected + after);
+    const unpaidRows = summary.unpaidRows || [];
+    const balanceRows = summary.balanceRows || [];
+    const aidLines = summary.aidLines || [];
+    const priorRows = summary.priorRows || [];
+    const cap = (t) => `<div style="font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#5b6675;">${t}</div>`;
+    const big = (amt, color) => `<div style="font-size:1.3rem;font-weight:800;color:${color || "#1c2430"};font-variant-numeric:tabular-nums;margin:2px 0 10px;">${PESO(amt)}</div>`;
+    const kv = (label, amt, color) => `
+      <div style="display:flex;justify-content:space-between;gap:14px;font-size:0.8rem;padding:3px 0;">
+        <span style="color:#5b6675;">${esc(label)}</span>
+        <span style="font-weight:700;color:${color || "#1c2430"};font-variant-numeric:tabular-nums;white-space:nowrap;">${PESO(amt)}</span>
+      </div>`;
+    return new Promise((resolve) => {
+      let settled = false;
+      const overlay = document.createElement("div");
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", "Submit for Deposit");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:6000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+      overlay.innerHTML = `
+        <div style="width:min(440px,calc(100vw - 32px));max-height:86vh;overflow-y:auto;background:#fff;border:1px solid #cfe0cf;border-radius:18px;box-sizing:border-box;box-shadow:0 18px 60px rgba(0,0,0,.28);padding:22px 20px;font-family:Inter,system-ui,sans-serif;color:#1c2430;">
+          <div style="font-weight:800;color:#1b5e20;font-size:1rem;">Submit for Deposit</div>
+          <div style="font-size:0.78rem;color:#5b6675;margin-top:2px;">Submit ${count} deduction(s)${excludedCount ? ` (${excludedCount} excluded, carried as unpaid)` : ""} for bank deposit?</div>
+          <div style="margin-top:12px;">
+            ${cap("Total Amount Expected")}
+            ${big(expected)}
+            <div style="font-size:0.72rem;color:#8a949e;margin:-6px 0 10px;">${PESO(beforeTotal)} if unpaid member balance is included</div>
+            ${cap("Collected Amount")}
+            ${big(collected, "#1b5e20")}
+            <div style="border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:6px 12px;margin:-4px 0 10px;box-sizing:border-box;">
+              ${kv("Due", summary.dueTotal || 0, "#1b5e20")}
+              ${aidLines.map((l) => kv(l.label, l.amount, "#1b5e20")).join("")}
+              ${kv("Balance Paid", summary.priorTotal || 0, "#1b5e20")}
+              ${priorRows.length ? `
+              <div style="max-height:120px;overflow-y:auto;margin:2px 0 4px;padding-left:14px;box-sizing:border-box;">
+                ${priorRows.map((r) => `<div style="font-size:0.78rem;color:#5b6675;padding:1px 0;font-variant-numeric:tabular-nums;">${PESO(r.amount)} - ${esc(r.name)}</div>`).join("")}
+              </div>` : ""}
+              ${(summary.excess || 0) > 0.005 ? kv("Excess to ISUCauFA funds", summary.excess, "#1b5e20") : ""}
+            </div>
+            ${cap("Unpaid Balances")}
+            ${balanceRows.length ? `
+            <div style="max-height:180px;overflow-y:auto;border:1px solid #e6ebe7;border-radius:10px;background:#fbfdfb;padding:4px 12px;margin:6px 0 10px;box-sizing:border-box;">
+              <div style="font-size:0.66rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#8a949e;padding:6px 0 2px;">Members with prior unpaid balances</div>
+              ${balanceRows.map((r) => `
+              <div style="padding:5px 0;border-bottom:1px dashed #e6ebe7;">
+                <div style="font-size:0.8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">- ${esc(r.name)}</div>
+                <div style="font-size:0.78rem;font-variant-numeric:tabular-nums;margin-top:1px;">
+                  <span style="color:#5b6675;">Before: ${PESO(r.before)}</span>
+                  <span style="color:#8a949e;margin:0 6px;">|</span>
+                  <span style="color:${r.after > 0.005 ? "#c62828" : "#1b5e20"};font-weight:700;">After: ${PESO(r.after)}</span>
+                </div>
+              </div>`).join("")}
+            </div>` : `<div style="font-size:0.78rem;color:#8a949e;margin:6px 0 10px;">No prior unpaid balances.</div>`}
+          </div>
+          <div style="border-top:1px solid #e6ebe7;margin:12px 0 0;padding-top:10px;">
+            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#5b6675;margin-bottom:6px;">Unpaid Members${unpaidRows.length ? ` (${unpaidRows.length})` : ""}</div>
+            ${unpaidRows.length ? `
+            <div style="max-height:220px;overflow-y:auto;border:1px solid #f0e0e0;border-radius:10px;background:#fffafa;padding:4px 10px;box-sizing:border-box;">
+              ${unpaidRows.map((r) => `
+              <div style="display:flex;justify-content:space-between;gap:14px;font-size:0.8rem;padding:5px 0;border-bottom:1px dashed #f3dcdc;">
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">- ${esc(r.name)}</span>
+                <span style="font-weight:700;color:#c62828;font-variant-numeric:tabular-nums;white-space:nowrap;">${PESO(r.amount)}</span>
+              </div>`).join("")}
+            </div>` : `<div style="font-size:0.82rem;color:#1b5e20;font-weight:700;">All members fully paid.</div>`}
+          </div>
+          <div style="display:flex;gap:8px;width:100%;margin-top:16px;">
+            <button type="button" id="md-dep-cancel" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#eef1f5;color:#1c2430;">Cancel</button>
+            <button type="button" id="md-dep-ok" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#1e8f4e;color:#fff;box-shadow:0 4px 12px rgba(30,143,78,.35);">Confirm</button>
+          </div>
+        </div>`;
+      const done = (val) => { if (!settled) { settled = true; cleanup(); resolve(val); } };
+      function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); document.removeEventListener("keydown", onKey); }
+      function onKey(e) { if (e.key === "Escape") done(false); }
+      document.addEventListener("keydown", onKey);
+      document.body.appendChild(overlay);
+      const okBtn = overlay.querySelector("#md-dep-ok");
+      const cancelBtn = overlay.querySelector("#md-dep-cancel");
+      if (okBtn) {
+        okBtn.addEventListener("mouseover", () => { okBtn.style.background = "#16703c"; });
+        okBtn.addEventListener("mouseout", () => { okBtn.style.background = "#1e8f4e"; });
+        okBtn.addEventListener("click", () => done(true));
+      }
+      if (cancelBtn) cancelBtn.addEventListener("click", () => done(false));
+    });
+  }
+
+  /* Action-PIN prompt as a standalone 3:4 vertical card (no outer chrome). */
+  function mdPromptActionPin(subtitle) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (val) => { if (!settled) { settled = true; cleanup(); resolve(val); } };
+      const overlay = document.createElement("div");
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", "Enter Action PIN");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:6001;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+      overlay.innerHTML = `
+        <style>#md-pin-entry::-ms-reveal,#md-pin-entry::-ms-clear{display:none;}#md-pin-entry::-webkit-credentials-auto-fill-button{visibility:hidden;pointer-events:none;}</style>
+        <div style="aspect-ratio:3/4;width:min(300px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:22px 18px;background:linear-gradient(180deg,#f3faf4 0%,#ffffff 60%);border:1px solid #cfe0cf;border-radius:18px;box-sizing:border-box;box-shadow:0 18px 60px rgba(0,0,0,.28);font-family:Inter,system-ui,sans-serif;color:#1c2430;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#1b5e20;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem;box-shadow:0 4px 12px rgba(27,94,32,.3);"><i class="fa-solid fa-lock"></i></div>
+          <div style="font-weight:800;color:#1b5e20;font-size:0.95rem;letter-spacing:0.02em;">Submit for Deposit</div>
+          <div style="font-size:0.78rem;color:#5b6675;line-height:1.5;max-width:220px;">${esc(subtitle || "Enter your 4-digit action PIN to submit for bank deposit.")}</div>
+          <input id="md-pin-entry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••"
+            style="width:170px;box-sizing:border-box;text-align:center;font-size:1.6rem;letter-spacing:0.45em;text-indent:0.45em;padding:10px 8px;border:1.5px solid #cfe0cf;border-radius:10px;outline:none;" />
+          <div id="md-pin-err" style="min-height:18px;font-size:0.76rem;color:#c62828;"></div>
+          <div style="display:flex;gap:8px;width:100%;margin-top:2px;">
+            <button type="button" id="md-pin-cancel" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#eef1f5;color:#1c2430;">Cancel</button>
+            <button type="button" id="md-pin-ok" style="flex:1;border:none;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;background:#1e8f4e;color:#fff;box-shadow:0 4px 12px rgba(30,143,78,.35);">Confirm</button>
+          </div>
+        </div>`;
+      function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); document.removeEventListener("keydown", onKey); }
+      function onKey(e) { if (e.key === "Escape") done(null); }
+      document.addEventListener("keydown", onKey);
+      document.body.appendChild(overlay);
+      const entry = overlay.querySelector("#md-pin-entry");
+      const errEl = overlay.querySelector("#md-pin-err");
+      const okBtn = overlay.querySelector("#md-pin-ok");
+      const cancelBtn = overlay.querySelector("#md-pin-cancel");
+      if (okBtn) {
+        okBtn.addEventListener("mouseover", () => { okBtn.style.background = "#16703c"; });
+        okBtn.addEventListener("mouseout", () => { okBtn.style.background = "#1e8f4e"; });
+      }
+      const fail = (msg) => { if (errEl) errEl.textContent = msg || ""; };
+      if (entry) {
+        entry.addEventListener("input", () => {
+          entry.value = String(entry.value || "").replace(/\D/g, "").slice(0, 4);
+          fail("");
+        });
+        entry.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); okBtn && okBtn.click(); }
+        });
+        setTimeout(() => entry.focus(), 50);
+      }
+      if (cancelBtn) cancelBtn.addEventListener("click", () => done(null));
+      if (okBtn) okBtn.addEventListener("click", () => {
+        const pin = String((entry && entry.value) || "").replace(/\D/g, "").slice(0, 4);
+        if (pin.length !== 4) { fail("PIN must be exactly 4 digits."); if (entry) entry.focus(); return; }
+        done(pin);
+      });
+    });
+  }
   window.mdSubmit = async function mdSubmit() {
     if (mdSubmitInFlight) return;
     mdSubmitInFlight = true;
@@ -3406,22 +3641,32 @@ console.log("=== MONTHLY DEDUCTION JS LOADED - VERSION 20261004mdp97 ===");
       .filter((row) => row.dataset.excluded === "1")
       .map((row) => Number(row.dataset.memberId))
       .filter((id) => Number.isFinite(id));
-    const proceed = await SimpleModal.confirm(
-      `Submit ${members.length} deduction(s)` +
-      (excludedMemberIds.length ? ` (${excludedMemberIds.length} excluded, carried as unpaid)` : "") +
-      ` for bank deposit?`,
-      { title: "Submit for Deposit", okText: "Submit", cancelText: "Cancel" }
+    const proceed = await mdDepositConfirmModal(
+      mdDepositSummary(rows), members.length, excludedMemberIds.length
     );
     if (!proceed) return;
+
+    // The record endpoint is PIN-gated server-side (@require_action_pin_view)
+    // — prompt for the PIN AFTER the summary above so the input always
+    // appears instead of failing with "Action PIN is required".
+    const actionPin = await mdPromptActionPin(
+      `Enter your 4-digit action PIN to submit ${members.length} deduction(s) for bank deposit.`
+    );
+    if (!actionPin) return;
 
     try {
       const resp = await fetch("/api/treasurer/deductions/record/", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": getCookie("csrftoken") },
-        body: JSON.stringify({ assessment_id: Number(assessmentId), members, excluded_member_ids: excludedMemberIds }),
+        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": getCookie("csrftoken"), "X-Action-PIN": actionPin },
+        body: JSON.stringify({ assessment_id: Number(assessmentId), members, excluded_member_ids: excludedMemberIds, action_pin: actionPin }),
       });
       const data = await resp.json();
-      if (!data.ok) { toast(data.error || "Failed to record deductions.", true); return; }
+      if (!data.ok) {
+        if (data.code === "PIN_NOT_SET" && window.CaufaPin && CaufaPin.openSetup) {
+          CaufaPin.openSetup("setup");
+        }
+        toast(data.error || "Failed to record deductions.", true); return;
+      }
       clearRosterDraft(assessmentId);
       toast(data.message || "Deductions recorded.", false);
       mdpSetTab("record");

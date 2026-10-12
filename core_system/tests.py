@@ -18,6 +18,7 @@ from django.utils import timezone
 from core_system import president_views, secretary_views
 
 from core_system.auth_utils import create_access_session, hash_pin, verify_officer_password
+from core_system.officer_pin import setup_action_pin
 from core_system.services.email_service import send_html_email_async
 from core_system.services.mfa_service import generate_otp
 from core_system.models import (
@@ -2979,8 +2980,16 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
     """Treasurer 'Other Transaction' deposit/withdraw feature: booking,
     Fund Overview reflection, proof receipt storage/serving, role guard."""
 
+    OT_PIN = "4829"
+
+    def _login_treasurer(self):
+        officer = super()._login_treasurer()
+        ok, msg = setup_action_pin(officer=officer, pin=self.OT_PIN)
+        assert ok, msg
+        return officer
+
     def _record(self, amount, action, description="", proof=None, purpose=""):
-        data = {"amount": amount, "action": action}
+        data = {"amount": amount, "action": action, "action_pin": self.OT_PIN}
         if description:
             data["description"] = description
         if proof is not None:
@@ -3046,7 +3055,7 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
         # Counterparty parsing still works alongside the purpose tag.
         res = self.client.post(
             "/api/treasurer/other-transactions/record/",
-            data={"amount": "50.00", "action": "withdraw", "recipient": "Echague aid", "purpose": "Emergency"},
+            data={"amount": "50.00", "action": "withdraw", "recipient": "Echague aid", "purpose": "Emergency", "action_pin": self.OT_PIN},
         )
         self.assertEqual(res.status_code, 200, res.content)
         d = res.json()["transaction"]
@@ -3067,7 +3076,7 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
         res = self.client.post(
             "/api/treasurer/other-transactions/record/",
             data={"amount": "500.00", "action": "withdraw", "recipient": "Juan Cruz (EMP-001)",
-                  "purpose": "Aid", "aid_type": "Medical", "description": "Hospital bill"},
+                  "purpose": "Aid", "aid_type": "Medical", "description": "Hospital bill", "action_pin": self.OT_PIN},
         )
         self.assertEqual(res.status_code, 200, res.content)
         d = res.json()["transaction"]
@@ -3076,7 +3085,7 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
         res = self.client.post(
             "/api/treasurer/other-transactions/record/",
             data={"amount": "300.00", "action": "withdraw", "recipient": "Other Campus family",
-                  "purpose": "Aid", "aid_type": "Death"},
+                  "purpose": "Aid", "aid_type": "Death", "action_pin": self.OT_PIN},
         )
         self.assertEqual(res.status_code, 200, res.content)
         self.assertIn("[Aid - Death]", res.json()["transaction"]["description"])
@@ -3085,12 +3094,12 @@ class OtherTransactionManagementTests(TreasurerApiClientMixin, TestCase):
         self.assertEqual(res.status_code, 200)
         res = self.client.post(
             "/api/treasurer/other-transactions/record/",
-            data={"amount": "100.00", "action": "withdraw", "purpose": "Meal", "aid_type": "Medical"},
+            data={"amount": "100.00", "action": "withdraw", "purpose": "Meal", "aid_type": "Medical", "action_pin": self.OT_PIN},
         )
         self.assertEqual(res.status_code, 400)
         res = self.client.post(
             "/api/treasurer/other-transactions/record/",
-            data={"amount": "100.00", "action": "withdraw", "purpose": "Aid", "aid_type": "Surgery"},
+            data={"amount": "100.00", "action": "withdraw", "purpose": "Aid", "aid_type": "Surgery", "action_pin": self.OT_PIN},
         )
         self.assertEqual(res.status_code, 400)
 

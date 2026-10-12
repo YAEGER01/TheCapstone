@@ -1,0 +1,254 @@
+<style>
+  #nc-fab {
+    position: fixed; bottom: 24px; right: 24px; z-index: 200;
+    width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+    background: #1e3a5f; color: #fff; font-size: 1.4rem; font-weight: 900;
+    box-shadow: 0 8px 24px rgba(30,58,95,.42);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .2s ease, background .2s ease;
+    font-family: Inter, system-ui, sans-serif;
+  }
+  #nc-fab:hover { background: #162c49; transform: scale(1.06); }
+  #nc-fab:active { transform: scale(.96); }
+  #nc-dot {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 22px; height: 22px; border-radius: 999px;
+    background: #ff5252; color: #fff; border: 2px solid #fff;
+    font-size: 0.68rem; font-weight: 800;
+    display: none; align-items: center; justify-content: center; padding: 0 5px;
+  }
+  #nc-panel {
+    position: fixed; bottom: 88px; right: 24px; z-index: 200;
+    width: min(340px, calc(100vw - 32px)); max-height: min(430px, calc(100vh - 140px));
+    background: #fff; border: 1px solid #e7eaef; border-radius: 14px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.22);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-family: Inter, system-ui, sans-serif;
+    transform: translateX(120%); opacity: 0; pointer-events: none;
+    transition: transform .32s ease, opacity .32s ease;
+  }
+  #nc-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+  #nc-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; background: #edf2f7; border-bottom: 1px solid #d3dde8;
+  }
+  #nc-title { font-weight: 800; font-size: 0.85rem; color: #1e3a5f; flex: 1; }
+  #nc-title small { display: block; font-weight: 600; font-size: 0.68rem; color: #5b7a99; }
+  .nc-icon-btn {
+    border: 1px solid #c9d6e3; background: #fff; color: #1e3a5f; cursor: pointer;
+    border-radius: 8px; font-size: 0.7rem; font-weight: 800; padding: 5px 10px;
+  }
+  .nc-icon-btn:hover { background: #edf2f7; }
+  #nc-list { overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .nc-item {
+    border: 1px solid #eef1f5; border-left: 4px solid #1e3a5f; border-radius: 10px;
+    padding: 9px 11px; font-size: 0.78rem; color: #1f2937; line-height: 1.5; background: #fff;
+  }
+  .nc-item.read { border-left-color: #d1d5db; opacity: .8; }
+  .nc-item-head {
+    width: 100%; background: none; border: none; cursor: pointer; padding: 0;
+    display: flex; align-items: center; gap: 8px; text-align: left;
+    font-family: inherit; color: inherit;
+  }
+  .nc-item-title { flex: 1; font-weight: 800; font-size: 0.8rem; color: #1f2937; }
+  .nc-item-head .nc-chev { color: #8b93a1; font-size: 0.7rem; transition: transform .2s ease; }
+  .nc-item.open .nc-item-head .nc-chev { transform: rotate(180deg); }
+  .nc-item-body { display: none; margin-top: 8px; color: #4b5563; }
+  .nc-item.open .nc-item-body { display: block; }
+  .nc-kv {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 4px 0; border-bottom: 1px dashed #eef1f5; font-size: 0.76rem;
+  }
+  .nc-kv:last-of-type { border-bottom: none; }
+  .nc-kv span { color: #8b93a1; font-weight: 600; flex-shrink: 0; }
+  .nc-kv b { color: #1f2937; text-align: right; }
+  .nc-kv b.nc-money { font-variant-numeric: tabular-nums; }
+  .nc-file-btn {
+    width: 100%; margin-top: 9px; border: none; border-radius: 9px; cursor: pointer;
+    background: #1e3a5f; color: #fff; font-weight: 800; font-size: 0.75rem;
+    padding: 9px 12px; font-family: inherit;
+    box-shadow: 0 4px 12px rgba(30,58,95,.3);
+  }
+  .nc-file-btn:hover { background: #162c49; }
+  .nc-meta { margin-top: 6px; font-size: 0.66rem; color: #8b93a1; font-weight: 600; }
+  .nc-empty { text-align: center; color: #8b93a1; padding: 26px 10px; font-size: 0.8rem; }
+  #nc-foot {
+    padding: 9px 12px; border-top: 1px solid #eef1f5; display: flex; gap: 8px;
+  }
+  #nc-foot .nc-icon-btn { flex: 1; text-align: center; }
+</style>
+
+<button type="button" id="nc-fab" aria-label="Toggle notices" aria-expanded="false" onclick="ncToggle()">!
+  <span id="nc-dot"></span>
+</button>
+
+<div id="nc-panel" aria-hidden="true" role="dialog" aria-label="NoticeCard">
+  <div id="nc-head">
+    <div id="nc-title">NoticeCard<small>Auditor expedites for filing</small></div>
+    <button type="button" class="nc-icon-btn" onclick="ncRefresh()" title="Refresh">&#8635;</button>
+    <button type="button" class="nc-icon-btn" onclick="ncToggle(false)" title="Hide">&times;</button>
+  </div>
+  <div id="nc-list"><div class="nc-empty">Loading...</div></div>
+  <div id="nc-foot">
+    <button type="button" class="nc-icon-btn" onclick="ncMarkAllRead()">Mark all read</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  if (window.__ncBooted) return;
+  window.__ncBooted = true;
+
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function cookie(name) {
+    var m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+    return m ? m.pop() : "";
+  }
+  function when(iso) {
+    try {
+      var d = new Date(iso);
+      if (isNaN(d)) return "";
+      return d.toLocaleString();
+    } catch (e) { return ""; }
+  }
+
+  function setDot(n) {
+    var dot = document.getElementById("nc-dot");
+    if (!dot) return;
+    n = Number(n || 0);
+    if (n > 0) {
+      dot.textContent = n > 99 ? "99+" : String(n);
+      dot.style.display = "inline-flex";
+    } else {
+      dot.textContent = "";
+      dot.style.display = "none";
+    }
+  }
+
+  window.ncToggleItem = function (id) {
+    var els = document.querySelectorAll("#nc-list .nc-item");
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].getAttribute("data-nid") === String(id)) els[i].classList.toggle("open");
+    }
+  };
+
+  window.ncFileAid = function (btn) {
+    if (!btn) return;
+    var nid = btn.getAttribute("data-nid");
+    if (nid) {
+      fetch("/api/officer/expedite-notices/mark-read/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": cookie("csrftoken") },
+        body: JSON.stringify({ ids: [parseInt(nid, 10)] })
+      }).then(function () { window.ncRefresh(); }).catch(function () {});
+    }
+    try {
+      if (typeof window.mdGoFileAid === "function") window.mdGoFileAid(btn);
+    } catch (e) {}
+  };
+
+  window.ncRefresh = async function () {
+    var list = document.getElementById("nc-list");
+    try {
+      var res = await fetch("/api/officer/expedite-notices/", { credentials: "same-origin" });
+      var data = await res.json().catch(function () { return null; });
+      if (!data || !data.ok) {
+        if (list) list.innerHTML = '<div class="nc-empty">Could not load notices.</div>';
+        return;
+      }
+      setDot(data.unread || 0);
+      var items = data.notices || [];
+      if (!items.length) {
+        if (list) list.innerHTML = '<div class="nc-empty"><i class="fas fa-bell-slash" style="font-size:1.4rem;display:block;margin-bottom:8px;color:#d1d5db;"></i>No expedite notices yet.</div>';
+        return;
+      }
+      function kv(k, v, money) {
+        return '<div class="nc-kv"><span>' + esc(k) + "</span><b" +
+          (money ? ' class="nc-money"' : "") + ">" + esc(v) + "</b></div>";
+      }
+      var canFile = (typeof window.mdGoFileAid === "function");
+      if (list) list.innerHTML = items.map(function (n) {
+        var title = n.title || String(n.message || "").slice(0, 60);
+        var rows = "";
+        if (n.aid_label) rows += kv("Aid type", n.aid_label);
+        if (n.recipient) rows += kv("Member", n.recipient);
+        if (n.case_month) rows += kv("Case", n.case_month);
+        if (n.collected) rows += kv("Collected", "\u20B1" + n.collected, true);
+        if (n.available) rows += kv("Available", "\u20B1" + n.available, true);
+        if (!rows) rows = esc(n.message);
+        var kind = n.aid_kind || "medical";
+        var target = kind === "death" ? "aid-file-death" : "aid-file-medical";
+        var fileBtn = (canFile && (n.member_id || n.recipient))
+          ? '<button type="button" class="nc-file-btn" data-aid-target="' + target + '"' +
+            ' data-aid-member="' + (n.member_id || "") + '"' +
+            ' data-aid-name="' + esc(n.recipient || "") + '"' +
+            ' data-aid-kind="' + kind + '" data-nid="' + n.id + '"' +
+            ' onclick="ncFileAid(this)">File Aid</button>'
+          : "";
+        return '<div class="nc-item' + (n.is_read ? " read" : "") + '" data-nid="' + n.id + '">' +
+          '<button type="button" class="nc-item-head" onclick="ncToggleItem(' + n.id + ')">' +
+            '<span class="nc-item-title">' + esc(title) + "</span>" +
+            '<i class="fas fa-chevron-down nc-chev"></i>' +
+          "</button>" +
+          '<div class="nc-item-body">' + rows + fileBtn +
+            '<div class="nc-meta">' + esc(n.sender_name || n.sender_role || "Auditor") +
+            (n.sent_at ? " &bull; " + esc(when(n.sent_at)) : "") + "</div></div></div>";
+      }).join("");
+    } catch (e) {
+      if (list) list.innerHTML = '<div class="nc-empty">Network error — tap &#8635; to retry.</div>';
+    }
+  };
+
+  window.ncToggle = function (force) {
+    var panel = document.getElementById("nc-panel");
+    var fab = document.getElementById("nc-fab");
+    if (!panel) return;
+    var willOpen = (typeof force === "boolean") ? force : !panel.classList.contains("open");
+    panel.classList.toggle("open", willOpen);
+    panel.setAttribute("aria-hidden", willOpen ? "false" : "true");
+    if (fab) fab.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    if (willOpen) window.ncRefresh();
+  };
+
+  window.ncMarkAllRead = async function () {
+    try {
+      await fetch("/api/officer/expedite-notices/mark-read/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": cookie("csrftoken") },
+        body: JSON.stringify({})
+      });
+    } catch (e) {}
+    setDot(0);
+    window.ncRefresh();
+  };
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") window.ncToggle(false);
+  });
+  function boot() {
+    window.ncRefresh();
+    setInterval(function () {
+      var panel = document.getElementById("nc-panel");
+      if (panel && panel.classList.contains("open")) window.ncRefresh();
+      else {
+        fetch("/api/officer/expedite-notices/", { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d && d.ok) setDot(d.unread || 0); })
+          .catch(function () {});
+      }
+    }, 20000);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+  document.addEventListener("turbo:load", function () {
+    if (!window.__ncTurboHooked) { window.__ncTurboHooked = true; window.ncRefresh(); }
+  });
+})();
+</script>

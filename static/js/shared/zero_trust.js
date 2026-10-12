@@ -13,6 +13,13 @@
 (function () {
   "use strict";
 
+  // Singleton: dashboards re-execute this file on every Turbo navigation.
+  // A second instance would arm duplicate idle timers and alarm elements,
+  // so only the first loaded instance runs (document-level listeners and
+  // timers survive Turbo body swaps).
+  if (window.__caufaZeroTrustLoaded) return;
+  window.__caufaZeroTrustLoaded = true;
+
   var STATUS_URL = "/api/auth/zero-trust/status/";
   var CHALLENGE_URL = "/api/auth/zero-trust/challenge/";
   var VERIFY_URL = "/api/auth/zero-trust/verify/";
@@ -34,6 +41,8 @@
   var HEARTBEAT_MS = 45000;
   var IDLE_LOCK_MS = 2 * 60 * 1000;  // screen lock after idle (superadmin-editable via status poll)
   var AUTO_SIGNOUT_MS = 5 * 60 * 1000;  // auto sign-out once locked (superadmin-editable via status poll)
+  var WARN_BEFORE_LOCK_MS = 15000;  // independent warning overlay countdown before the lock overlay
+  var WARN_AUDIO_URL = "/static/audio/friendlyAlarm/loopAlarm.mp3";
 
   var state = {
     checked: false,
@@ -98,6 +107,11 @@
     return Math.floor(mins / 60) + "h " + (mins % 60) + "m";
   }
 
+  // Flash-on-change visibility: the badge only appears when its meaning
+  // changes, stays for 3s, then hides. Actionable states (hard-check,
+  // locked) stay visible so the officer can always tap through.
+  var lastBadgeSig = null;
+  var badgeHideTimer = null;
   function setBadge(cls, icon, label, detail, title) {
     var badge = document.getElementById("zt-badge");
     var container = document.getElementById("zt-badge-container");
@@ -107,8 +121,30 @@
       (detail ? '<span class="zt-detail"></span>' : "");
     if (detail) badge.querySelector(".zt-detail").textContent = detail;
     badge.title = title || "Zero Trust status";
-    if (container && container.hidden) container.hidden = false; // reveal only after the first real check
     badge.onclick = cls === "zt-badge-hard" ? function () { runHardCheck(); } : null;
+    if (!container) return;
+    // Signature excludes the ticking "Xm / Xh Ym" age so the minute counter
+    // alone never counts as a change.
+    var sig = cls + "|" + icon + "|" + label + "|" +
+      String(title || "").replace(/ · \d+m$| · \d+h \d+m$/, "");
+    var sticky = (cls === "zt-badge-hard" || cls === "zt-badge-locked");
+    if (sticky) {
+      if (badgeHideTimer) { clearTimeout(badgeHideTimer); badgeHideTimer = null; }
+      lastBadgeSig = sig;
+      if (container.hidden) container.hidden = false;
+      return;
+    }
+    if (sig === lastBadgeSig) {
+      if (!container.hidden) container.hidden = true;
+      return;
+    }
+    lastBadgeSig = sig;
+    container.hidden = false; // reveal on change...
+    if (badgeHideTimer) clearTimeout(badgeHideTimer);
+    badgeHideTimer = setTimeout(function () {
+      var c = document.getElementById("zt-badge-container");
+      if (c) c.hidden = true; // ...and hide again after 3s
+    }, 3000);
   }
 
   function renderStatus(data) {
@@ -466,8 +502,337 @@
     clockTimer: null,
     signoutTimer: null,
     signoutDeadline: 0,
-    channel: null
+    channel: null,
+    warnTimer: null,
+    warnDeadline: 0,
+    warnAudio: null
   };
+
+  // ------------------------------------------------------------------
+  // Pre-lock warning: independent lockout-style overlay with a 15s
+  // countdown and a looping alarm. NOT part of the toast/banner system —
+  // it owns its overlay (#zt-lock-warn-overlay) the way the lock screen
+  // owns #zt-lock-overlay. Any activity cancels it (via resetIdleTimer);
+  // expiry engages the lock and the alarm stops the moment it shows.
+  // ------------------------------------------------------------------
+
+  function ensureWarnOverlay() {
+    // Styles live in zt_badge.css (guaranteed paint); visibility is forced
+    // inline here so no page stylesheet can keep the overlay hidden.
+    var overlay = document.getElementById("zt-lock-warn-overlay");
+    if (overlay) return overlay;
+    overlay = document.createElement("div");
+    overlay.id = "zt-lock-warn-overlay";
+    overlay.hidden = true;
+    overlay.setAttribute("role", "alertdialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Session locking soon");
+    overlay.innerHTML =
+      '<div class="zt-warn-card">' +
+      '  <div class="zt-warn-kicker">Zero Trust · idle session</div>' +
+      '  <div class="zt-warn-title">Still there?</div>' +
+      '  <div class="zt-warn-count" id="zt-lock-warn-count">15</div>' +
+      '  <div class="zt-warn-bar"><div id="zt-lock-warn-fill"></div></div>' +
+      '  <p class="zt-warn-sub">Your screen locks when the timer ends. Move the mouse, press any key, or stay signed in.</p>' +
+      '  <button type="button" class="zt-warn-btn" id="zt-lock-warn-stay">Stay signed in</button>' +
+      "</div>";
+    document.body.appendChild(overlay);
+    overlay.querySelector("#zt-lock-warn-stay").addEventListener("click", function () {
+      resetIdleTimer();  // cancels the warning and re-arms the idle timer
+    });
+    return overlay;
+  }
+
+  function showWarnOverlay() {
+    var overlay = ensureWarnOverlay();
+    try {
+      // Re-parent to the end of <body> so no DOM shuffling can bury it,
+      // then force visibility inline (beats any page stylesheet).
+      document.body.appendChild(overlay);
+      overlay.removeAttribute("hidden");
+      overlay.hidden = false;
+      overlay.style.display = "flex";
+      overlay.style.visibility = "visible";
+      overlay.style.opacity = "1";
+      var stay = document.getElementById("zt-lock-warn-stay");
+      if (stay) setTimeout(function () { try { stay.focus(); } catch (e) {} }, 60);
+    } catch (e) { overlay.hidden = false; }
+    return overlay;
+  }
+
+  function hideWarnOverlay() {
+    var overlay = document.getElementById("zt-lock-warn-overlay");
+    if (!overlay) return;
+    try {
+      overlay.setAttribute("hidden", "");
+      overlay.hidden = true;
+      overlay.style.display = "none";
+    } catch (e) { overlay.hidden = true; }
+  }
+
+  // The alarm fires from an idle timer — long after the last user gesture —
+  // so browsers with a strict autoplay policy reject play() with
+  // NotAllowedError, and that rejection used to be swallowed silently (no
+  // alarm, no error). Fix: (1) preload the element at startup, (2) prime it
+  // on the first real user gesture (a muted play+pause grants later
+  // playback rights), (3) fall back to WebAudio beeps when the mp3 still
+  // cannot play.
+  function ensureWarnAudio() {
+    var audio = lockState.warnAudio;
+    if (!audio) {
+      audio = new Audio();
+      audio.loop = true;
+      audio.preload = "auto";
+      audio.volume = 1.0;
+      try { audio.setAttribute("data-zt-warn", "1"); } catch (e) {}
+      lockState.warnAudio = audio;
+    }
+    try {
+      if (!audio.getAttribute("src")) {
+        audio.src = WARN_AUDIO_URL;
+        try { audio.load(); } catch (e) { /* older engines */ }
+      }
+    } catch (e) { /* best-effort */ }
+    return audio;
+  }
+
+  var warnAudioPrimed = false;
+  function primeWarnAudio() {
+    // Must run inside a real user gesture; a muted play+pause unlocks later
+    // unmuted playback from timers.
+    if (warnAudioPrimed) return;
+    warnAudioPrimed = true;
+    var audio = null;
+    try { audio = ensureWarnAudio(); } catch (e) { return; }
+    try {
+      var prevMuted = audio.muted;
+      audio.muted = true;
+      var p = null;
+      try { p = audio.play(); } catch (e) { audio.muted = prevMuted; return; }
+      if (p && typeof p.then === "function") {
+        p.then(function () {
+          try { audio.pause(); } catch (e) {}
+          try { audio.currentTime = 0; } catch (e) {}
+          audio.muted = prevMuted;
+        }, function () { audio.muted = prevMuted; });
+      } else {
+        try { audio.pause(); } catch (e) {}
+        audio.muted = prevMuted;
+      }
+    } catch (e) { /* best-effort */ }
+  }
+  ["pointerdown", "keydown", "touchstart", "mousedown"].forEach(function (evt) {
+    document.addEventListener(evt, primeWarnAudio, { passive: true });
+  });
+
+  var fallbackBeepTimer = null;
+  var fallbackAudioCtx = null;
+  function stopFallbackBeeps() {
+    if (fallbackBeepTimer) { clearInterval(fallbackBeepTimer); fallbackBeepTimer = null; }
+    try {
+      if (fallbackAudioCtx && typeof fallbackAudioCtx.close === "function") fallbackAudioCtx.close();
+    } catch (e) { /* best-effort */ }
+    fallbackAudioCtx = null;
+  }
+  function startFallbackBeeps() {
+    // Last resort when the mp3 element cannot play (strict autoplay block
+    // or a missing/corrupt file): synthesize the alarm with WebAudio.
+    stopFallbackBeeps();
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      var ctx = new AC();
+      fallbackAudioCtx = ctx;
+      try { if (typeof ctx.resume === "function") ctx.resume(); } catch (e) { /* best-effort */ }
+      var beep = function () {
+        try {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.5);
+        } catch (e) { /* one missed beep is fine */ }
+      };
+      beep();
+      fallbackBeepTimer = setInterval(beep, 900);
+    } catch (e) { /* best-effort */ }
+  }
+
+  function startWarnAudio() {
+    // Kill anything lingering first: a pause() issued while play() is still
+    // pending can otherwise let the alarm start AFTER we stopped it and loop
+    // forever with no timer left to silence it.
+    stopWarnAudio();
+    try {
+      var audio = ensureWarnAudio();
+      try { audio.muted = false; audio.volume = 1.0; } catch (e) { /* best-effort */ }
+      try { audio.currentTime = 0; } catch (e) { /* best-effort */ }
+      // A missing/corrupt file fires 'error' with no play() rejection —
+      // catch that too, once per warning.
+      try {
+        audio.onerror = function () {
+          try { if (window.console && console.warn) console.warn("[ZT] lock-warning audio file failed; using fallback beeps."); } catch (e) {}
+          startFallbackBeeps();
+        };
+      } catch (e) { /* best-effort */ }
+      var p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(function (err) {
+          try {
+            var name = (err && err.name) || "error";
+            if (window.console && console.warn) console.warn("[ZT] lock-warning alarm blocked (" + name + "); using fallback beeps.");
+          } catch (e) { /* best-effort */ }
+          startFallbackBeeps();
+        });
+      }
+    } catch (e) {
+      startFallbackBeeps();
+    }
+  }
+
+  function stopWarnAudio() {
+    // Abort the element's load so a still-pending play() can never start
+    // late and loop with nothing left to stop it.
+    stopFallbackBeeps();
+    try {
+      var audio = lockState.warnAudio;
+      if (audio) {
+        try { audio.onerror = null; } catch (e) { /* best-effort */ }
+        try { audio.pause(); } catch (e) { /* best-effort */ }
+        try { audio.removeAttribute("src"); audio.load(); } catch (e) { /* best-effort */ }
+      }
+    } catch (e) { /* best-effort */ }
+    try {
+      var stray = document.querySelectorAll("audio[data-zt-warn]");
+      for (var i = 0; i < stray.length; i++) {
+        try { stray[i].pause(); } catch (e) {}
+      }
+    } catch (e) { /* best-effort */ }
+  }
+
+  // On-demand sound check, wired to the "Test sound" button on the warning
+  // overlay. A click IS a user gesture, so playback here is always allowed
+  // by autoplay policy — if this stays silent, the problem is the file, the
+  // URL, or the device (not permissions).
+  function testWarnAudio() {
+    var msgEl = document.getElementById("zt-lock-warn-testmsg");
+    var say = function (t) {
+      if (msgEl) msgEl.textContent = t;
+      try { if (window.console && console.log) console.log("[ZT] alarm test: " + t); } catch (e) {}
+    };
+    say("Playing test sound…");
+    var a = null;
+    try {
+      a = new Audio(WARN_AUDIO_URL);
+      try { a.setAttribute("data-zt-warn", "1"); } catch (e) { /* best-effort */ }
+    } catch (e) {
+      say("Could not create audio. (" + e + ")");
+      return;
+    }
+    var done = false;
+    var okTimer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      try { a.pause(); } catch (e) { /* best-effort */ }
+      say("Test finished. Heard nothing? Check speakers/volume and the file URL below.");
+      ztAlarmDiag();
+    }, 3000);
+    try {
+      a.onerror = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(okTimer);
+        say("Audio FILE failed to load (" + (a.currentSrc || WARN_AUDIO_URL) + "). Check that the URL returns the mp3.");
+        ztAlarmDiag();
+      };
+      var p = a.play();
+      if (p && typeof p.then === "function") {
+        p.then(function () {
+          if (done) return;
+          say("Playing… (test stops in 3s)");
+        }, function (err) {
+          if (done) return;
+          done = true;
+          clearTimeout(okTimer);
+          say("Playback rejected (" + ((err && err.name) || "error") + ") even from a click — check browser sound permissions for this site.");
+          ztAlarmDiag();
+        });
+      }
+    } catch (e) {
+      if (!done) { done = true; clearTimeout(okTimer); say("Playback threw (" + e + ")."); }
+    }
+  }
+
+  // Diagnostics for "no sound" reports: run ztAlarmDiag() in the console
+  // while the warning shows (or after) and send the table.
+  function ztAlarmDiag() {
+    var audio = null;
+    try { audio = ensureWarnAudio(); } catch (e) { /* best-effort */ }
+    var ua = "n/a";
+    try {
+      if (navigator.userActivation) {
+        ua = "isActive=" + navigator.userActivation.isActive +
+          " hasBeenActive=" + navigator.userActivation.hasBeenActive;
+      }
+    } catch (e) { /* best-effort */ }
+    var info = {
+      primedOnGesture: warnAudioPrimed,
+      hasElement: !!audio,
+      src: audio ? (audio.currentSrc || audio.src || "") : "",
+      muted: audio ? !!audio.muted : null,
+      volume: audio ? audio.volume : null,
+      loop: audio ? !!audio.loop : null,
+      paused: audio ? !!audio.paused : null,
+      readyState: audio ? audio.readyState : null,
+      networkState: audio ? audio.networkState : null,
+      docHidden: document.hidden,
+      userActivation: ua,
+      warnActive: !!lockState.warnTimer,
+      fallbackBeeps: !!fallbackBeepTimer
+    };
+    try {
+      if (window.console) {
+        if (console.table) console.table(info);
+        else console.log(info);
+      }
+    } catch (e) { /* best-effort */ }
+    return info;
+  }
+
+  function warnTick() {
+    var left = Math.max(0, lockState.warnDeadline - Date.now());
+    var secs = Math.ceil(left / 1000);
+    var count = document.getElementById("zt-lock-warn-count");
+    if (count) count.textContent = String(secs);
+    var fill = document.getElementById("zt-lock-warn-fill");
+    if (fill) fill.style.width = (WARN_BEFORE_LOCK_MS > 0 ? (left / WARN_BEFORE_LOCK_MS) * 100 : 0) + "%";
+    if (left <= 0) {
+      cancelLockWarning();
+      engageLock(true);
+    }
+  }
+
+  function startLockWarning() {
+    if (lockState.engaged || lockState.warnTimer) return;
+    showWarnOverlay();
+    lockState.warnDeadline = Date.now() + WARN_BEFORE_LOCK_MS;
+    warnTick();
+    lockState.warnTimer = setInterval(warnTick, 250);
+    startWarnAudio();
+  }
+
+  function cancelLockWarning() {
+    if (lockState.warnTimer) { clearInterval(lockState.warnTimer); lockState.warnTimer = null; }
+    lockState.warnDeadline = 0;
+    stopWarnAudio();
+    hideWarnOverlay();
+  }
 
   function ensureLockOverlay() {
     var overlay = document.getElementById("zt-lock-overlay");
@@ -604,6 +969,7 @@
 
   function engageLock(callServer) {
     if (lockState.engaged) return;
+    cancelLockWarning();  // alarm off the moment the lock screen shows
     lockState.engaged = true;
     state.locked = true;
     var overlay = ensureLockOverlay();
@@ -736,27 +1102,46 @@
     }, HEARTBEAT_MS);
   }
 
-  // Idle detection: any real input resets the timer; 2 quiet minutes locks.
+  // Idle detection: any real input resets the timer; quiet first raises
+  // the 15s warning (any further input cancels it), then the lock engages.
   function resetIdleTimer() {
     lockState.lastActivity = Date.now();
     if (lockState.engaged) return;
+    if (lockState.warnTimer) cancelLockWarning();
     if (lockState.idleTimer) clearTimeout(lockState.idleTimer);
     lockState.idleTimer = setTimeout(function () {
-      engageLock(true);
+      startLockWarning();
     }, IDLE_LOCK_MS);
   }
 
   ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"].forEach(function (evt) {
     document.addEventListener(evt, resetIdleTimer, { passive: true });
   });
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && !lockState.engaged) {
-      // Returning to a tab that idled in the background: lock immediately
-      // if the quiet period already elapsed.
-      if (Date.now() - lockState.lastActivity >= IDLE_LOCK_MS) engageLock(true);
-      else resetIdleTimer();
-    }
+  // Capture-phase twin: even if page scripts stop propagation, any input
+  // during the warning still kills the countdown AND the alarm.
+  ["pointerdown", "keydown"].forEach(function (evt) {
+    document.addEventListener(evt, function () {
+      if (lockState.warnTimer) cancelLockWarning();
+    }, { capture: true, passive: true });
   });
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { stopWarnAudio(); return; }  // never alarm a background tab
+    if (lockState.engaged) return;
+    if (lockState.warnTimer) { startWarnAudio(); return; }  // warning survived: resume the alarm
+    if (Date.now() - lockState.lastActivity >= IDLE_LOCK_MS) {
+      // Back from a long absence: ask the server first (it may have locked
+      // already), otherwise raise the 15s warning — never lock instantly.
+      try {
+        pollStatus().then(function () {
+          if (!lockState.engaged && Date.now() - lockState.lastActivity >= IDLE_LOCK_MS) startLockWarning();
+        }).catch(function () { /* poll failed: timers cope */ });
+      } catch (e) { /* best-effort */ }
+    }
+    else resetIdleTimer();
+  });
+  try {
+    window.addEventListener("pagehide", function () { stopWarnAudio(); });
+  } catch (e) { /* best-effort */ }
 
   // Keep every open dashboard tab in sync - locking one locks them all.
   try {
@@ -794,6 +1179,10 @@
 
   window.ztRefreshBadge = pollStatus;
   window.ztLockNow = function () { engageLock(true); };
+  window.ztTestWarning = function () { startLockWarning(); };  // on-demand 15s warning (no idling needed)
+  window.ztTestAlarm = testWarnAudio;  // on-demand alarm sound check (best from a click)
+  window.ztAlarmDiag = ztAlarmDiag;  // console diagnostics for "no sound" reports
+  window.ztCancelWarning = function () { cancelLockWarning(); resetIdleTimer(); };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {

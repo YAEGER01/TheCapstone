@@ -1,3 +1,4 @@
+import difflib
 import hashlib
 import json
 import logging
@@ -27,6 +28,7 @@ from channels.layers import get_channel_layer
 logger = logging.getLogger(__name__)
 
 from core_system.guards import check_zero_trust, require_role
+from core_system.officer_pin import require_action_pin_view
 from core_system.aid_setaside import (
     SETASIDE_SOURCE_TYPES,
     link_set_asides_to_post,
@@ -36,6 +38,7 @@ from core_system.constants.status_constants import Status
 from core_system.services.oversight_reports import STAGE_MAP, MONTH_NAMES, DEATH_CATEGORY_LABELS
 from core_system.ledger_utils import member_balance
 from core_system.models import (
+    AccessSession,
     AidTrackingPost,
     BackupJob,
     BylawsFile,
@@ -49,6 +52,7 @@ from core_system.models import (
     Member,
     MemberRegistrationRequest,
     MembershipFee,
+    MfaBackupCode,
     MonthlyDues,
     OfficerUser,
     PayrollBatch,
@@ -237,6 +241,7 @@ def president_dashboard(request):
         "officer_role": officer_role,
         "access_token": request.session.get("access_token", ""),
         "departments": Department.objects.filter(is_active=True).order_by("name"),
+        "play_login_sound": request.session.pop("play_login_sound", False),
     }
 
     if not officer_full_name.strip():
@@ -622,6 +627,7 @@ def president_auditor_approved_payment_detail(request: HttpRequest, entity_id: i
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_approve_monthly_dues(request: HttpRequest):
     """President approves or rejects a monthly dues payment."""
     guard = require_role(request, role="President")
@@ -847,6 +853,7 @@ def president_pending_contributions(request: HttpRequest):
 
 
 @require_http_methods(["POST"])
+@require_action_pin_view
 def submit_presidential_contribution_decision(request):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -1160,6 +1167,7 @@ def president_auditor_approved_aids_queue(request: HttpRequest):
 
 
 @require_http_methods(["POST"])
+@require_action_pin_view
 def submit_presidential_decision(request):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -1439,6 +1447,7 @@ def _aid_claim_month_key(table_name, record) -> str:
 
 @require_http_methods(["POST"])
 @transaction.atomic
+@require_action_pin_view
 def submit_presidential_aid_decision(request):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -1742,6 +1751,7 @@ def submit_presidential_aid_decision(request):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def submit_presidential_decision_batch(request):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -1932,6 +1942,7 @@ def submit_presidential_decision_batch(request):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def submit_presidential_aid_decision_batch(request):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -3133,6 +3144,7 @@ def president_finish_request_details(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_approve_aid_post_finish(request: HttpRequest):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -3350,6 +3362,7 @@ def president_approve_aid_post_finish(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_reject_aid_post_finish(request: HttpRequest):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -3516,6 +3529,7 @@ def president_payroll_batch_detail(request: HttpRequest, batch_id: int):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_approve_payroll_batch(request: HttpRequest, batch_id: int):
     """Approve a PayrollBatch — creates FundTransaction entries and archives."""
     guard = require_role(request, role="President")
@@ -3618,6 +3632,7 @@ def president_approve_payroll_batch(request: HttpRequest, batch_id: int):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_reject_payroll_batch(request: HttpRequest, batch_id: int):
     """Reject a PayrollBatch."""
     guard = require_role(request, role="President")
@@ -3731,8 +3746,290 @@ def president_officers_list(request: HttpRequest):
     return JsonResponse({"ok": True, "officers": [_officer_to_json(officer) for officer in officers]})
 
 
+def _officer_term_changed(old_start, old_end, new_start, new_end) -> bool:
+    def _iso(d):
+        try:
+            return d.isoformat() if d else ""
+        except Exception:
+            return str(d or "")
+    return _iso(old_start) != _iso(new_start) or _iso(old_end) != _iso(new_end)
+
+
+# A full-name edit this similar (or more) to the old name is treated as a
+# typo fix, not a new person. Compared case-insensitively with collapsed
+# whitespace — "fredrick" vs "Frederick" scores ~0.94.
+OFFICER_NAME_TYPO_THRESHOLD = 0.90
+
+
+def _normalize_officer_name(value: Any) -> str:
+    return " ".join((str(value) if value is not None else "").strip().lower().split())
+
+
+def _officer_name_similarity(old_name: Any, new_name: Any) -> float:
+    a = _normalize_officer_name(old_name)
+    b = _normalize_officer_name(new_name)
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Single-row edit distance (names are short; no dependency needed)."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _officer_name_change_level(old_name: Any, new_name: Any) -> str:
+    """Graduated name-change level on normalized names.
+
+    - "typo": ≥90% similar (e.g. "fredrick" → "Frederick") — silent fix.
+    - "minor": a single-character insert/delete/substitute (e.g. "Dbg" →
+      "Dbh") — yellow warning, still a plain fix unless declared turnover.
+    - "suspicious": anything else — red confirm prompt / fail-closed.
+    """
+    a = _normalize_officer_name(old_name)
+    b = _normalize_officer_name(new_name)
+    if a == b:
+        return "typo"
+    if difflib.SequenceMatcher(None, a, b).ratio() >= OFFICER_NAME_TYPO_THRESHOLD:
+        return "typo"
+    if _levenshtein(a, b) == 1:
+        return "minor"
+    return "suspicious"
+
+
+def _parse_turnover_flag(value: Any):
+    """Parse the explicit mid-term turnover confirmation. None = not answered."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    s = str(value).strip().lower()
+    if s in ("1", "true", "yes", "y", "on"):
+        return True
+    if s in ("0", "false", "no", "n", "off"):
+        return False
+    return None
+
+
+def _reset_officer_security_for_turnover(officer: OfficerUser) -> List[str]:
+    """Wipe the previous holder's personal sign-in credentials on turnover.
+
+    When an account is handed to a new officer (username / full name / term
+    replaced), the old holder must not keep any way back in:
+      - action PIN reset (hash cleared, lockout counters reset)
+      - authenticator app unlinked (if one was set)
+      - backup codes expired/invalidated (unused codes burned)
+      - live sessions revoked on all devices (different-device logins die)
+      - backup-code issue marker cleared so the new holder starts fresh
+
+    Returns human-readable labels of what was actually reset.
+    """
+    reset: List[str] = []
+    now = timezone.now()
+
+    if getattr(officer, "action_pin_hash", None):
+        reset.append("action PIN")
+    officer.action_pin_hash = None
+    officer.action_pin_set_at = None
+    officer.action_pin_fail_count = 0
+    officer.action_pin_locked_until = None
+    officer.action_pin_lock_minutes = 1
+
+    if getattr(officer, "authenticator_enabled", False) or getattr(officer, "authenticator_secret", None):
+        reset.append("authenticator app")
+    officer.authenticator_enabled = False
+    officer.authenticator_secret = None
+    officer.authenticator_enrolled_at = None
+    officer.backup_codes_issued_at = None
+
+    try:
+        burned = MfaBackupCode.objects.filter(
+            officer_id_FK=officer, used_at__isnull=True
+        ).update(used_at=now)
+        if burned:
+            reset.append(f"{burned} backup code(s)")
+    except Exception:
+        logger.exception("Could not expire backup codes on officer turnover (id=%s)", officer.pk)
+
+    try:
+        live = AccessSession.objects.filter(
+            user_id_FK=officer, revoked_at__isnull=True
+        ).update(revoked_at=now, session_status="Revoked")
+        if live:
+            reset.append(f"{live} live session(s)")
+    except Exception:
+        logger.exception("Could not revoke sessions on officer turnover (id=%s)", officer.pk)
+
+    return reset
+
+
+def _notify_peer_officers_officer_account_action(
+    *,
+    president,
+    target_officer,
+    action_label: str,
+    changes: List[Dict[str, str]],
+    password_changed: bool,
+    security_reset: List[str] | None = None,
+) -> None:
+    """Email + in-app notify all other active officers about a president
+    officer-account action. Password values are NEVER included — only a
+    'reset / unchanged' indicator."""
+    security_reset = security_reset or []
+    try:
+        peers = (
+            OfficerUser.objects.filter(account_status__iexact="Active")
+            .exclude(email__isnull=True)
+            .exclude(email__exact="")
+        )
+        if president is not None:
+            peers = peers.exclude(pk=president.pk)
+        peers = list(peers)
+    except Exception:
+        logger.exception("Could not load peer officers for account-action notice")
+        return
+    if not peers:
+        return
+
+    from core_system.services.notifications import notify_officer
+
+    president_name = (getattr(president, "full_name", "") or "President") if president else "President"
+    target_name = getattr(target_officer, "full_name", "") or ""
+    target_role = getattr(target_officer, "role", "") or ""
+    subject = f"President {action_label} officer account ({target_role or 'Officer'} — {target_name or 'account'})"
+    context = {
+        "president_name": president_name,
+        "action_label": action_label,
+        "target_name": target_name,
+        "target_role": target_role,
+        "target_username": getattr(target_officer, "username", "") or "",
+        "changes": changes or [],
+        "password_changed": bool(password_changed),
+        "security_reset": list(security_reset),
+        "timestamp": timezone.now(),
+    }
+    message = f"President {president_name} {action_label} the {target_role} account ({target_name})."
+    if changes:
+        bits = []
+        for c in changes:
+            label = (c.get("label") or "").strip()
+            old = (c.get("old") or "").strip()
+            new = (c.get("new") or "").strip()
+            if old and new and old != new:
+                bits.append(f"{label}: {old} → {new}")
+            elif new:
+                bits.append(f"{label}: {new}")
+            elif old:
+                bits.append(f"{label}: {old}")
+        if password_changed:
+            bits.append("Password: reset (value hidden)")
+        if security_reset:
+            bits.append("Security reset for new holder: " + ", ".join(security_reset))
+        if bits:
+            message += " Changed: " + "; ".join(bits) + "."
+    for peer in peers:
+        try:
+            notify_officer(
+                peer,
+                notification_type="officer_account_action",
+                message=message,
+                category="security",
+                url="/president/#officers",
+            )
+        except Exception:
+            pass
+        peer_email = (getattr(peer, "email", "") or "").strip()
+        if not peer_email:
+            continue
+        try:
+            send_html_email_async(
+                subject,
+                [peer_email],
+                "emails/officer_account_action.html",
+                {**context, "recipient_name": getattr(peer, "full_name", "") or ""},
+            )
+        except Exception:
+            logger.exception("Failed to queue officer-account-action email to %s", peer_email)
+
+
+def _notify_members_midterm_turnover(
+    *,
+    president,
+    target_officer,
+    old_full_name: str,
+) -> int:
+    """Email every active member that an officer role changed hands mid-term.
+
+    Best-effort fan-out: one deferred queue write per member, a single drain
+    afterwards. Returns the number of members queued. Never raises.
+    """
+    try:
+        members = list(
+            Member.objects.filter(employment_status="Active")
+            .exclude(email__isnull=True)
+            .exclude(email__exact="")
+            .order_by("full_name")
+        )
+    except Exception:
+        logger.exception("Could not load members for mid-term turnover notice")
+        return 0
+    if not members:
+        return 0
+
+    from core_system.services.email_service import flush_email_queue_async
+
+    president_name = (getattr(president, "full_name", "") or "President") if president else "President"
+    target_role = getattr(target_officer, "role", "") or "Officer"
+    new_name = getattr(target_officer, "full_name", "") or ""
+    subject = f"Mid-term officer change: {target_role} ({new_name})"
+    queued = 0
+    for member in members:
+        member_email = (getattr(member, "email", "") or "").strip()
+        if not member_email:
+            continue
+        try:
+            send_html_email_async(
+                subject,
+                [member_email],
+                "emails/midterm_turnover_notice.html",
+                {
+                    "recipient_name": getattr(member, "full_name", "") or "Member",
+                    "president_name": president_name,
+                    "target_role": target_role,
+                    "old_name": old_full_name or "—",
+                    "new_name": new_name or "—",
+                    "changed_at": timezone.now(),
+                },
+                defer_worker=True,
+            )
+            queued += 1
+        except Exception:
+            logger.exception("Failed to queue mid-term turnover email to %s", member_email)
+    if queued:
+        try:
+            flush_email_queue_async()
+        except Exception:
+            logger.exception("Deferred mid-term turnover flush failed")
+    return queued
+
+
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_officers_create(request: HttpRequest):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -3794,11 +4091,26 @@ def president_officers_create(request: HttpRequest):
         notes=f"Created officer account for {officer.full_name}",
     )
 
+    term_text = f"{term_start.isoformat() if term_start else '—'} → {term_end.isoformat() if term_end else '—'}"
+    _notify_peer_officers_officer_account_action(
+        president=president,
+        target_officer=officer,
+        action_label="created",
+        changes=[
+            {"label": "Role", "old": "", "new": role},
+            {"label": "Full name", "old": "", "new": full_name},
+            {"label": "Username", "old": "", "new": username},
+            {"label": "Term (Start – End)", "old": "", "new": term_text},
+        ],
+        password_changed=True,
+    )
+
     return JsonResponse({"ok": True, "officer": _officer_to_json(officer)})
 
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def president_officers_update(request: HttpRequest, officer_id: int):
     guard = require_role(request, role="President")
     if guard is not None:
@@ -3835,6 +4147,68 @@ def president_officers_update(request: HttpRequest, officer_id: int):
     elif department_id in ("", None):
         department = None if payload.get("clear_department") else department
 
+    # Snapshot old values before mutation (for change summary + term rule).
+    old_full_name = officer.full_name or ""
+    old_role = officer.role or ""
+    old_username = officer.username or ""
+    old_email = getattr(officer, "email", "") or ""
+    old_term_start = officer.term_start
+    old_term_end = officer.term_end
+    old_status = officer.account_status or ""
+    old_dept = officer.department_id_FK
+    old_dept_name = getattr(old_dept, "name", "") if old_dept else ""
+
+    term_changed = _officer_term_changed(old_term_start, old_term_end, term_start, term_end)
+    username_changed = (username != old_username)
+    name_changed = (full_name != old_full_name)
+    name_ratio = _officer_name_similarity(old_full_name, full_name) if name_changed else 1.0
+    name_level = _officer_name_change_level(old_full_name, full_name) if name_changed else "none"
+    # A "suspicious" name looks like a different person. Within a running
+    # term that needs explicit confirmation; a "minor" single-character edit
+    # only gets a yellow warning and saves as a plain fix.
+    suspicious_name = (name_level == "suspicious")
+    minor_name = (name_level == "minor")
+    turnover_confirmed = _parse_turnover_flag(payload.get("turnover_confirmed"))
+
+    if suspicious_name and not term_changed and not username_changed and turnover_confirmed is None:
+        return JsonResponse(
+            {
+                "ok": False,
+                "code": "TURNOVER_CONFIRM_REQUIRED",
+                "level": "suspicious",
+                "similarity": round(name_ratio, 3),
+                "error": (
+                    "This name change looks like a different person within the running term. "
+                    "Confirm whether this is a mid-term turnover."
+                ),
+            },
+            status=409,
+        )
+
+    # Turnover = the account is handed to a different person: term ended and
+    # reassigned, username replaced, or a confirmed (or declared) mid-term
+    # name takeover.
+    turnover = term_changed or username_changed or (
+        (suspicious_name or minor_name) and turnover_confirmed is True
+    )
+    # A turnover inside the running term (no new term assigned) is announced
+    # to all members, not just fellow officers.
+    mid_term_turnover = turnover and not term_changed
+
+    # Password is only available when assigning a new officer on an existing
+    # role (i.e. turnover). Enforce server-side even if the client
+    # bypasses the hidden field.
+    if turnover and not password:
+        return JsonResponse(
+            {"ok": False, "error": "Password is required when the officer is replaced (new username, name, or term)."},
+            status=400,
+        )
+    if not turnover and password:
+        return JsonResponse(
+            {"ok": False, "error": "Password can only be set when the officer is replaced (new username, name, or term)."},
+            status=400,
+        )
+
     officer.full_name = full_name
     officer.username = username
     officer.role = role
@@ -3848,6 +4222,14 @@ def president_officers_update(request: HttpRequest, officer_id: int):
         if strength_errors:
             return JsonResponse({"ok": False, "error": " ".join(strength_errors)}, status=400)
         officer.password_hash = hash_password(password)
+        officer.must_change_password = True
+
+    # On turnover the previous holder's personal credentials must not
+    # survive: reset action PIN, unlink authenticator, burn backup codes,
+    # and revoke live sessions on every device.
+    security_reset: List[str] = []
+    if turnover:
+        security_reset = _reset_officer_security_for_turnover(officer)
 
     update_fields = [
         "full_name",
@@ -3859,9 +4241,19 @@ def president_officers_update(request: HttpRequest, officer_id: int):
         "term_end",
         "department_id_FK",
         "updated_at",
+        "action_pin_hash",
+        "action_pin_set_at",
+        "action_pin_fail_count",
+        "action_pin_locked_until",
+        "action_pin_lock_minutes",
+        "authenticator_enabled",
+        "authenticator_secret",
+        "authenticator_enrolled_at",
+        "backup_codes_issued_at",
     ]
     if password:
         update_fields.append("password_hash")
+        update_fields.append("must_change_password")
     officer.save(update_fields=update_fields)
 
     president = _resolve_president(request)
@@ -3872,10 +4264,76 @@ def president_officers_update(request: HttpRequest, officer_id: int):
         actor=president,
         new=_officer_to_json(officer),
         ip=request.META.get("REMOTE_ADDR"),
-        notes=f"Updated officer account for {officer.full_name}",
+        notes=(
+            f"Updated officer account for {officer.full_name}"
+            + (f" (turnover: reset {', '.join(security_reset)})" if turnover and security_reset else "")
+            + (" (turnover: no personal credentials to reset)" if turnover and not security_reset else "")
+        ),
     )
 
-    return JsonResponse({"ok": True, "officer": _officer_to_json(officer)})
+    def _iso(d):
+        try:
+            return d.isoformat() if d else "—"
+        except Exception:
+            return str(d or "—") or "—"
+
+    new_dept_name = getattr(department, "name", "") if department else ""
+    changes: List[Dict[str, str]] = [
+        {"label": "Role", "old": old_role, "new": role},
+        {"label": "Full name", "old": old_full_name, "new": full_name},
+        {"label": "Username", "old": old_username, "new": username},
+        {"label": "Email", "old": old_email or "—", "new": email or "—"},
+        {
+            "label": "Term (Start – End)",
+            "old": f"{_iso(old_term_start)} → {_iso(old_term_end)}",
+            "new": f"{_iso(term_start)} → {_iso(term_end)}",
+        },
+        {"label": "Account status", "old": old_status, "new": account_status},
+        {"label": "Department", "old": old_dept_name or "—", "new": new_dept_name or "—"},
+    ]
+    # Keep only actually-changed rows plus the always-shown Role/Name context.
+    # Role + Full name stay so the email always reads
+    # "role ..., name: old → new" even when only one of them changed.
+    filtered = []
+    for c in changes:
+        if c["label"] in ("Role", "Full name"):
+            filtered.append(c)
+        elif (c.get("old") or "") != (c.get("new") or ""):
+            filtered.append(c)
+    # Email policy: turnover always notifies fellow officers, and so does any
+    # other substantive edit (username/term/role/email/status/department).
+    # A name-only change that is NOT a turnover (typo fix, or a suspicious
+    # name the president declined to call a turnover) is silent: still
+    # PIN-gated and audit-logged, but nobody is emailed. A save with no
+    # changes at all is silent too.
+    email_changed = (email or "") != (old_email or "")
+    status_changed = account_status != old_status
+    dept_changed = (new_dept_name or "") != (old_dept_name or "")
+    role_changed = role != old_role
+    if turnover or username_changed or term_changed or role_changed or email_changed or status_changed or dept_changed:
+        _notify_peer_officers_officer_account_action(
+            president=president,
+            target_officer=officer,
+            action_label="updated",
+            changes=filtered,
+            password_changed=bool(password),
+            security_reset=security_reset,
+        )
+    members_notified = 0
+    if mid_term_turnover:
+        members_notified = _notify_members_midterm_turnover(
+            president=president,
+            target_officer=officer,
+            old_full_name=old_full_name,
+        )
+
+    return JsonResponse({
+        "ok": True,
+        "officer": _officer_to_json(officer),
+        "security_reset": security_reset,
+        "mid_term_turnover": bool(mid_term_turnover),
+        "members_notified": members_notified,
+    })
 
 
 @require_POST
@@ -4156,6 +4614,7 @@ def get_policy_constants(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def update_policy_constant(request: HttpRequest):
     guard = require_role(request, role="President")
     if guard is not None:

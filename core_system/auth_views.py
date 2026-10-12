@@ -400,6 +400,7 @@ def _establish_login_session(request: HttpRequest, officer: OfficerUser, auth_me
     request.session["access_token"] = token
     request.session["officer_id"] = officer.user_id_PK
     request.session["role"] = officer.role
+    request.session["play_login_sound"] = True
     request.session.set_expiry(None)
     # Issue this session's URL-obfuscation signing subkey (auto-signer for
     # fetch calls + signed redirect links; flushed with the session).
@@ -536,26 +537,45 @@ def officer_login(request: HttpRequest) -> HttpResponse:
 
     # Only validate turnstile if user exists - avoid security verification for non-existent accounts
     if officer is not None and is_turnstile_enabled(request) and not validate_turnstile_token(turnstile_token, remote_ip=ip_address, request=request):
-        error_info = {
-            "title": "Security Verification Failed",
-            "detail": "Please complete the security check and try again.",
-        }
-        if is_ajax:
-            return JsonResponse({
-                "ok": False,
-                "error_code": "turnstile_failed",
-                "error_title": error_info["title"],
-                "error_detail": error_info["detail"],
-                "error": error_info["detail"],
-            }, status=403)
-        context = {
-            "login_error_code": "turnstile_failed",
-            "login_error_title": error_info["title"],
-            "login_error_detail": error_info["detail"],
-            "turnstile_enabled": True,
-            "turnstile_site_key": get_turnstile_site_key(),
-        }
-        return render(request, "website/login.html", context)
+        # Second option: offline proof-of-work (device can't reach Cloudflare).
+        # The browser solves SHA256("<salt>:<nonce>") with N leading zero bits;
+        # the server re-hashes once and burns the single-use challenge.
+        botcheck_ok = False
+        raw_proof = (request.POST.get("offline_bot_proof") or "").strip()
+        if raw_proof:
+            try:
+                payload = json.loads(raw_proof)
+            except (ValueError, TypeError):
+                payload = None
+            if isinstance(payload, dict):
+                from core_system import offline_botcheck as _botcheck
+
+                botcheck_ok, _method = _botcheck.verify_proof(
+                    challenge_id=str(payload.get("id") or ""),
+                    username=username,
+                    nonce=str(payload.get("nonce") or ""),
+                )
+        if not botcheck_ok:
+            error_info = {
+                "title": "Security Verification Failed",
+                "detail": "Please complete the security check and try again.",
+            }
+            if is_ajax:
+                return JsonResponse({
+                    "ok": False,
+                    "error_code": "turnstile_failed",
+                    "error_title": error_info["title"],
+                    "error_detail": error_info["detail"],
+                    "error": error_info["detail"],
+                }, status=403)
+            context = {
+                "login_error_code": "turnstile_failed",
+                "login_error_title": error_info["title"],
+                "login_error_detail": error_info["detail"],
+                "turnstile_enabled": True,
+                "turnstile_site_key": get_turnstile_site_key(),
+            }
+            return render(request, "website/login.html", context)
 
     from core_system.login_throttle import (
         check_throttle as _check_login_throttle,
@@ -1539,8 +1559,70 @@ def backup_status(request: HttpRequest) -> JsonResponse:
     })
 
 
+@require_POST
+@csrf_protect
+def officer_password_change(request: HttpRequest) -> JsonResponse:
+    """Self-service password change for signed-in officers (JSON).
+
+    Used by the Security Settings page so a treasurer, auditor, or president
+    can change their own password without leaving the page. Proof of identity
+    is the current password — same rule as the /change-password/ form flow.
+    Accepts JSON or form-encoded bodies.
+    """
+    officer = _current_authenticated_officer(request)
+    if officer is None:
+        return JsonResponse({"ok": False, "error": "Not authenticated."}, status=401)
+
+    payload: dict = {}
+    if (request.content_type or "").lower().startswith("application/json"):
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            payload = {}
+    current_password = str(payload.get("current_password", request.POST.get("current_password", "")) or "")
+    new_password = str(payload.get("new_password", request.POST.get("new_password", "")) or "")
+    confirm_password = str(payload.get("confirm_password", request.POST.get("confirm_password", "")) or "")
+
+    if not verify_password(current_password, officer.password_hash):
+        _log_auth_audit(
+            "PASSWORD_CHANGE_FAILED",
+            officer=officer,
+            username=officer.username,
+            ip=zt_service.get_client_ip(request) or "0.0.0.0",
+            device=request.META.get("HTTP_USER_AGENT"),
+            result="Failed",
+            notes="security_settings_current_mismatch",
+        )
+        return JsonResponse({"ok": False, "error": "Your current password is incorrect."}, status=400)
+
+    if new_password != confirm_password:
+        return JsonResponse({"ok": False, "error": "New passwords do not match."}, status=400)
+
+    if new_password == current_password:
+        return JsonResponse({"ok": False, "error": "New password must be different from your current password."}, status=400)
+
+    strength_errors = validate_new_password(new_password)
+    if strength_errors:
+        return JsonResponse({"ok": False, "error": " ".join(strength_errors)}, status=400)
+
+    officer.password_hash = hash_password(new_password)
+    officer.must_change_password = False
+    officer.save(update_fields=["password_hash", "must_change_password"])
+
+    _record_audit_trail(
+        table="officer_user",
+        record_id=officer.user_id_PK,
+        action="PASSWORD_CHANGED",
+        actor=officer,
+        ip=zt_service.get_client_ip(request),
+        notes="Password changed via Security Settings page.",
+    )
+
+    return JsonResponse({"ok": True, "message": "Password changed successfully."})
+
+
 def security_settings_page(request: HttpRequest) -> HttpResponse:
-    """Officer self-service page: push status, authenticator, backup codes."""
+    """Officer self-service page: password, push status, authenticator, backup codes."""
     from core_system.guards import require_officer_session
 
     guard = require_officer_session(request)
@@ -1565,6 +1647,8 @@ def security_settings_page(request: HttpRequest) -> HttpResponse:
         "auth_enrolled_at": getattr(officer, "authenticator_enrolled_at", None),
         "backup_remaining": MfaBackupCode.objects.filter(officer_id_FK=officer, used_at__isnull=True).count(),
         "vapid_public_key": getattr(_dj_settings, "VAPID_PUBLIC_KEY", ""),
+        "action_pin_set": bool(getattr(officer, "action_pin_hash", None)),
+        "action_pin_set_at": getattr(officer, "action_pin_set_at", None),
     })
 
 

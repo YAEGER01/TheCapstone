@@ -51,6 +51,15 @@ class OfficerUser(models.Model):
     last_mfa_email_sent_at = models.DateTimeField(null=True, blank=True)
     email = models.CharField(max_length=255, null=True, blank=True)
     must_change_password = models.BooleanField(default=False)
+    # Offline personal action PIN (distinct from login password). PBKDF2-hashed
+    # via auth_utils.hash_pin — never stored in cleartext. Required for final
+    # approvals / verifications (president, treasurer, auditor).
+    action_pin_hash = models.CharField(max_length=255, null=True, blank=True)
+    action_pin_set_at = models.DateTimeField(null=True, blank=True)
+    action_pin_fail_count = models.IntegerField(default=0)
+    action_pin_locked_until = models.DateTimeField(null=True, blank=True)
+    # Next lockout duration in minutes. Starts at 1, doubles every 3 fails.
+    action_pin_lock_minutes = models.IntegerField(default=1)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -418,6 +427,28 @@ class MfaBackupCode(models.Model):
 
     class Meta:
         db_table = "mfa_backup_code"
+
+
+class OfflineBotChallenge(models.Model):
+    """Single-use proof-of-work challenges: the offline Turnstile fallback.
+
+    When the device cannot reach Cloudflare, the login page solves a small
+    hash puzzle (SHA-256 ``salt:nonce`` with N leading zero bits) instead.
+    Bound to one username, expires quickly, burns on first verification.
+    """
+    challenge_id = models.CharField(max_length=64, primary_key=True)
+    username = models.CharField(max_length=150)
+    salt = models.CharField(max_length=64)
+    difficulty = models.IntegerField(default=16)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "offline_bot_challenge"
+        indexes = [
+            models.Index(fields=["username", "expires_at"], name="obc_user_exp_idx"),
+        ]
 
 
 class PushSubscription(models.Model):

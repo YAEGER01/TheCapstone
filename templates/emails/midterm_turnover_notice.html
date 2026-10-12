@@ -1,0 +1,36 @@
+{% extends "emails/base_notice.html" %}
+{% block email_title %}Mid-term officer change - ISUCauFA, Inc.{% endblock %}
+{% block preheader %}The {{ target_role }} role changed hands mid-term: {{ new_name }} (formerly {{ old_name }}).{% endblock %}
+{% block header_title %}Mid-Term Officer Change{% endblock %}
+{% block header_sub %}An officer role changed hands before the term ended.{% endblock %}
+{% block content %}
+<p style="font-size:16px; line-height:1.6; margin:0 0 16px;">
+  Dear <strong>{{ recipient_name|default:"Member" }}</strong>,
+</p>
+<p style="font-size:15px; line-height:1.7; margin:0 0 16px;">
+  Please be informed that the <strong>{{ target_role }}</strong> account changed hands
+  mid-term: <strong>{{ new_name }}</strong> (formerly {{ old_name }}).
+  This change was recorded by President <strong>{{ president_name }}</strong>
+  on {{ changed_at|date:"M d, Y" }}.
+</p>
+
+<table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px; margin:0 0 16px;">
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; width:170px; vertical-align:top;">Role:</td>
+    <td><strong>{{ target_role }}</strong></td>
+  </tr>
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; vertical-align:top;">Previous holder:</td>
+    <td>{{ old_name }}</td>
+  </tr>
+  <tr>
+    <td style="font-weight:600; color:#1b5e20; vertical-align:top;">New holder:</td>
+    <td><strong>{{ new_name }}</strong></td>
+  </tr>
+</table>
+
+<p style="font-size:13px; line-height:1.6; margin:0; color:#666666; border-top:1px solid #eeeeee; padding-top:16px;">
+  The previous holder's sign-in credentials were revoked. If you did not expect this
+  change, please contact the President immediately.
+</p>
+{% endblock %}

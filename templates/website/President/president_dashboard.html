@@ -3573,7 +3573,7 @@
 
     </style>
 
-    <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20260930zt6">
+    <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20261008zt9">
 
     <style>
       /* Keep navigation icons; main content uses text and data as its visual language. */
@@ -4169,7 +4169,7 @@
 
   <div class="nav-group-title nav-system-group">SYSTEM</div>
   <div class="nav-item menu-item" data-target="view-help"><span class="ico"><i class="fas fa-circle-question"></i></span><span class="menu-text">Help</span></div>
-  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Backup sign-in codes"><span class="ico"><i class="fas fa-key"></i></span><span class="menu-text">Backup sign-in codes</span></div>
+  <div class="nav-item menu-item" onclick="window.location.href='/settings/security/'" title="Security Settings"><span class="ico"><i class="fas fa-shield-halved"></i></span><span class="menu-text">Security Settings</span></div>
   <div class="nav-item menu-item" onclick="confirmLogout()" title="Logout"><span class="ico"><i class="fas fa-right-from-bracket"></i></span><span class="menu-text">Logout</span></div>
 </aside>
 
@@ -4269,7 +4269,7 @@
             <button type="button" class="hn-btn" aria-haspopup="true" aria-expanded="false">System <span class="hn-caret" aria-hidden="true">&#9662;</span></button>
             <ul class="hn-menu">
               <li><button type="button" class="hn-item" data-target="view-help"><i class="fas fa-circle-question"></i>Help</button></li>
-              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-key"></i>Backup sign-in codes</button></li>
+              <li><button type="button" class="hn-item" onclick="window.location.href='/settings/security/'"><i class="fas fa-shield-halved"></i>Security Settings</button></li>
               <li><button type="button" class="hn-item" data-hn-logout="1"><i class="fas fa-right-from-bracket"></i>Logout</button></li>
             </ul>
           </div>
@@ -8790,7 +8790,7 @@
 
           <section id="president-monthly-assessment" class="dashboard-module module-fade-in">
 
-            <div class="ma-two-col">
+            <div class="ma-two-col ma-history-hidden" id="ma-layout">
 
               <style>
                 #president-monthly-assessment .ma-col-label { font-size:0.72rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#8a949e; }
@@ -8819,12 +8819,22 @@
                 #president-monthly-assessment .ma-attach-card { border:1.5px dashed #d5ded5; border-radius:12px; padding:14px 16px; background:#fcfdfc; }
                 #president-monthly-assessment .ma-dropzone { border:1.5px dashed #c8d4c8; border-radius:9px; background:#f4f8f4; padding:12px 14px; text-align:center; font-size:0.8rem; color:#5f7a5f; cursor:pointer; transition:all .15s ease; }
                 #president-monthly-assessment .ma-dropzone:hover, #president-monthly-assessment .ma-dropzone.ma-dragover { border-color:#2e7d32; background:#eaf4ea; color:#1b5e20; }
-                #president-monthly-assessment .ma-btn-secondary { border:1px solid #d6ddd7; background:#fff; color:#374151; border-radius:9px; padding:9px 20px; font-size:0.86rem; font-weight:700; cursor:pointer; font-family:inherit; }
-                #president-monthly-assessment .ma-btn-secondary:hover { background:#f3f6f3; }
-                #president-monthly-assessment .ma-btn-primary { border:none; background:#1b5e20; color:#fff; border-radius:9px; padding:9px 22px; font-size:0.86rem; font-weight:700; cursor:pointer; font-family:inherit; }
-                #president-monthly-assessment .ma-btn-primary:hover { background:#256b29; }
+                #president-monthly-assessment .ma-btn-secondary { border:1px solid #cfdccc; background:#fff; color:#374151; border-radius:8px; padding:9px 20px; font-size:0.86rem; font-weight:600; cursor:pointer; font-family:"Inter", sans-serif; display:inline-flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.01em; box-shadow:0 2px 6px rgba(0,0,0,0.08); transition:all 0.25s ease; }
+                #president-monthly-assessment .ma-btn-secondary:hover:not(:disabled) { background:#f4f7f4; border-color:#2e7d32; color:#1b5e20; transform:translateY(-1px); box-shadow:0 4px 12px rgba(27,94,32,0.18); }
+                #president-monthly-assessment .ma-btn-primary { border:none; background:#1b5e20; color:#fff; border-radius:8px; padding:9px 22px; font-size:0.86rem; font-weight:600; cursor:pointer; font-family:"Inter", sans-serif; display:inline-flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.01em; box-shadow:0 2px 6px rgba(0,0,0,0.08); transition:all 0.25s ease; }
+                #president-monthly-assessment .ma-btn-primary:hover:not(:disabled) { background:#2e7d32; transform:translateY(-1px); box-shadow:0 4px 12px rgba(27,94,32,0.35); }
                 #president-monthly-assessment .ma-btn-primary:disabled,
-                #president-monthly-assessment .ma-btn-secondary:disabled { opacity:0.5; cursor:not-allowed; }
+                #president-monthly-assessment .ma-btn-secondary:disabled { opacity:0.5; cursor:not-allowed; transform:none; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+                #president-monthly-assessment .btn-brand { padding:8px 18px; border-radius:8px; font-weight:600; border:none; cursor:pointer; transition:all 0.25s ease; font-family:"Inter", sans-serif; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:0.82rem; letter-spacing:0.01em; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+                #president-monthly-assessment .btn-brand-primary { background:#1b5e20; color:#fff; }
+                #president-monthly-assessment .btn-brand-primary:hover { background:#2e7d32; transform:translateY(-1px); box-shadow:0 4px 12px rgba(27,94,32,0.35); }
+                #president-monthly-assessment .btn-outline { border:1px solid #cfdccc; background:#fff; color:#374151; border-radius:8px; font-weight:600; cursor:pointer; font-family:"Inter", sans-serif; display:inline-flex; align-items:center; justify-content:center; gap:6px; letter-spacing:0.01em; box-shadow:0 2px 6px rgba(0,0,0,0.06); transition:all 0.25s ease; }
+                #president-monthly-assessment .btn-outline:hover { background:#f4f7f4; border-color:#2e7d32; color:#1b5e20; transform:translateY(-1px); box-shadow:0 4px 12px rgba(27,94,32,0.18); }
+                #president-monthly-assessment .btn-brand:focus-visible,
+                #president-monthly-assessment .btn-outline:focus-visible,
+                #president-monthly-assessment .ma-btn-primary:focus-visible,
+                #president-monthly-assessment .ma-btn-secondary:focus-visible,
+                #president-monthly-assessment .ma-history-toggle-btn:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(46,125,50,0.25); }
                 #president-monthly-assessment .ma-label { display:block; font-size:0.72rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#8a949e; margin-bottom:6px; }
                 #president-monthly-assessment .ma-picker-wrap { position:relative; max-width:240px; }
                 #president-monthly-assessment .ma-picker-btn { display:inline-flex; align-items:center; gap:10px; justify-content:space-between; width:100%; border:1px solid #d6ddd7; border-radius:9px; background:#fff; padding:8px 11px; font-size:0.82rem; color:#1f2937; font-family:inherit; font-weight:600; cursor:pointer; }
@@ -8842,22 +8852,134 @@
                 #president-monthly-assessment .ma-mbtn .ma-dot { width:5px; height:5px; border-radius:50%; background:#1e8f4e; }
                 #president-monthly-assessment .ma-mbtn.current .ma-dot { background:#fff; }
                 #president-monthly-assessment .ma-two-col {
-                  display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr);
-                  gap:20px; align-items:start;
+                  display:grid; grid-template-columns:minmax(0, 1fr);
+                  gap:20px; align-items:start; justify-items:center;
                 }
+                #president-monthly-assessment #ma-form-panel { min-width:0; width:100%; }
+                #president-monthly-assessment .ma-two-col #ma-form-panel,
+                #president-monthly-assessment .ma-two-col .ma-detail-row {
+                  width:clamp(620px, 60%, 900px); justify-self:center; margin-left:auto; margin-right:auto;
+                }
+                #president-monthly-assessment #ma-history-panel {
+                  position:fixed; top:5vh; right:20px; z-index:1500;
+                  width:min(410px, calc(100vw - 40px)); height:90vh; max-height:90vh; min-height:0;
+                  display:flex; flex-direction:column;
+                  padding:0; overflow:hidden;
+                  background:#fff; border:1px solid #e5eae5; border-radius:14px;
+                  box-shadow:0 18px 50px rgba(0, 0, 0, 0.22);
+                  transform:translateX(0); opacity:1; visibility:visible;
+                  will-change:transform, opacity;
+                  transition:transform .38s cubic-bezier(0.22, 1, 0.36, 1), opacity .28s ease, visibility 0s linear 0s;
+                }
+                #president-monthly-assessment .ma-two-col.ma-history-hidden #ma-history-panel {
+                  transform:translateX(calc(100% + 28px)); opacity:0; visibility:hidden; pointer-events:none;
+                  transition:transform .38s cubic-bezier(0.22, 1, 0.36, 1), opacity .28s ease, visibility 0s linear .38s;
+                }
+                #president-monthly-assessment .ma-history-toggle-btn {
+                  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+                  border:1px solid #cfdccc; background:#fff; color:#1b5e20;
+                  font-weight:600; border-radius:8px; padding:7px 14px;
+                  font-size:0.82rem; font-family:"Inter", sans-serif; letter-spacing:0.01em;
+                  cursor:pointer; white-space:nowrap;
+                  box-shadow:0 2px 6px rgba(0,0,0,0.08); transition:all 0.25s ease;
+                }
+                #president-monthly-assessment .ma-history-toggle-btn:hover { background:#f4f7f4; border-color:#2e7d32; transform:translateY(-1px); box-shadow:0 4px 12px rgba(27,94,32,0.18); }
+                #president-monthly-assessment .ma-history-toggle-btn[aria-pressed="true"] { background:#1b5e20; border-color:#1b5e20; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+                #president-monthly-assessment .ma-history-toggle-btn[aria-pressed="true"]:hover { background:#2e7d32; border-color:#2e7d32; box-shadow:0 4px 12px rgba(27,94,32,0.35); }
+                #president-monthly-assessment .ma-history-toggle-btn .ma-history-count {
+                  display:inline-flex; align-items:center; justify-content:center;
+                  min-width:20px; height:20px; padding:0 6px; border-radius:999px;
+                  background:#e8f5e9; color:#1b5e20; font-size:0.72rem; font-weight:800;
+                }
+                #president-monthly-assessment .ma-history-toggle-btn[aria-pressed="true"] .ma-history-count { background:rgba(255,255,255,0.22); color:#fff; }
+                #president-monthly-assessment .ma-history-list {
+                  display:flex; flex-direction:column; gap:12px;
+                  padding:14px 16px; overflow-y:auto; min-height:0;
+                  align-items:stretch;
+                }
+                #president-monthly-assessment .ma-history-item {
+                  border:1px solid #e5eae5; border-radius:12px; background:#fff; overflow:hidden;
+                  display:flex; flex-direction:column;
+                  align-self:stretch; width:100%; max-width:100%; height:auto; flex:0 0 auto; box-sizing:border-box;
+                }
+                #president-monthly-assessment .ma-history-item:hover { border-color:#c8d4c8; box-shadow:0 2px 10px rgba(27,94,32,0.06); }
+                #president-monthly-assessment .ma-h-head {
+                  display:flex; align-items:center; justify-content:space-between; gap:10px;
+                  padding:11px 13px; border-bottom:1px solid #eef1ee; background:#fbfdfb;
+                  width:100%; box-sizing:border-box;
+                }
+                #president-monthly-assessment .ma-h-title { font-weight:800; font-size:0.92rem; color:#111827; line-height:1.2; overflow-wrap:anywhere; }
+                #president-monthly-assessment .ma-h-sub { font-size:0.75rem; color:#6b7280; margin-top:2px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+                #president-monthly-assessment .ma-h-actions { display:flex; gap:6px; flex-shrink:0; }
+                #president-monthly-assessment .ma-h-actions .btn-outline { padding:4px 11px; font-size:0.76rem; white-space:nowrap; }
+                #president-monthly-assessment .ma-h-grid {
+                  display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows:auto; justify-content:stretch;
+                  gap:1px; background:#eef1ee;
+                  border-bottom:1px solid #eef1ee;
+                  width:100%; box-sizing:border-box;
+                }
+                #president-monthly-assessment .ma-h-cell { background:#fff; padding:8px 13px; min-width:0; }
+                #president-monthly-assessment .ma-h-cell span { display:block; font-size:0.66rem; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; color:#8a949e; margin-bottom:1px; }
+                #president-monthly-assessment .ma-h-cell strong { font-size:0.85rem; color:#1f2937; font-variant-numeric:tabular-nums; display:block; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; word-break:break-word; }
+                #president-monthly-assessment .ma-h-foot {
+                  display:flex; flex-direction:column; gap:6px;
+                  padding:10px 13px 12px; background:#f8faf8;
+                  width:100%; box-sizing:border-box;
+                }
+                #president-monthly-assessment .ma-h-status { display:flex; align-items:center; justify-content:flex-start; }
+                #president-monthly-assessment .ma-h-remarks { font-size:0.78rem; color:#4b5563; margin:0; overflow-wrap:anywhere; word-break:break-word; line-height:1.45; }
+                #president-monthly-assessment .ma-h-remarks:empty { display:none; }
+                #president-monthly-assessment .ma-history-item.ma-st-rejected .ma-h-foot,
+                #president-monthly-assessment .ma-history-item.ma-st-returned .ma-h-foot { background:#fef2f2; }
+                #president-monthly-assessment .ma-history-item.ma-st-final_approved .ma-h-foot { background:#f0fdf4; }
+                #president-monthly-assessment .ma-history-item.ma-st-pending_final .ma-h-foot,
+                #president-monthly-assessment .ma-history-item.ma-st-pending_audit .ma-h-foot,
+                #president-monthly-assessment .ma-history-item.ma-st-pending_treasurer .ma-h-foot { background:#fffbeb; }
                 #president-monthly-assessment .ma-detail-row { grid-column:1 / -1; }
                 @media (max-width: 1200px) {
                   #president-monthly-assessment .ma-two-col { grid-template-columns:minmax(0, 1fr); }
+                  #president-monthly-assessment .ma-two-col #ma-form-panel,
+                  #president-monthly-assessment .ma-two-col .ma-detail-row { width:100%; max-width:100%; }
+                }
+                @media (max-width: 760px) {
+                  #president-monthly-assessment .ma-two-col #ma-form-panel,
+                  #president-monthly-assessment .ma-two-col .ma-detail-row { width:100%; }
+                  #president-monthly-assessment #ma-history-panel {
+                    top:auto; bottom:12px; right:12px; left:12px;
+                    width:auto; height:min(90vh, 560px); max-height:90vh;
+                  }
+                  #president-monthly-assessment .ma-two-col.ma-history-hidden #ma-history-panel {
+                    transform:translateY(calc(100% + 20px));
+                  }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  #president-monthly-assessment #ma-history-panel,
+                  #president-monthly-assessment .ma-two-col.ma-history-hidden #ma-history-panel { transition:none; }
+                  #president-monthly-assessment .btn-brand,
+                  #president-monthly-assessment .btn-outline,
+                  #president-monthly-assessment .ma-btn-primary,
+                  #president-monthly-assessment .ma-btn-secondary,
+                  #president-monthly-assessment .ma-history-toggle-btn { transition:none; }
+                  #president-monthly-assessment .btn-brand:hover,
+                  #president-monthly-assessment .btn-outline:hover,
+                  #president-monthly-assessment .ma-btn-primary:hover:not(:disabled),
+                  #president-monthly-assessment .ma-btn-secondary:hover:not(:disabled),
+                  #president-monthly-assessment .ma-history-toggle-btn:hover { transform:none; }
                 }
               </style>
 
-              <div class="dashboard-panel" style="padding:0; overflow:hidden;">
+              <div class="dashboard-panel" id="ma-form-panel" style="padding:0; overflow:hidden;">
 
-                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:18px 20px 14px; border-bottom:1px solid #eef1ee;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:18px 20px 14px; border-bottom:1px solid #eef1ee;">
 
                   <h3 id="ma-form-title" style="margin:0; font-size:1.2rem; font-weight:800; color:#111827;">Record Monthly Dues</h3>
 
-                  <span style="font-size:0.78rem; color:#8a949e;">Items are funded in the order listed — most important first</span>
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="font-size:0.78rem; color:#8a949e;">Items are funded in the order listed — most important first</span>
+                    <button type="button" class="ma-history-toggle-btn" id="ma-history-toggle-btn" onclick="maToggleHistory()" aria-pressed="false" aria-controls="ma-history-panel" title="Show / hide approval history">
+                      <i class="fas fa-clock-rotate-left"></i> History
+                    </button>
+                  </div>
 
                 </div>
 
@@ -8971,17 +9093,23 @@
 
               </div>
 
-              <div class="dashboard-panel">
+              <aside class="dashboard-panel" id="ma-history-panel" aria-label="Dues approval history sidebar">
 
-                <div class="panel-header-row">
+                <div class="panel-header-row" style="padding:16px 16px 12px; border-bottom:1px solid #eef1ee;">
 
-                  <h3 class="panel-title">Dues Approval History</h3>
+                  <h3 class="panel-title"><i class="fas fa-clock-rotate-left" style="color:#1b5e20; margin-right:6px;"></i>Dues Approval History</h3>
 
-                  <div class="header-actions">
+                  <div class="header-actions" style="display:flex; gap:8px;">
 
-                    <button type="button" class="btn-outline" onclick="loadMonthlyAssessments()" style="padding:4px 14px;font-size:0.82rem;">
+                    <button type="button" class="btn-outline" onclick="loadMonthlyAssessments()" style="padding:4px 14px;font-size:0.82rem;" title="Refresh history">
 
                       Refresh
+
+                    </button>
+
+                    <button type="button" class="btn-outline" onclick="maToggleHistory(false)" style="padding:4px 10px;font-size:0.82rem;" title="Hide history sidebar" aria-label="Hide history sidebar">
+
+                      <i class="fa-solid fa-xmark"></i>
 
                     </button>
 
@@ -8989,48 +9117,15 @@
 
                 </div>
 
-                <div class="table-container" id="ma-history-table-wrap">
+                <div class="ma-history-list" id="ma-history-list" aria-live="polite"></div>
 
-                  <table class="custom-table" id="ma-history-table" style="width:100%; table-layout:fixed;">
-                    <colgroup>
-                      <col style="width:13%;"><col style="width:15%;"><col style="width:7%;">
-                      <col style="width:13%;"><col style="width:12%;"><col style="width:14%;">
-                      <col style="width:8%;"><col style="width:18%;">
-                    </colgroup>
+                <div id="ma-history-pagination" style="padding:10px 16px 14px; border-top:1px solid #eef1ee;"></div>
 
-                    <thead>
+                <table class="custom-table" id="ma-history-table" style="display:none;" aria-hidden="true">
+                  <tbody id="ma-history-body"></tbody>
+                </table>
 
-                      <tr>
-
-                        <th style="padding:4px 8px;">Month</th>
-
-                        <th style="padding:4px 8px;">Expected Amount / Per Member</th>
-
-                        <th style="padding:4px 8px;">Active Members</th>
-
-                        <th style="padding:4px 8px;">Total Collected</th>
-
-                        <th style="padding:4px 8px;">Unpaid Dues</th>
-
-                        <th style="padding:4px 8px;">Approval Status</th>
-
-                        <th style="padding:4px 8px;">Remarks</th>
-
-                        <th style="padding:4px 8px;">Actions</th>
-
-                      </tr>
-
-                    </thead>
-
-                    <tbody id="ma-history-body"></tbody>
-
-                  </table>
-
-                </div>
-
-                <div id="ma-history-pagination" style="margin-top:10px;"></div>
-
-              </div>
+              </aside>
 
 
               <div class="dashboard-panel ma-detail-row" id="ma-detail-panel" style="display:none;">
@@ -9075,6 +9170,47 @@
               </div>
 
             </div>
+
+              <script>
+                (function () {
+                  function maLayoutEl() { return document.getElementById("ma-layout"); }
+                  function maToggleBtn() { return document.getElementById("ma-history-toggle-btn"); }
+                  window.maToggleHistory = function (forceShow) {
+                    var layout = maLayoutEl();
+                    if (!layout) return;
+                    var willShow;
+                    if (typeof forceShow === "boolean") willShow = forceShow;
+                    else willShow = layout.classList.contains("ma-history-hidden");
+                    layout.classList.toggle("ma-history-hidden", !willShow);
+                    var btn = maToggleBtn();
+                    if (btn) {
+                      btn.setAttribute("aria-pressed", willShow ? "true" : "false");
+                      btn.title = willShow ? "Hide approval history" : "Show approval history";
+                    }
+                    try { localStorage.setItem("ma-history-visible", willShow ? "1" : "0"); } catch (e) {}
+                    if (willShow && typeof window.loadMonthlyAssessments === "function") {
+                      window.loadMonthlyAssessments();
+                    }
+                  };
+                  function maRestoreHistoryVisibility() {
+                    var show = false;
+                    try { show = localStorage.getItem("ma-history-visible") === "1"; } catch (e) {}
+                    var layout = maLayoutEl();
+                    if (!layout) return;
+                    layout.classList.toggle("ma-history-hidden", !show);
+                    var btn = maToggleBtn();
+                    if (btn) {
+                      btn.setAttribute("aria-pressed", show ? "true" : "false");
+                      btn.title = show ? "Hide approval history" : "Show approval history";
+                    }
+                  }
+                  if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", maRestoreHistoryVisibility);
+                  } else {
+                    maRestoreHistoryVisibility();
+                  }
+                })();
+              </script>
 
           </section>
 
@@ -13295,6 +13431,11 @@
 
               <input type="text" id="officer_full_name" required />
 
+              <div id="officer_name_hint" style="display:none;background:#fff8e1;border:1px solid #ffe082;color:#8d6e00;font-size:0.78rem;margin-top:4px;padding:6px 8px;border-radius:6px;line-height:1.5;">
+                Minor spelling change — will save as a name fix (no credential reset, no notifications).
+                <button type="button" onclick="declareOfficerTurnover()" style="background:none;border:none;padding:0;color:#1b5e20;font-weight:700;cursor:pointer;text-decoration:underline;font-size:0.78rem;">This is actually a different person</button>
+              </div>
+
             </div>
 
             <div class="form-group">
@@ -13317,11 +13458,13 @@
 
           <div class="form-grid-2">
 
-            <div class="form-group">
+            <div class="form-group" id="officer_password_wrap">
 
-              <label for="officer_password">Password</label>
+              <label for="officer_password" id="officer_password_label">Password</label>
 
               <input type="text" id="officer_password" placeholder="Leave blank to keep current (edit mode)" />
+
+              <small id="officer_password_hint" style="display:none;color:#2e7d32;font-size:0.78rem;margin-top:4px;">Officer replaced — set a new password. The previous holder's PIN, authenticator, backup codes and sessions will be reset.</small>
 
             </div>
 
@@ -13416,6 +13559,46 @@
           </div>
 
         </form>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- Officer Mid-Term Turnover Confirm -->
+
+    <div id="officerTurnoverConfirm" class="modal-overlay" style="display: none; z-index: 10001;">
+
+      <div class="modal-card" style="max-width: 480px; text-align: left;">
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+
+          <h3 style="color:#b71c1c;margin:0;">Suspicious name change</h3>
+
+          <button type="button" onclick="hideTurnoverConfirm()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#666;line-height:1;">&times;</button>
+
+        </div>
+
+        <p style="font-size:0.9rem;color:#37474f;line-height:1.6;margin:0 0 16px;">
+          This name change within the running term is suspicious — the new name looks like a
+          <strong>different person</strong>. Is this a turnover mid-term?
+        </p>
+
+        <p style="font-size:0.8rem;color:#757575;line-height:1.5;margin:0 0 16px;">
+          <strong>Yes</strong>: you will set a new password, confirm with your action PIN, and fellow
+          officers plus all members will be notified. The previous holder's PIN, authenticator,
+          backup codes and sessions will be reset.<br />
+          <strong>No</strong>: saves as a plain name fix with your action PIN. No wipe, no emails.
+        </p>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+
+          <button type="button" class="btn-brand btn-brand-secondary" onclick="confirmTurnoverNo()">No, just a name fix</button>
+
+          <button type="button" class="btn-brand btn-brand-primary" onclick="confirmTurnoverYes()" style="background:#b71c1c;">Yes, it's a turnover</button>
+
+        </div>
 
       </div>
 
@@ -14419,7 +14602,7 @@
 
 
 
-      async function savePolicyConstant(key) {
+      async function savePolicyConstant(key, pin) {
 
         var input = document.getElementById("const-" + key);
 
@@ -14429,21 +14612,33 @@
 
         try {
 
+          var headers = {
+
+            "Content-Type": "application/json",
+
+            "X-CSRFToken": getCookie("csrftoken"),
+
+          };
+
+          var body = { key: key, value: value };
+
+          if (pin) {
+
+            body.action_pin = pin;
+
+            headers["X-Action-PIN"] = pin;
+
+          }
+
           var res = await fetch("/api/president/bylaws/constants/update/", {
 
             method: "POST",
 
             credentials: "same-origin",
 
-            headers: {
+            headers: headers,
 
-              "Content-Type": "application/json",
-
-              "X-CSRFToken": getCookie("csrftoken"),
-
-            },
-
-            body: JSON.stringify({ key: key, value: value }),
+            body: JSON.stringify(body),
 
           });
 
@@ -14531,11 +14726,42 @@
 
           ];
 
+          // One action-PIN prompt for the whole batch (not one per constant).
+          var pin = null;
+
+          if (window.CaufaPin && window.CaufaPin.promptPin) {
+
+            var pinStatus = null;
+
+            try { pinStatus = await window.CaufaPin.status(); } catch (e) {}
+
+            if (pinStatus && pinStatus.ok && pinStatus.has_pin === false) {
+
+              showBylawsMessage("constantsMessage", "Set your 4-digit action PIN first.", true);
+
+              window.CaufaPin.openSetup();
+
+              return;
+
+            }
+
+            pin = await window.CaufaPin.promptPin({
+
+              title: "Policy Constants",
+
+              subtitle: "Enter your 4-digit action PIN to save policy constant changes.",
+
+            });
+
+            if (!pin) return; // cancelled — save nothing
+
+          }
+
           var allSaved = true;
 
           for (var i = 0; i < keys.length; i++) {
 
-            if (!(await savePolicyConstant(keys[i]))) {
+            if (!(await savePolicyConstant(keys[i], pin))) {
 
               allSaved = false;
 
@@ -15715,7 +15941,7 @@
 
     </script>
 
-    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261007zt6"></script>
+    <script src="{% static 'js/shared/zero_trust.js' %}?v=20261008zt13"></script>
 
     <script>
 
@@ -15855,9 +16081,422 @@
 
         if (el && typeof flatpickr !== "undefined" && !el._flatpickr) {
 
-          flatpickr(el, { mode: "range", dateFormat: "Y-m-d" });
+          flatpickr(el, {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            onChange: function () { try { updateOfficerPasswordVisibility(); } catch (e) {} },
+          });
+
+        } else if (el && el._flatpickr) {
+
+          try { el._flatpickr.set("onChange", function () { try { updateOfficerPasswordVisibility(); } catch (e) {} }); } catch (e) {}
 
         }
+
+      }
+
+
+
+      function getOfficerTermParts() {
+
+        var raw = (document.getElementById("officer_term_range") || {}).value || "";
+
+        var parts = String(raw).split(" to ");
+
+        return { start: (parts[0] || "").trim(), end: (parts[1] || "").trim() };
+
+      }
+
+
+
+      function isOfficerTermChanged() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return false; // create mode: password always shown, not term-gated
+
+        var cur = getOfficerTermParts();
+
+        var orig = window.__officerOriginalTerm || { start: "", end: "" };
+
+        return (cur.start || "") !== (orig.start || "") || (cur.end || "") !== (orig.end || "");
+
+      }
+
+
+
+      // Same 90% rule as the server: a full-name edit this similar (or more)
+      // is a typo fix, anything less looks like a different person.
+      var OFFICER_NAME_TYPO_THRESHOLD = 0.90;
+
+
+
+      function normalizeOfficerName(s) {
+
+        return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+      }
+
+
+
+      function officerNameSimilarity(oldName, newName) {
+
+        var a = normalizeOfficerName(oldName);
+
+        var b = normalizeOfficerName(newName);
+
+        if (a === b) return 1.0;
+
+        if (!a || !b) return 0.0;
+
+        // Ratcliff-Obershelp matching (matches the server ratio on names).
+        var b2j = {};
+
+        for (var i = 0; i < b.length; i++) {
+
+          var ch = b.charAt(i);
+
+          if (!b2j[ch]) b2j[ch] = [];
+
+          b2j[ch].push(i);
+
+        }
+
+        function findLongest(alo, ahi, blo, bhi) {
+
+          var bestI = alo, bestJ = blo, bestSize = 0;
+
+          var j2len = {};
+
+          for (var x = alo; x < ahi; x++) {
+
+            var indices = b2j[a.charAt(x)] || [];
+
+            var newj2len = {};
+
+            for (var k = 0; k < indices.length; k++) {
+
+              var j = indices[k];
+
+              if (j < blo) continue;
+
+              if (j >= bhi) break;
+
+              var cur = (j2len[j - 1] || 0) + 1;
+
+              newj2len[j] = cur;
+
+              if (cur > bestSize) { bestSize = cur; bestI = x - cur + 1; bestJ = j - cur + 1; }
+
+            }
+
+            j2len = newj2len;
+
+          }
+
+          while (bestI > alo && bestJ > blo && a.charAt(bestI - 1) === b.charAt(bestJ - 1)) { bestI--; bestJ--; bestSize++; }
+
+          while (bestI + bestSize < ahi && bestJ + bestSize < bhi && a.charAt(bestI + bestSize) === b.charAt(bestJ + bestSize)) { bestSize++; }
+
+          return { i: bestI, j: bestJ, size: bestSize };
+
+        }
+
+        var matches = 0;
+
+        var queue = [[0, a.length, 0, b.length]];
+
+        while (queue.length) {
+
+          var q = queue.pop();
+
+          var m = findLongest(q[0], q[1], q[2], q[3]);
+
+          if (m.size) {
+
+            matches += m.size;
+
+            if (q[0] < m.i && q[2] < m.j) queue.push([q[0], m.i, q[2], m.j]);
+
+            if (m.i + m.size < q[1] && m.j + m.size < q[3]) queue.push([m.i + m.size, q[1], m.j + m.size, q[3]]);
+
+          }
+
+        }
+
+        return (2.0 * matches) / (a.length + b.length);
+
+      }
+
+
+
+      function isOfficerUsernameChanged() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return false;
+
+        var orig = window.__officerOriginalIdentity || { username: "", full_name: "" };
+
+        var cur = ((document.getElementById("officer_username") || {}).value || "").trim();
+
+        return cur !== (orig.username || "");
+
+      }
+
+
+
+      function officerLevenshtein(a, b) {
+
+        a = normalizeOfficerName(a);
+
+        b = normalizeOfficerName(b);
+
+        if (a === b) return 0;
+
+        if (!a) return b.length;
+
+        if (!b) return a.length;
+
+        var prev = [];
+
+        for (var j = 0; j <= b.length; j++) prev[j] = j;
+
+        for (var i = 1; i <= a.length; i++) {
+
+          var cur = [i];
+
+          for (var k = 1; k <= b.length; k++) {
+
+            cur[k] = Math.min(prev[k] + 1, cur[k - 1] + 1, prev[k - 1] + (a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1));
+
+          }
+
+          prev = cur;
+
+        }
+
+        return prev[b.length];
+
+      }
+
+
+
+      // Graduated levels, mirroring the server: "typo" (silent fix),
+      // "minor" (single-character edit — yellow warning only),
+      // "suspicious" (red confirm prompt), "none" (unchanged).
+      function officerNameChangeLevel() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return "none";
+
+        var orig = window.__officerOriginalIdentity || { full_name: "" };
+
+        var cur = ((document.getElementById("officer_full_name") || {}).value || "").trim();
+
+        var a = normalizeOfficerName(orig.full_name || "");
+
+        var b = normalizeOfficerName(cur);
+
+        if (a === b) return "typo";
+
+        if (!a || !b) return "suspicious";
+
+        if (officerNameSimilarity(orig.full_name || "", cur) >= OFFICER_NAME_TYPO_THRESHOLD) return "typo";
+
+        if (officerLevenshtein(a, b) === 1) return "minor";
+
+        return "suspicious";
+
+      }
+
+
+
+      function isOfficerNameSuspicious() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return false;
+
+        var orig = window.__officerOriginalIdentity || { full_name: "" };
+
+        var cur = ((document.getElementById("officer_full_name") || {}).value || "").trim();
+
+        if (cur === (orig.full_name || "")) return false;
+
+        return officerNameChangeLevel() === "suspicious";
+
+      }
+
+
+
+      function isOfficerNameMinor() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return false;
+
+        var orig = window.__officerOriginalIdentity || { full_name: "" };
+
+        var cur = ((document.getElementById("officer_full_name") || {}).value || "").trim();
+
+        if (cur === (orig.full_name || "")) return false;
+
+        return officerNameChangeLevel() === "minor";
+
+      }
+
+
+
+      function declareOfficerTurnover() {
+
+        showTurnoverConfirm();
+
+      }
+
+
+
+      function updateOfficerNameHint() {
+
+        var el = document.getElementById("officer_name_hint");
+
+        if (!el) return;
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        // Yellow warning only: single-character edit, no turnover declared.
+        if (id && isOfficerNameMinor() && window.__officerTurnoverConfirmed !== true) {
+
+          el.style.display = "block";
+
+        } else {
+
+          el.style.display = "none";
+
+        }
+
+      }
+
+
+
+      function officerPasswordNeeded() {
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) return true; // create mode: always needed
+
+        if (isOfficerTermChanged() || isOfficerUsernameChanged()) return true;
+
+        if (window.__officerTurnoverConfirmed === true) {
+
+          var orig = window.__officerOriginalIdentity || { full_name: "" };
+
+          var cur = ((document.getElementById("officer_full_name") || {}).value || "").trim();
+
+          if (cur !== (orig.full_name || "")) return true;
+
+        }
+
+        return isOfficerNameSuspicious();
+
+      }
+
+
+
+      function updateOfficerPasswordVisibility() {
+
+        var wrap = document.getElementById("officer_password_wrap");
+
+        var input = document.getElementById("officer_password");
+
+        var hint = document.getElementById("officer_password_hint");
+
+        var label = document.getElementById("officer_password_label");
+
+        if (!wrap || !input) return;
+
+        var id = (document.getElementById("officer_id") || {}).value || "";
+
+        if (!id) {
+
+          // New officer: password always available (initial assignment).
+
+          wrap.style.display = "";
+
+          input.placeholder = "Set initial password for the new officer";
+
+          if (hint) hint.style.display = "none";
+
+          if (label) label.textContent = "Password *";
+
+          var __nh = document.getElementById("officer_name_hint");
+
+          if (__nh) __nh.style.display = "none";
+
+          return;
+
+        }
+
+        if (officerPasswordNeeded()) {
+
+          wrap.style.display = "";
+
+          input.placeholder = "Required — new officer, set their password";
+
+          if (hint) hint.style.display = "block";
+
+          if (label) label.textContent = "Password (new officer) *";
+
+        } else {
+
+          wrap.style.display = "none";
+
+          input.value = "";
+
+          if (hint) hint.style.display = "none";
+
+          if (label) label.textContent = "Password";
+
+        }
+
+        try { updateOfficerNameHint(); } catch (e) {}
+
+      }
+
+
+
+      function bindOfficerTermWatcher() {
+
+        var el = document.getElementById("officer_term_range");
+
+        if (!el || el.__termWatcherBound) return;
+
+        el.__termWatcherBound = true;
+
+        ["change", "input"].forEach(function (evt) {
+
+          el.addEventListener(evt, function () { try { updateOfficerPasswordVisibility(); } catch (e) {} });
+
+        });
+
+      }
+
+
+
+      function bindOfficerIdentityWatcher() {
+
+        ["officer_username", "officer_full_name"].forEach(function (fieldId) {
+
+          var el = document.getElementById(fieldId);
+
+          if (!el || el.__identityWatcherBound) return;
+
+          el.__identityWatcherBound = true;
+
+          el.addEventListener("input", function () { try { updateOfficerPasswordVisibility(); } catch (e) {} });
+
+        });
 
       }
 
@@ -15973,9 +16612,43 @@
 
             if (termRange && termRange._flatpickr) {
 
-              termRange._flatpickr.setDate((officer.term_start || "") + " to " + (officer.term_end || ""));
+              var rangeText = ((officer.term_start || "") + " to " + (officer.term_end || "")).trim();
+
+              if (!officer.term_start && !officer.term_end) {
+
+                termRange._flatpickr.clear();
+
+              } else {
+
+                termRange._flatpickr.setDate(rangeText);
+
+              }
 
             }
+
+            window.__officerOriginalTerm = {
+
+              start: officer.term_start || "",
+
+              end: officer.term_end || "",
+
+            };
+
+            window.__officerOriginalIdentity = {
+
+              username: officer.username || "",
+
+              full_name: officer.full_name || "",
+
+            };
+
+            window.__officerTurnoverConfirmed = null;
+
+            bindOfficerTermWatcher();
+
+            bindOfficerIdentityWatcher();
+
+            updateOfficerPasswordVisibility();
 
           }
 
@@ -15984,6 +16657,20 @@
           title.textContent = "New Officer";
 
           document.getElementById("officer_id").value = "";
+
+          window.__officerOriginalTerm = { start: "", end: "" };
+
+          window.__officerOriginalIdentity = { username: "", full_name: "" };
+
+          window.__officerTurnoverConfirmed = null;
+
+          initOfficerTermRange();
+
+          bindOfficerTermWatcher();
+
+          bindOfficerIdentityWatcher();
+
+          updateOfficerPasswordVisibility();
 
         }
 
@@ -16013,15 +16700,89 @@
 
         if (modal) modal.style.display = "none";
 
+        hideTurnoverConfirm();
+
+      }
+
+
+
+      function showTurnoverConfirm() {
+
+        var modal = document.getElementById("officerTurnoverConfirm");
+
+        if (modal) modal.style.display = "flex";
+
+      }
+
+
+
+      function hideTurnoverConfirm() {
+
+        var modal = document.getElementById("officerTurnoverConfirm");
+
+        if (modal) modal.style.display = "none";
+
+      }
+
+
+
+      function confirmTurnoverYes() {
+
+        window.__officerTurnoverConfirmed = true;
+
+        hideTurnoverConfirm();
+
+        try { updateOfficerPasswordVisibility(); } catch (err) {}
+
+        var pw = document.getElementById("officer_password");
+
+        if (pw) pw.focus();
+
+        showOfficerMessage("Mid-term turnover confirmed — set the new officer's password, then click Save Officer.", false);
+
+      }
+
+
+
+      function confirmTurnoverNo() {
+
+        window.__officerTurnoverConfirmed = false;
+
+        hideTurnoverConfirm();
+
+        saveOfficer(null);
+
       }
 
 
 
       async function saveOfficer(e) {
 
-        e.preventDefault();
+        if (e) e.preventDefault();
 
         var id = document.getElementById("officer_id").value;
+
+        var termChanged = isOfficerTermChanged();
+
+        var usernameChanged = isOfficerUsernameChanged();
+
+        var nameSuspicious = isOfficerNameSuspicious();
+
+        var nameMinor = isOfficerNameMinor();
+
+        var confirmed = window.__officerTurnoverConfirmed;
+
+        // Red level only: a truly divergent name blocks on the Yes/No prompt.
+        // Yellow (single-character) edits save straight through as a fix.
+        if (id && nameSuspicious && !termChanged && !usernameChanged && confirmed === null) {
+
+          showTurnoverConfirm();
+
+          return;
+
+        }
+
+        var turnover = !!id && (termChanged || usernameChanged || ((nameSuspicious || nameMinor) && confirmed === true));
 
         var payload = {
 
@@ -16035,17 +16796,58 @@
 
           account_status: document.getElementById("officer_status").value,
 
-          term_start: (function() { var v = (document.getElementById("officer_term_range").value || "").split(" to "); return v[0] || null; })(),
+          term_start: getOfficerTermParts().start || null,
 
-          term_end: (function() { var v = (document.getElementById("officer_term_range").value || "").split(" to "); return v[1] || null; })(),
+          term_end: getOfficerTermParts().end || null,
 
           department_id: document.getElementById("officer_department").value || null,
 
         };
 
+        if ((nameSuspicious || nameMinor) && confirmed !== null && confirmed !== undefined) {
+
+          payload.turnover_confirmed = (confirmed === true);
+
+        }
+
         var password = document.getElementById("officer_password").value.trim();
 
-        if (password) payload.password = password;
+        if (!id) {
+
+          // Create mode: password always required (new officer assignment).
+
+          if (!password) {
+
+            showOfficerMessage("Password is required for a new officer.", true);
+
+            return;
+
+          }
+
+          payload.password = password;
+
+        } else {
+
+          // Edit mode: password only available when the officer is replaced
+          // (new username, suspicious/confirmed name, or term) — old credentials are reset.
+
+          if (turnover) {
+
+            if (!password) {
+
+              showOfficerMessage("Officer replaced — a new password is required for the incoming officer.", true);
+
+              try { updateOfficerPasswordVisibility(); } catch (err) {}
+
+              return;
+
+            }
+
+            payload.password = password;
+
+          }
+
+        }
 
 
 
@@ -16089,31 +16891,85 @@
 
         var method = id ? "POST" : "POST";
 
+        var fetchOpts = {
+
+          method: method,
+
+          credentials: "same-origin",
+
+          headers: {
+
+            "Content-Type": "application/json",
+
+            "X-CSRFToken": getCSRFToken(),
+
+          },
+
+          body: JSON.stringify(payload),
+
+        };
+
+        var pinPrompt = id
+          ? { title: "Officer Account Update", subtitle: "Enter your 4-digit action PIN to confirm this officer account change." }
+          : { title: "Create Officer Account", subtitle: "Enter your 4-digit action PIN to create this officer account." };
+
         try {
 
-          var resp = await fetch(url, {
+          var resp;
 
-            method: method,
+          if (window.CaufaPin && window.CaufaPin.fetchWithPin) {
 
-            credentials: "same-origin",
+            resp = await window.CaufaPin.fetchWithPin(url, fetchOpts, pinPrompt);
 
-            headers: {
+          } else {
 
-              "Content-Type": "application/json",
+            resp = await fetch(url, fetchOpts);
 
-              "X-CSRFToken": getCSRFToken(),
-
-            },
-
-            body: JSON.stringify(payload),
-
-          });
+          }
 
           var data = await resp.json();
 
+          if (data && (data.code === "PIN_NOT_SET")) {
+
+            showOfficerMessage("Action PIN not set. Please set your 4-digit action PIN first.", true);
+
+            if (window.CaufaPin) window.CaufaPin.openSetup();
+
+            return;
+
+          }
+
+          if (data && (data.code === "PIN_REQUIRED" || data.code === "PIN_INVALID" || data.code === "PIN_LOCKED")) {
+
+            showOfficerMessage(data.error || "Action PIN is required to save this officer.", true);
+
+            return;
+
+          }
+
+          if (data && data.code === "TURNOVER_CONFIRM_REQUIRED") {
+
+            showTurnoverConfirm();
+
+            return;
+
+          }
+
           if (data.ok) {
 
-            showOfficerMessage(id ? "Officer updated successfully." : "Officer created successfully.", false);
+            if (id && data.mid_term_turnover) {
+
+              showOfficerMessage("Mid-term turnover recorded. Fellow officers and all members have been notified; the previous holder's credentials were reset (" + (data.security_reset || []).join(", ") + ").", false);
+
+            } else if (id && data.security_reset && data.security_reset.length) {
+
+              showOfficerMessage("Officer updated successfully. Previous holder's credentials reset (" + data.security_reset.join(", ") + ") — the new officer starts fresh.", false);
+
+            } else {
+
+              showOfficerMessage(id ? "Officer updated successfully." : "Officer created successfully.", false);
+
+            }
 
             closeOfficerModal();
 
@@ -17105,6 +17961,7 @@
     </script>
 
     {% include "website/shared/zt_badge.html" %}
+    {% include "website/partials/_officer_pin.html" %}
 
   
     <script>
@@ -18410,7 +19267,10 @@
       setInterval(normalizeCurrencyText, 250);
     })();
   </script>
-  
+
+    {% include "website/partials/_login_sound.html" %}
+    {% include "website/partials/_notice_card.html" %}
+
   </body>
 
 </html>

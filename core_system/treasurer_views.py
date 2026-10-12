@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 from core_system.api_utils import member_to_json
 
 from core_system.guards import check_zero_trust, require_officer_session, require_role
+from core_system.officer_pin import require_action_pin_view
 from core_system.member_views import MEMBER_FAMILY_CATEGORIES
 from core_system.aid_setaside import (
     AID_PURPOSES,
@@ -310,6 +311,8 @@ def treasurer_dashboard(request):
             "membership_fee_paid": fees_paid,
             "fee_collection_rate": round((fees_paid / total * 100) if total > 0 else 0, 1),
         })
+
+    context["play_login_sound"] = request.session.pop("play_login_sound", False)
 
     return render(request, "website/Treasurer/treasurer_dashboard.html", context)
 
@@ -2207,6 +2210,7 @@ def _monthly_dues_deposit_serialize(a) -> dict:
 
 
 @require_POST
+@require_action_pin_view
 def treasurer_other_transaction_record(request: HttpRequest):
     """Record a deposit/withdraw 'Other Transaction' and its proof receipt."""
     guard = require_role(request, role="Treasurer")
@@ -3651,6 +3655,7 @@ def treasurer_monthly_dues_tracking(request):
 
 
 @require_POST
+@require_action_pin_view
 def treasurer_approve_monthly_dues(request: HttpRequest):
     """Treasurer approves or rejects monthly dues payments, supporting single or batch approvals."""
     guard = require_role(request, role=["Treasurer"])
@@ -6174,10 +6179,13 @@ def treasurer_unfiled_setasides(request: HttpRequest):
         purpose = r["assessment_item_id_FK__purpose"] or ""
         if purpose == "medical_aid_fund":
             aid_label = "Medical Aid"
+            aid_kind = "medical"
         elif purpose == "death_aid_fund":
             aid_label = "Death Aid"
+            aid_kind = "death"
         else:
             aid_label = r["assessment_item_id_FK__custom_label"] or "Aid"
+            aid_kind = "medical"
         is_external = (r["assessment_item_id_FK__recipient_type"] or "") == "external"
         campus = (r["assessment_item_id_FK__external_campus"] or "").strip()
         bene = (r["assessment_item_id_FK__external_beneficiary"] or "").strip()
@@ -6190,6 +6198,9 @@ def treasurer_unfiled_setasides(request: HttpRequest):
         items.append({
             "member_name": display,
             "aid_label": aid_label,
+            "aid_kind": aid_kind,
+            "assessment_item_id": r["assessment_item_id_FK_id"],
+            "case_suffix": month_label or "",
             "post_id": None,
             "finish_status": "unfiled",
             "total_collected": round(collected, 2),
@@ -6197,9 +6208,60 @@ def treasurer_unfiled_setasides(request: HttpRequest):
             "is_external": is_external,
             "external_display": display if is_external else "",
             "member_id": None,
-            "case_suffix": f"Set-aside · {month_label}" if month_label else "Set-aside",
+            "_recipient": "" if is_external else display,
             "contributors": int(r["contributors"] or 0),
         })
+
+    # Resolve internal recipients to members so the table's File Aid button
+    # can auto-select them in the filing form. Assessment recipients are
+    # stored as free text ("LAST, First") while Member.full_name may use a
+    # different order, so match on name tokens (order-proof), exact first.
+    # Retired members are excluded to mirror the filing picker.
+    try:
+        import re as _re
+        from core_system.models import Member
+
+        def _toks(s):
+            return {
+                t for t in _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).split()
+                if len(t) >= 2
+            }
+
+        names = {i["_recipient"] for i in items if i["_recipient"] and i["_recipient"] != "—"}
+        id_by_name = {}
+        if names:
+            pool = list(Member.objects.exclude(
+                member_classification__iexact="Retired",
+            ).exclude(
+                membership_status__iexact="Retired",
+            ).values("member_id_PK", "full_name"))
+            by_exact = {}
+            for m in pool:
+                by_exact.setdefault((m["full_name"] or "").strip().lower(), m["member_id_PK"])
+            scored = [(_toks(m["full_name"]), m["member_id_PK"]) for m in pool]
+            for n in names:
+                key = n.strip().lower()
+                if key in by_exact:
+                    id_by_name[n] = by_exact[key]
+                    continue
+                want = _toks(n)
+                if not want:
+                    continue
+                best = None
+                for got, mid in scored:
+                    if want <= got:
+                        extra = len(got - want)
+                        if best is None or extra < best[0]:
+                            best = (extra, mid)
+                            if extra == 0:
+                                break
+                if best is not None:
+                    id_by_name[n] = best[1]
+        for i in items:
+            i["member_id"] = id_by_name.get(i.pop("_recipient"))
+    except Exception:
+        for i in items:
+            i.pop("_recipient", None)
 
     response = JsonResponse({"ok": True, "unfiled": items})
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -6333,6 +6395,7 @@ def _notify_contribution_recorded(contribution) -> None:
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_member_pay(request: HttpRequest):
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
@@ -6572,6 +6635,7 @@ def treasurer_aid_post_member_unskip(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_finish(request: HttpRequest):
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
@@ -6639,6 +6703,7 @@ def treasurer_aid_post_finish(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_mark_finished(request: HttpRequest):
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
@@ -6718,6 +6783,7 @@ def treasurer_aid_post_mark_finished(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_paid_with_funds(request: HttpRequest):
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
@@ -7793,6 +7859,7 @@ def treasurer_aid_release_otp(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_release(request: HttpRequest):
     """Treasurer releases the aid payout: records fund in/out and closes the post."""
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
@@ -8240,6 +8307,7 @@ def treasurer_aid_post_release_acknowledge(request: HttpRequest, post_id: int):
 
 
 @require_POST
+@require_action_pin_view
 def treasurer_external_aid_turnover(request: HttpRequest):
     """Turn over other-campus aid: the single canonical release for external posts.
 
@@ -8401,6 +8469,7 @@ def treasurer_external_aid_turnover(request: HttpRequest):
 
 @require_POST
 @transaction.atomic
+@require_action_pin_view
 def treasurer_aid_post_close_repayment(request: HttpRequest):
     """Close a paid-with-funds post after members have repaid or been skipped."""
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])

@@ -18,6 +18,8 @@ from . import monthly_deduction_views
 from . import audit_trail_views
 from . import url_obfuscation_views
 from . import feedback_views
+from . import officer_pin_views
+from . import botcheck_views
 
 
 urlpatterns = [
@@ -835,6 +837,22 @@ urlpatterns = [
         auditor_views.auditor_aid_tracking_notify,
         name="auditor_aid_tracking_notify",
     ),
+    # --- Auditor expedites unfiled/unreleased aids -> NoticeCard fan-out ---
+    path(
+        "api/auditor/unfiled-aids/notify/",
+        auditor_views.auditor_notify_unfiled_aid,
+        name="auditor_notify_unfiled_aid",
+    ),
+    path(
+        "api/officer/expedite-notices/",
+        auditor_views.officer_expedite_notices,
+        name="officer_expedite_notices",
+    ),
+    path(
+        "api/officer/expedite-notices/mark-read/",
+        auditor_views.officer_expedite_notices_mark_read,
+        name="officer_expedite_notices_mark_read",
+    ),
     path(
         "api/auditor/audited-logs/",
         auditor_views.auditor_audited_logs,
@@ -1235,6 +1253,7 @@ urlpatterns = [
     path("api/auth/backup-codes/issue/", auth_views.backup_codes_issue, name="backup_codes_issue"),
     path("api/auth/backup-codes/reveal/", auth_views.backup_codes_reveal, name="backup_codes_reveal"),
     path("api/auth/backup-status/", auth_views.backup_status, name="backup_status"),
+    path("api/officer/password/change/", auth_views.officer_password_change, name="officer_password_change"),
     path("settings/security/", auth_views.security_settings_page, name="security_settings"),
     path("mfa/challenge/", auth_views.mfa_challenge_page, name="mfa_challenge_page"),
     path("api/auth/zero-trust/challenge/", auth_views.zero_trust_challenge, name="zero_trust_challenge"),
@@ -1323,6 +1342,16 @@ urlpatterns = [
     path("api/auditor/deductions/notification-history/", monthly_deduction_views.deduction_notification_history, name="deduction_notification_history"),
     path("api/officers/deductions/member-ledger/", monthly_deduction_views.officer_member_ledger_history, name="officer_member_ledger_history"),
     path("api/officers/deductions/sheet-pdf/<int:assessment_id>/", monthly_deduction_views.officer_deduction_sheet_pdf, name="officer_deduction_sheet_pdf"),
+    # --- Officer personal action-PIN (offline, all roles) ---
+    path("api/officer/pin/status/", officer_pin_views.officer_pin_status, name="officer_pin_status"),
+    path("api/officer/pin/setup/", officer_pin_views.officer_pin_setup, name="officer_pin_setup"),
+    path("api/officer/pin/change/", officer_pin_views.officer_pin_change, name="officer_pin_change"),
+    path("api/officer/pin/verify/", officer_pin_views.officer_pin_verify, name="officer_pin_verify"),
+    path("api/officer/pin/reset/", officer_pin_views.officer_pin_reset, name="officer_pin_reset"),
+    path("api/officer/pin/reset/code/", officer_pin_views.officer_pin_reset_code, name="officer_pin_reset_code"),
+    path("api/officer/pin/reset/verify/", officer_pin_views.officer_pin_reset_verify, name="officer_pin_reset_verify"),
+    # --- Offline bot check (proof-of-work fallback when Cloudflare is unreachable) ---
+    path("api/auth/bot-check/challenge/", botcheck_views.bot_challenge, name="bot_challenge"),
 ]
 
 handler403 = "core_system.president_views.permission_denied_view"
