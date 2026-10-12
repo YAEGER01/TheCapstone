@@ -1,0 +1,46 @@
+# CAUFASYSTEM — cPanel Cron Jobs (shared hosting, no Task Scheduler, no .ps1)
+#
+# WHY: the in-process APScheduler is OFF on cPanel (CPANEL_MODE=True in .env
+# disables it in core_system/apps.py — Passenger culls/duplicates background
+# threads). These cron lines replace it 1:1. Email also piggybacks on web
+# traffic (EmailQueueKickMiddleware), so cron is the idle-time safety net.
+#
+# SETUP (cPanel → Advanced → Cron Jobs, Common Settings: Twice Per Hour etc.
+# or paste the schedules). Replace /home/USER/caufasystem + /home/USER/venv
+# with YOUR paths (cPanel → Python App shows both). Python version must be
+# 3.10+ (Django 5.1 floor — check with /home/USER/venv/bin/python --version).
+#
+# --- 1. OTP fast lane: every minute (small OTP-first batch) ---
+# * * * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py process_emails --otp-only >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 2. Full email queue drain: every 2 minutes ---
+# */2 * * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py process_emails >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 3. Dues reminders: daily 08:00 Asia/Manila ---
+# 0 8 * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py send_dues_reminders >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 4. Overdue-member deactivation: daily 01:00 ---
+# 0 1 * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py deactivate_overdue_members >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 5. Row retention purge: daily 02:30 (matches local scheduler slot) ---
+# 30 2 * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py purge_expired_rows >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 6. Stale push-subscription purge: weekly Sunday 03:00 ---
+# 0 3 * * 0 cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py purge_stale_push_subscriptions >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 7. Aid set-aside reconciliation: daily 03:30 ---
+# 30 3 * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py reconcile_aid_setasides >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# --- 8. Backups: daily 00:00 DB+media+config in one shot ---
+# NOTE: writes under SECURE_BACKUP_ROOT (default <app>/CAUFA-backups — set it
+# OUTSIDE public_html, e.g. /home/USER/caufa-backups, via .env). rclone/Drive
+# upload is NOT available on most shared hosts — download backups via cPanel
+# File Manager / FTP and keep an off-server copy yourself. The Windows
+# scripts/backup_*.ps1 + Task Scheduler do NOT run here.
+# 0 0 * * * cd /home/USER/caufasystem && /home/USER/venv/bin/python manage.py run_backup_scheduler --once >> /home/USER/caufasystem/logs/cron.log 2>&1
+#
+# VERIFY (SSH or Terminal in cPanel):
+#   /home/USER/venv/bin/python manage.py process_emails --otp-only
+#   /home/USER/venv/bin/python manage.py send_dues_reminders --help
+#   tail -n 50 /home/USER/caufasystem/logs/cron.log
+# Create logs/ first: mkdir -p /home/USER/caufasystem/logs

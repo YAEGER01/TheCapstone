@@ -27,12 +27,20 @@ class CoreSystemConfig(AppConfig):
         except Exception:
             logger.exception("dev reload watcher failed to start")
 
-        # Start the backup scheduler inside the web process so the daily
-        # 12:00 AM DB backup — and the OTP/email queue drains — fire with a
-        # plain `runserver` AND under Passenger/cPanel, with no second
-        # console window needed. RUN_MAIN is set only in the reloader's
-        # serving child (keeps the autoreload parent scheduler-free);
-        # --noreload has no child, so the check covers it via sys.argv.
+        # Start the backup scheduler inside the web process on local dev so the
+        # daily 12:00 AM DB backup — and the OTP/email queue drains — fire with
+        # a plain `runserver` and no second console window needed.
+        #
+        # cPanel/Passenger: OFF by default. Passenger culls idle processes and
+        # spawns multiples, so in-process jobs duplicate or never fire. Use
+        # cPanel Cron (deploy/cpanel-cron.txt) instead. Disable via any of:
+        #   CPANEL_MODE=True  (also flips SINGLE_WORKER_MODE + scheduler off
+        #                      in settings.py), or
+        #   DISABLE_BACKGROUND_SCHEDULER=True, or
+        #   running under Passenger (PASSENGER_APP_ENV / passenger argv).
+        # RUN_MAIN is set only in the reloader's serving child (keeps the
+        # autoreload parent scheduler-free); --noreload has no child, so the
+        # check covers it via sys.argv.
         # Management commands (migrate/shell/test/...) and the standalone
         # scheduler command itself must stay scheduler-free.
         _scheduler_free_commands = {
@@ -43,6 +51,23 @@ class CoreSystemConfig(AppConfig):
         }
         argv_command = sys.argv[1] if len(sys.argv) > 1 else ""
         if argv_command in _scheduler_free_commands:
+            return
+        # cPanel / Passenger kill-switch (env) + auto-detect (Passenger sets
+        # PASSENGER_APP_ENV, and its argv[0] contains "passenger").
+        try:
+            from django.conf import settings as _dj_settings
+
+            if getattr(_dj_settings, "DISABLE_BACKGROUND_SCHEDULER", False):
+                return
+            if getattr(_dj_settings, "CPANEL_MODE", False):
+                return
+        except Exception:
+            pass
+        if os.environ.get("PASSENGER_APP_ENV") or "passenger" in (sys.argv[0] or "").lower():
+            return
+        if os.environ.get("DISABLE_BACKGROUND_SCHEDULER", "").strip().lower() in {"1", "true", "yes", "on"}:
+            return
+        if os.environ.get("CPANEL_MODE", "").strip().lower() in {"1", "true", "yes", "on"}:
             return
         # Reloader parent (runserver without --noreload, RUN_MAIN unset) must
         # stay scheduler-free — the serving child (RUN_MAIN=true) starts it.

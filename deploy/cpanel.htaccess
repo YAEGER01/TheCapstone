@@ -1,0 +1,43 @@
+# CAUFASYSTEM — cPanel .htaccess (Apache/LiteSpeed shared hosting)
+#
+# WHERE TO PUT IT (pick one — not the repo root):
+#   * If your Python app is served from public_html: merge into public_html/.htaccess
+#   * If cPanel created a separate app dir: public_html/.htaccess still controls
+#     the domain frontend, so put the HTTPS + security rules there.
+# Do NOT copy deploy/nginx*.conf to cPanel — no root, no nginx, no certbot.
+# TLS comes from cPanel AutoSSL ( Domains → AutoSSL → Run ), this file only
+# forces visitors onto it.
+#
+# Local dev ignores this file (runserver/nginx don't read .htaccess) — safe both ways.
+
+# --- Force HTTPS (AutoSSL must already cover the domain) ---
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Don't redirect ACME/AutoSSL verification + already-https traffic
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{REQUEST_URI} !^/.well-known/
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# --- Never serve dumps / backups / secrets if they ever land in docroot ---
+# (New backups live OUTSIDE the webroot via SECURE_BACKUP_ROOT. This is the backstop.)
+<FilesMatch "\.(sql|db|sqlite3|sqlite|sqlite-journal|bak|env|gz|zip|tar|json|enc)$">
+  Require all denied
+</FilesMatch>
+RedirectMatch 404 "(^|/)backups(/|$)"
+
+# --- Static caching (Django still sets no-cache on HTML via middleware) ---
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 30 days"
+  ExpiresByType application/javascript "access plus 30 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType font/woff2 "access plus 30 days"
+</IfModule>
+
+# --- Don't expose Python internals ---
+<FilesMatch "^(\.env|\.git|passenger_wsgi\.py.*\.pyc|__pycache__)$">
+  Require all denied
+</FilesMatch>

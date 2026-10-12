@@ -1,0 +1,54 @@
+# CAUFASYSTEM — cPanel-safe requirements (shared hosting, no root)
+#
+# Same app as requirements.txt, minus packages that cannot build / are useless
+# on shared cPanel Passenger (WSGI-only, no sudo, no apt, no long-lived ports):
+#
+#   REMOVED vs requirements.txt:
+#   - daphne / twisted / uvicorn[standard] / gunicorn
+#       Local/VPS server runners only. cPanel serves via Passenger WSGI
+#       (passenger_wsgi.py) — these are never imported on the server.
+#       Keep using requirements.txt locally so runserver (uvicorn) still works.
+#   - mysqlclient
+#       Needs C compilation. The app already shims PyMySQL as MySQLdb
+#       (caufa_portal/__init__.py), so PyMySQL below is the only driver needed.
+#   - weasyprint
+#       Needs system Pango/GTK (apt) — unavailable without root. All call sites
+#       already fall back gracefully (reportlab PDF or plain HTML):
+#       core_system/services/safe_pdf_report.py, oversight_reports.py,
+#       secretary_views.py. Install weasyprint locally for pixel-perfect PDFs.
+#   - django-browser-reload
+#       Dev-only live refresh. settings.py only loads it when DEBUG=True, and
+#       cPanel prod runs DEBUG=False, so omitting it is safe (saves boot time).
+#   - channels-redis / django-redis / redis
+#       Only needed when REDIS_URL is set (multi-worker/VPS). Shared cPanel
+#       single-worker runs locmem (CPANEL_MODE=True) — no Redis needed.
+#       IF your host offers Redis later:
+#         pip install "redis>=4.0,<5.0" "django-redis>=5.4,<6.0" "channels-redis>=4.2,<5.0"
+#       and set REDIS_URL in .env — zero code changes.
+#
+# Install on cPanel (CloudLinux Python selector or SSH):
+#   pip install -r requirements-cpanel.txt
+# Local dev stays on:
+#   pip install -r requirements.txt
+
+Django>=5.1,<6.0
+channels>=4.0,<5.0
+python-dotenv>=1.0,<2.0
+beautifulsoup4>=4.12,<5.0
+openpyxl>=3.1,<4.0
+pytz>=2024.1
+pillow
+PyMySQL>=1.1,<2.0
+argon2-cffi>=23.1,<26.0
+pyjwt>=2.0,<3.0
+djangorestframework>=3.0,<4.0
+django-filter>=2.0,<3.0
+django-cors-headers>=3.0,<4.0
+pytest>=6.0,<7.0
+pytest-django>=4.0,<5.0
+pywebpush>=2.0,<3.0
+qrcode>=7.4,<8.0
+reportlab>=4.0,<6.0
+apscheduler>=3.10,<4.0
+psutil>=7.2.2,<8.0
+watchfiles>=1.1.1,<2.0

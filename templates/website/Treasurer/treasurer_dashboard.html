@@ -22344,6 +22344,11 @@
              huge raster layers that glitch Edge's preview tiles on scroll. */
           '.rpt-doc th,.rpt-doc .rptd-sec,.rpt-doc tr.total td,.rpt-doc tr[style*="background"],.rpt-doc td[style*="background"],.rpt-doc .rptd-qr i{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}' +
           '.rpt-doc{font-family:Georgia,\'Times New Roman\',serif;color:#111;font-size:12.5px;line-height:1.5;padding:0;max-width:100%;}' +
+          /* Print at true printable width (A4 210mm minus 10mm/8mm margins):
+             the popup window is ~900px wide, and scaling that down to the
+             ~733px printable area forces fractional page-tile math that makes
+             Edge's preview paint overlapping/blank sheets while scrolling. */
+          '.rpt-doc{width:190mm;max-width:190mm;margin-left:auto;margin-right:auto;}' +
           '.rpt-doc .rptd-head{text-align:center;border-bottom:3px double #1a1a1a;padding-bottom:10px;margin-bottom:14px;}' +
           '.rpt-doc .rptd-head .univ{font-size:17px;font-weight:700;letter-spacing:.06em;}' +
           '.rpt-doc .rptd-head .sys{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#444;margin-top:2px;}' +
@@ -22379,6 +22384,15 @@
           '.rpt-doc .rptd-sign .role{color:#1a1a1a;font-size:10.5px;margin-top:2px;}' +
           '.rpt-doc .rptd-head img{max-height:95px;width:auto;object-fit:contain;}' +
           '@page{size:A4 portrait;margin:10mm 8mm;}' +
+          /* Print-media reset: nothing in this document needs out-of-flow
+             positioning, so pin everything to normal flow for pagination.
+             A floating/fixed/clipped ancestor is what stacks blank sheets
+             over content in print previews. */
+          '@media print{' +
+          '*,*::before,*::after{position:static !important;overflow:visible !important;float:none !important;}' +
+          'html,body{height:auto !important;min-height:0 !important;max-height:none !important;overflow:visible !important;}' +
+          'img{max-width:100%;}' +
+          '}' +
           '</style></head><body>' + sheetHTML +
           /* Print only after content settles (images decoded + fonts ready):
              firing print while the letterhead logo is still loading shifts the

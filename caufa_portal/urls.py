@@ -71,6 +71,12 @@ else:
     # Uploaded files (e.g. member profile photos) must remain reachable in
     # production, where no separate static-file server is configured.
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Shared cPanel (no SSH, no static-dir mapping, no nginx): serve the
+    # collected static files straight from Django when CPANEL_MODE=True
+    # (run `collectstatic` on your home PC, upload `staticfiles/`).
+    # Local dev and VPS keep using runserver/nginx and skip this.
+    if getattr(settings, "CPANEL_MODE", False):
+        urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 handler403 = "core_system.president_views.permission_denied_view"
 handler404 = "core_system.url_obfuscation_views.obfuscated_not_found_view"

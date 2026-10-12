@@ -94,7 +94,7 @@ if _IS_PROD:
 # header (session/Fernet forgery, cache poisoning).
 if _IS_PROD:
     from django.core.exceptions import ImproperlyConfigured as _ProdGuardError
-    _PLACEHOLDER_KEYS = ("change-me", "django-insecure", "")
+    _PLACEHOLDER_KEYS = ("change-me", "django-insecure")
     if not SECRET_KEY or any(p in SECRET_KEY for p in _PLACEHOLDER_KEYS):
         raise _ProdGuardError(
             "APP_ENV=production requires a real SECRET_KEY "
@@ -166,8 +166,11 @@ INSTALLED_APPS = [
     "core_system",
     "django.contrib.staticfiles",
     "channels",
-    "django_browser_reload",
 ]
+# django-browser-reload is dev-only: local `runserver` gets live refresh,
+# cPanel/Passenger prod must never load it (extra middleware + SSE endpoint).
+if DEBUG:
+    INSTALLED_APPS += ["django_browser_reload"]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -175,7 +178,10 @@ MIDDLEWARE = [
     # @csrf_exempt dashboards) + stamp CSP on every response.
     "core_system.middleware.FetchMetadataGuardMiddleware",
     "core_system.middleware.SecurityHeadersMiddleware",
-    "django_browser_reload.middleware.BrowserReloadMiddleware",
+]
+if DEBUG:
+    MIDDLEWARE += ["django_browser_reload.middleware.BrowserReloadMiddleware"]
+MIDDLEWARE += [
     "core_system.middleware.NoCacheMiddleware",
     "core_system.middleware.EmailQueueKickMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -256,9 +262,21 @@ CHANNEL_LAYERS = {
 # Redis (shared cache + channel layer). The login throttle (cache.incr) and
 # WebSocket fan-out are per-process on locmem — a second worker/Daphne makes
 # lockouts bypassable and pushes undeliverable. Set REDIS_URL and both flip
-# to shared Redis with zero code changes. Production refuses to boot without
-# it (fail closed); dev/test stay on locmem/in-memory.
+# to shared Redis with zero code changes.
+#
+# Dual-mode (local <-> cPanel shared <-> VPS):
+#   * Local dev / cPanel shared single-worker: no REDIS_URL needed, locmem is
+#     fine. Set SINGLE_WORKER_MODE=True (cPanel: CPANEL_MODE=True implies it).
+#   * Multi-worker / VPS prod: keep SINGLE_WORKER_MODE=False (default) so
+#     production still refuses to boot without REDIS_URL (fail closed).
+#   * WebSockets are optional enhancement everywhere: without ASGI/Redis the
+#     dashboards fall back to polling (see static/js/shared/realtime.js) —
+#     pages stay fully usable on plain WSGI/Passenger.
 REDIS_URL = env_value("REDIS_URL", "")
+CPANEL_MODE = env_value("CPANEL_MODE", "False", cast=bool)
+SINGLE_WORKER_MODE = env_value(
+    "SINGLE_WORKER_MODE", "True" if CPANEL_MODE else "False", cast=bool
+)
 if REDIS_URL:
     CACHES = {
         "default": {
@@ -274,21 +292,23 @@ if REDIS_URL:
             "CONFIG": {"hosts": [REDIS_URL]},
         },
     }
-elif _IS_PROD:
+elif _IS_PROD and not SINGLE_WORKER_MODE:
     raise _ProdGuardError(
         "APP_ENV=production requires REDIS_URL (e.g. "
         "redis://127.0.0.1:6379/1 with requirepass + TLS) — locmem cache "
         "makes login lockouts per-process and channels single-worker. "
+        "Shared cPanel single-worker? Set SINGLE_WORKER_MODE=True "
+        "(or CPANEL_MODE=True) instead. "
         "See SECURITY_MANUAL_STEPS.md §7."
     )
-
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "caufa-cache",
-        "TIMEOUT": 300,
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "caufa-cache",
+            "TIMEOUT": 300,
+        }
     }
-}
 
 # Use MySQL only. The SQLite database option has been removed because it was
 # causing Django to connect to the stale local database file instead of the live
@@ -358,6 +378,19 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+# cPanel + any prod: `python manage.py collectstatic` collects here.
+# Local runserver ignores it (serves from STATICFILES_DIRS); Passenger/cPanel
+# maps /static/ to this dir OR lets Django serve it. Same value both ways.
+STATIC_ROOT = env_value("STATIC_ROOT", str(BASE_DIR / "staticfiles"))
+
+# In-process background scheduler (APScheduler) lives in the web process on
+# local dev. On cPanel/Passenger it must stay OFF: Passenger culls idle
+# processes and spawns multiples, so jobs duplicate or never fire. Use cPanel
+# Cron calling management commands instead (see deploy/cpanel-cron.txt).
+# Default follows CPANEL_MODE so one flag flips the whole host.
+DISABLE_BACKGROUND_SCHEDULER = env_value(
+    "DISABLE_BACKGROUND_SCHEDULER", "True" if CPANEL_MODE else "False", cast=bool
+)
 
 # Media upload configuration (receipts / supporting proofs)
 MEDIA_ROOT = BASE_DIR / "media"

@@ -44,6 +44,9 @@ Desktop.ini
 # Environment / secrets
 .env
 .env.*
+# ...but the template is safe to share (no real values) — track it so every
+# fresh clone / cPanel upload has it:  git add -f .env.example  (first time)
+!.env.example
 *.local
 
 # Local TLS certs (created by scripts/setup_local_tls.ps1 — per-machine)
