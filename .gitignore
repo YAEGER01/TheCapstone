@@ -61,10 +61,13 @@ tmp_*
 
 # Local backups / dumps / archives (never push — huge + sensitive)
 CAUFA-backups/
-_archive/
+_archive/*
+!_archive/sql-dumps/
 *.log
 *.sql
 *.sql.gz
 *.dump
 *.tar.gz
 *.enc
+!_archive/sql-dumps/*.sql
+!_archive/sql-dumps/**/*.sql
