@@ -62,15 +62,17 @@ tmp_*
 *.bak2
 *.bak3
 
-# Local backups / dumps / archives (never push — huge + sensitive)
+# Local backups / dumps / archives (never push — huge + sensitive).
+# ONLY schema-only reference dumps may be tracked; any dump containing row
+# data (password hashes, Fernet-encrypted PII, session tokens) must stay local.
 CAUFA-backups/
 _archive/*
 !_archive/sql-dumps/
+_archive/sql-dumps/old/
 *.log
 *.sql
 *.sql.gz
 *.dump
 *.tar.gz
 *.enc
-!_archive/sql-dumps/*.sql
-!_archive/sql-dumps/**/*.sql
+!_archive/sql-dumps/*schema-only*.sql
