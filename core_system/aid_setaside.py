@@ -491,9 +491,12 @@ def consume_set_asides(post, amount) -> Decimal:
 
     # Whatever this claim did not need goes back to the pooled reserve so it
     # still shows as available for the next claim of the same aid type.
+    # Flagged so the UNFILED table never re-lists it as a fileable case for
+    # the old recipient — that claim is done; the money lives on in the
+    # reserve headline and re-links automatically to a future claim.
     AidSetAside.objects.filter(
         aid_tracking_post_id_FK=post, amount_released__lt=F("amount")
-    ).update(aid_tracking_post_id_FK=None)
+    ).update(aid_tracking_post_id_FK=None, pooled_after_release=True)
 
     return covered
 

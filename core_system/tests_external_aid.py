@@ -20,7 +20,7 @@ from core_system.aid_setaside import (
     link_set_asides_to_external_post,
     setaside_available_for_post,
 )
-from core_system.auth_utils import create_access_session
+from core_system.auth_utils import create_access_session, hash_pin
 from core_system.external_aid import ensure_external_posts_for_assessment
 from core_system.models import (
     AidSetAside,
@@ -222,7 +222,9 @@ class ExternalAidTurnoverTests(TestCase):
             password_hash="unused", role="Treasurer",
             account_status="Active",
             mfa_secret="ext-turnover-secret",
+            action_pin_hash=hash_pin("5793"),
         )
+        self.action_pin = "5793"
         session, token = create_access_session(
             officer=self.treasurer, ip_address="127.0.0.1", device_info="tests")
         session.trusted_device = True
@@ -292,7 +294,8 @@ class ExternalAidTurnoverTests(TestCase):
     def _turnover(self, **extra):
         self._login()
         payload = {"post_id": str(self.post.post_id_PK),
-                   "received_by": "Echague Representative"}
+                   "received_by": "Echague Representative",
+                   "action_pin": self.action_pin}
         payload.update(extra)
         if "proof_receipt" not in payload:
             # attach via data dict merging below
@@ -307,6 +310,7 @@ class ExternalAidTurnoverTests(TestCase):
         resp = self.client.post("/api/treasurer/external-aid-turnover/", {
             "post_id": str(self.post.post_id_PK),
             "proof_receipt": self._proof(),
+            "action_pin": self.action_pin,
         })
         self.assertEqual(resp.status_code, 400)
         self.assertTrue(resp.json().get("requires_received_by"))
@@ -316,6 +320,7 @@ class ExternalAidTurnoverTests(TestCase):
         resp = self.client.post("/api/treasurer/external-aid-turnover/", {
             "post_id": str(self.post.post_id_PK),
             "received_by": "Echague Representative",
+            "action_pin": self.action_pin,
         })
         self.assertEqual(resp.status_code, 400)
         self.assertTrue(resp.json().get("requires_proof"))
@@ -344,20 +349,15 @@ class ExternalAidTurnoverTests(TestCase):
         self.assertIn(second.status_code, (400, 404))
 
     def test_member_release_refuses_external_post(self):
+        from core_system.auth_utils import hash_pin
+
         self._login()
-        session = self.client.session
-        from core_system.services.mfa_service import generate_otp
-        session["aid_release_otp"] = {
-            "post_id": int(self.post.post_id_PK),
-            "sent_at": timezone.now().timestamp(),
-            "expires_at": (timezone.now() + timedelta(seconds=300)).isoformat(),
-        }
-        session.save()
-        otp = generate_otp(self.treasurer.mfa_secret or "")
+        self.treasurer.action_pin_hash = hash_pin("5793")
+        self.treasurer.save(update_fields=["action_pin_hash"])
         resp = self.client.post("/api/treasurer/aid-post-release/", {
             "post_id": str(self.post.post_id_PK),
             "received_by": "Someone",
-            "otp": otp,
+            "action_pin": "5793",
         })
         self.assertEqual(resp.status_code, 409, resp.content)
         self.assertTrue(resp.json().get("is_external"))

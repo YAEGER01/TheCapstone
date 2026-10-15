@@ -2849,6 +2849,11 @@ class AidSetAside(models.Model):
     aid_type = models.CharField(max_length=20, choices=AID_TYPE_CHOICES)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     amount_released = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    # True once a release returned this row to the pooled reserve
+    # (``consume_set_asides`` unlinks leftovers the payout did not need).
+    # Such rows are reserve money — still re-linkable to a future claim —
+    # but must never render as an UNFILED case for the old recipient.
+    pooled_after_release = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

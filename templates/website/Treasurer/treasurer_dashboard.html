@@ -22821,6 +22821,7 @@
             approved: parseFloat(p.amount || p.total_expected || 0),
             collected: parseFloat(p.total_collected || 0),
             setAside: parseFloat(p.set_aside_available || 0),
+            paidWithFunds: !!p.finish_paid_with_funds,
             aidType: p.aid_type || "",
             perMember: parseFloat(p.suggested_per_member || 0),
             relLabel: p.relationship_label || "",
@@ -22867,15 +22868,18 @@
 
         /* Unfiled aids — active aid cases NOT yet filed for release (not
            ready, not released, not rejected): recipient + earmarked
-           set-aside per case, so nothing collectible slips out of sight. */
-        const FILED_OUT = ["pending_release", "released", "completed", "complete", "repayment", "rejected"];
+           set-aside per case, so nothing collectible slips out of sight.
+           "approved" is the terminal status a normal release sets — a
+           released post must never render here even if it leaks into the
+           payload; same for inactive (closed) rows. */
+        const FILED_OUT = ["pending_release", "released", "completed", "complete", "approved", "repayment", "rejected"];
         const prettyStatus = (s) => {
           const v = String(s || "").trim() || "tracking";
           return v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ");
         };
         const unfiled = ((posts && posts.posts) || [])
           .concat((unfiledExtra && unfiledExtra.unfiled) || [])
-          .filter((p) => FILED_OUT.indexOf(String(p.finish_status || "").toLowerCase()) === -1)
+          .filter((p) => p.is_active !== false && FILED_OUT.indexOf(String(p.finish_status || "").toLowerCase()) === -1)
           .map((p) => {
             const kind = p.aid_kind || (p.aid_type === "death_aid" ? "death" : "medical");
             return {
@@ -23048,8 +23052,21 @@
         const prefillPerCase = autoPerCase > 0
           ? Math.round(autoPerCase * 100) / 100
           : (picked.length === 1 ? (picked[0].collected || 0) : Math.round((autoTotal / picked.length) * 100) / 100);
+        /* Fixed payout — mirrors the server exactly: fund-paid posts release
+           totalExpected; otherwise the held set-aside (else collected),
+           trimmed to the benefit ceiling. Never editable. */
+        const fixedPerCase = (() => {
+          if (picked.length === 1 && picked[0].paidWithFunds) {
+            return Math.round((parseFloat(picked[0].totalExpected || 0) || 0) * 100) / 100;
+          }
+          const base = prefillPerCase > 0 ? prefillPerCase : 0;
+          const ceiling = picked.length === 1 ? (parseFloat(picked[0].totalExpected || 0) || 0) : 0;
+          const fixed = ceiling > 0 ? Math.min(base, ceiling) : base;
+          return Math.round(fixed * 100) / 100;
+        })();
         nxReleaseState.modalPicked = picked;
         nxReleaseState.autoTotal = autoTotal;
+        nxReleaseState.fixedPerCase = fixedPerCase;
 
         const summaryLine =
           picked.length === 1
@@ -23120,8 +23137,8 @@
             </div>
             <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
               <div>
-                <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">Amount to release (₱)${picked.length > 1 ? " — for each selected case" : ""} <span style="font-weight:400;color:#757575;">(max ${peso(nxMaxPerCase)}${picked.length > 1 ? " each" : ""})</span></label>
-                <input type="number" step="0.01" min="0.01" max="${nxMaxPerCase}" id="nx-rel-amount" value="${prefillPerCase > 0 && nxMaxPerCase >= 0.01 ? Math.min(prefillPerCase, nxMaxPerCase).toFixed(2) : ""}" oninput="this.value=this.value.replace(/-/g,'');if(window.nxUpdateReleaseAfter) window.nxUpdateReleaseAfter();" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #cfdccc;border-radius:8px;font-size:0.95rem;" placeholder="Enter an amount" />
+                <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">Amount to release (₱)${picked.length > 1 ? " — for each selected case" : ""} <span style="font-weight:400;color:#757575;">(fixed — computed from this claim's collected aid)</span></label>
+                <input type="text" readonly id="nx-rel-amount" value="${fixedPerCase > 0 ? fixedPerCase.toFixed(2) : "0.00"}" title="Fixed payout — held set-aside, else collected contributions, trimmed to the benefit ceiling." style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #cfdccc;border-radius:8px;font-size:0.95rem;background:#f2f5f3;color:#1b5e20;font-weight:700;cursor:default;" />
               </div>
 
               <div style="font-size:0.78rem;color:#5f6b5f;display:flex;align-items:flex-start;gap:7px;">
@@ -23174,7 +23191,7 @@
                 <div style="display:flex;justify-content:space-between;padding:7px 0 2px;border-top:1px solid #eef1ee;margin-top:4px;"><span style="font-weight:700;">Fund after release</span><b id="nx-rel-after" style="color:#1b5e20;">${peso(nxReleaseState.balance)}</b></div>
               </div>
             </div>
-            <div style="padding:12px 20px 0;font-size:0.74rem;color:#8a9494;text-align:right;">Next up: we'll email you a 6-digit code to finish this release.</div>
+            <div style="padding:12px 20px 0;font-size:0.74rem;color:#8a9494;text-align:right;">Next up: confirm with your 4-digit action PIN to finish this release.</div>
             <div style="padding:14px 20px;border-top:1px solid #eef1ee;display:flex;gap:10px;justify-content:flex-end;">
               <button type="button" class="btn-brand btn-brand-secondary" onclick="nxCloseReleaseModal()">Cancel</button>
               <button type="button" class="btn-brand btn-brand-primary" id="nx-rel-confirm">Confirm Release</button>
@@ -23183,23 +23200,23 @@
         document.body.appendChild(overlay);
         overlay.addEventListener("click", (e) => { if (e.target === overlay) nxCloseReleaseModal(); });
         document.getElementById("nx-rel-confirm").addEventListener("click", nxConfirmRelease);
+        /* The release is linked to this claim's member — pre-select them so
+           "Received by" is already correct. The Treasurer can still open the
+           picker and choose someone else (e.g. an authorized representative). */
+        if (claimName) {
+          const hidden = document.getElementById("nx-rel-received");
+          const text = document.getElementById("nx-rel-received-text");
+          if (hidden) hidden.value = claimName;
+          if (text) { text.textContent = claimName; text.style.color = "#374151"; }
+        }
         if (window.nxUpdateReleaseAfter) nxUpdateReleaseAfter();
       };
 
       window.nxUpdateReleaseAfter = function () {
-        const input = document.getElementById("nx-rel-amount");
-        let raw = parseFloat((input || {}).value || "0");
+        /* Fixed payout preview: no typing, just the server-mirrored figure
+           against the current fund balance. */
         const count = (nxReleaseState.modalPicked || []).length || 1;
-        /* Hard fund cap while typing: a ₱400 fund refuses a ₱401 keystroke by
-           pulling the value back to the max affordable per case. */
-        const maxPerCase = Math.max(Math.floor((nxReleaseState.balance / count) * 100) / 100, 0);
-        if (raw > maxPerCase) {
-          raw = maxPerCase;
-          if (input) input.value = raw > 0 ? String(raw) : "";
-        }
-        /* Negative or malformed input can never reduce the "Fund after"
-           math — clamp it so the preview always shows a real outflow. */
-        const perCase = raw > 0 ? raw : 0;
+        const perCase = parseFloat(nxReleaseState.fixedPerCase || 0) || 0;
         const total = perCase * count;
         const remaining = nxReleaseState.balance - total;
         const minus = document.getElementById("nx-rel-minus");
@@ -23349,35 +23366,12 @@
         window.nxCloseReceivedDropdown();
       });
 
-      window.nxSendReleaseOtp = async function () {
-        const picked = nxReleaseState.modalPicked || [];
-        if (picked.length !== 1) { showToast("Release one claim at a time.", true); return; }
-        const btn = document.getElementById("nx-rel-send-otp");
-        const msg = document.getElementById("nx-rel-otp-msg");
-        if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
-        try {
-          const fd = new FormData();
-          fd.append("post_id", String(picked[0].postId));
-          const res = await fetch("/api/treasurer/aid-post-release/otp/", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "X-CSRFToken": getCookie("csrftoken") },
-            body: fd,
-          });
-          const data = await res.json().catch(() => ({}));
-          if (data && data.ok) {
-            if (msg) { msg.style.color = "#1b5e20"; msg.textContent = "Code sent to " + (data.email || "your registered email") + ". Expires in 5 minutes."; }
-            const otp = document.getElementById("nx-rel-otp");
-            if (otp) otp.focus();
-          } else if (msg) {
-            msg.style.color = "#c62828";
-            msg.textContent = (data && data.error) || "Could not send the verification code.";
-          }
-        } catch (e) {
-          if (msg) { msg.style.color = "#c62828"; msg.textContent = "Network error."; }
-        } finally {
-          if (btn) { btn.disabled = false; btn.textContent = "Send code"; }
-        }
+      /* Action-PIN confirm replaces the old emailed OTP: the 4-digit offline
+         PIN travels as FormData `action_pin` + `X-Action-PIN` header on the
+         same release request (single-step, no replay gap). */
+      window.nxSendReleaseOtp = function () {
+        const el = document.getElementById("nx-rel-pin");
+        if (el) el.focus();
       };
 
       window.nxConfirmRelease = async function () {
@@ -23388,7 +23382,9 @@
         const method = methodEl ? methodEl.value : "Cash";
         const receivedBy = ((document.getElementById("nx-rel-received") || {}).value || "").trim();
         const notes = ((document.getElementById("nx-rel-notes") || {}).value || "").trim();
-        const manualAmount = parseFloat((document.getElementById("nx-rel-amount") || {}).value || "0") || 0;
+        /* Fixed payout — the server recomputes it; the figure here is display
+           only and is never posted. */
+        const fixedAmount = parseFloat(nxReleaseState.fixedPerCase || 0) || 0;
 
         /* Server-side rules are authoritative — these only save a round trip. */
         const nudge = (id, message) => {
@@ -23396,12 +23392,12 @@
           const el = document.getElementById(id);
           if (el) { el.style.borderColor = "#c62828"; el.focus(); setTimeout(() => { el.style.borderColor = "#cfdccc"; }, 2500); }
         };
-        if (!(manualAmount > 0)) { nudge("nx-rel-amount", "Enter a real amount — \u20b10.00 cannot be released."); return; }
+        if (!(fixedAmount > 0)) { showToast("Nothing has been collected for this claim — no amount to release.", true); return; }
         if (!receivedBy) { nudge("nx-rel-received-btn", "Received by is required — record who physically received the aid."); return; }
         /* Reason is optional: money past the claim's own set-aside comes out
            of the fund, but the server-side fund-deduction confirm covers it. */
-        if (manualAmount - nxReleaseState.balance > 0.009) {
-          nudge("nx-rel-amount", `Amount exceeds the available cash on hand (${peso(nxReleaseState.balance)}).`);
+        if (fixedAmount - nxReleaseState.balance > 0.009) {
+          showToast(`Fixed payout (${peso(fixedAmount)}) exceeds the available cash on hand (${peso(nxReleaseState.balance)}).`, true);
           return;
         }
 
@@ -23409,16 +23405,12 @@
         fd.append("post_id", String(p.postId));
         fd.append("release_method", method);
         fd.append("received_by", receivedBy);
-        fd.append("release_amount", String(manualAmount));
-        // The manual amount goes through the override channel so it is
-        // honored for both contribution-funded and fund-paid aid posts.
-        fd.append("override_amount", String(manualAmount));
         fd.append("override_reason", notes || "");
         if (notes) fd.append("treasurer_notes", notes);
 
-        /* Everything except the emailed code is captured here — the next screen
-           only asks for that code. */
-        nxReleaseState.draft = { fd: fd, p: p, amount: manualAmount };
+        /* Everything except the action PIN is captured here — the next screen
+           only asks for that PIN. */
+        nxReleaseState.draft = { fd: fd, p: p, amount: fixedAmount };
         window.nxOpenReleaseVerifyModal();
       };
 
@@ -23437,15 +23429,12 @@
             </div>
             <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
               <div style="font-size:0.78rem;line-height:1.5;padding:9px 11px;border-radius:8px;background:#fff8e1;border:1px solid #ffe082;color:#7a5200;">
-                <b>Strict release.</b> Releasing aid requires a verification code sent to your registered email. This action will be recorded and logged on the audit trails.
+                <b>Strict release.</b> Releasing aid requires your 4-digit action PIN. This action will be recorded and logged on the audit trails.
               </div>
               <div>
-                <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">Verification code (OTP) <span style="color:#c62828;">*</span></label>
-                <div style="display:flex;gap:8px;">
-                  <button type="button" class="btn-brand btn-brand-secondary" id="nx-rel-send-otp" onclick="nxSendReleaseOtp()" style="white-space:nowrap;">Send code</button>
-                  <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" id="nx-rel-otp" placeholder="6-digit code" style="flex:1;min-width:0;box-sizing:border-box;padding:9px 12px;border:1px solid #cfdccc;border-radius:8px;font-size:0.95rem;letter-spacing:0.2em;" />
-                </div>
-                <div id="nx-rel-otp-msg" style="font-size:0.72rem;color:#757575;margin-top:4px;">Request a code, then enter it below to unlock the release.</div>
+                <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">Action PIN <span style="color:#c62828;">*</span></label>
+                <input type="password" inputmode="numeric" autocomplete="current-password" maxlength="4" id="nx-rel-pin" placeholder="••••" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #cfdccc;border-radius:8px;font-size:1.1rem;letter-spacing:0.35em;text-align:center;" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,4);" onkeydown="if(event.key==='Enter'){event.preventDefault();nxVerifyAndRelease();}" />
+                <div id="nx-rel-otp-msg" style="font-size:0.72rem;color:#757575;margin-top:4px;">Enter your 4-digit action PIN to unlock the release.</div>
               </div>
             </div>
             <div style="padding:14px 20px;border-top:1px solid #eef1ee;display:flex;gap:10px;justify-content:flex-end;">
@@ -23456,6 +23445,7 @@
         document.body.appendChild(overlay);
         overlay.addEventListener("click", (e) => { if (e.target === overlay) nxCloseReleaseVerifyModal(); });
         document.getElementById("nx-rel-verify").addEventListener("click", nxVerifyAndRelease);
+        setTimeout(() => { const pin = document.getElementById("nx-rel-pin"); if (pin) pin.focus(); }, 60);
       };
 
       window.nxCloseReleaseVerifyModal = function () {
@@ -23469,9 +23459,9 @@
         const fd = draft.fd;
         const msg = document.getElementById("nx-rel-otp-msg");
         const say = (text, color) => { if (msg) { msg.style.color = color || "#c62828"; msg.style.textAlign = "left"; msg.textContent = text; } };
-        const otp = ((document.getElementById("nx-rel-otp") || {}).value || "").trim();
-        if (!otp) { say("Enter the 6-digit code we emailed you."); const el0 = document.getElementById("nx-rel-otp"); if (el0) el0.focus(); return; }
-        fd.set("otp", otp);
+        const pin = ((document.getElementById("nx-rel-pin") || {}).value || "").replace(/\D/g, "").slice(0, 4);
+        if (pin.length !== 4) { say("Enter your 4-digit action PIN."); const el0 = document.getElementById("nx-rel-pin"); if (el0) el0.focus(); return; }
+        fd.set("action_pin", pin);
 
         const btn = document.getElementById("nx-rel-verify");
         if (btn) { btn.disabled = true; btn.textContent = "Releasing..."; }
@@ -23479,7 +23469,7 @@
           const res = await fetch("/api/treasurer/aid-post-release/", {
             method: "POST",
             credentials: "same-origin",
-            headers: { "X-CSRFToken": getCookie("csrftoken") },
+            headers: { "X-CSRFToken": getCookie("csrftoken"), "X-Action-PIN": pin },
             body: fd,
           });
           return res.json().catch(() => ({}));
@@ -23510,10 +23500,10 @@
         }
 
         const error = (data && data.error) || "Release failed.";
-        if (data && data.requires_otp) {
+        if (data && (data.code === "PIN_REQUIRED" || data.code === "PIN_INVALID" || data.code === "PIN_LOCKED" || data.code === "PIN_NOT_SET")) {
           say(error);
-          const el = document.getElementById("nx-rel-otp");
-          if (el) el.focus();
+          const el = document.getElementById("nx-rel-pin");
+          if (el) { el.value = ""; el.focus(); }
           return;
         }
         /* The trouble is with the details on the first screen, not the code —

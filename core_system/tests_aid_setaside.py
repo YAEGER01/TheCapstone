@@ -31,8 +31,7 @@ from core_system.aid_setaside import (
     setaside_totals_by_post,
     sync_post_contributions_from_setasides,
 )
-from core_system.auth_utils import create_access_session
-from core_system.services.mfa_service import generate_otp
+from core_system.auth_utils import create_access_session, hash_pin
 from core_system.models import (
     AidSetAside,
     AidTrackingPost,
@@ -754,7 +753,9 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
             role="Treasurer",
             account_status="Active",
             mfa_secret="release-otp-test-secret",
+            action_pin_hash=hash_pin("5793"),
         )
+        self.action_pin = "5793"
         session, token = create_access_session(
             officer=self.treasurer,
             ip_address="127.0.0.1",
@@ -832,25 +833,14 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
         session["role"] = "Treasurer"
         session.save()
 
-    def _issue_otp(self, post_id=None):
-        """Stand in for the email round trip: bind a code to one claim."""
-        session = self.client.session
-        session["aid_release_otp"] = {
-            "post_id": int(post_id or self.post.post_id_PK),
-            "sent_at": timezone.now().timestamp(),
-            "expires_at": (timezone.now() + timedelta(seconds=300)).isoformat(),
-        }
-        session.save()
-        return generate_otp(self.treasurer.mfa_secret or "")
-
-    def _release(self, otp=None, **extra):
+    def _release(self, pin=None, **extra):
+        """Release helper: confirms with the offline action PIN (no OTP)."""
         self._login()
         payload = {
             "post_id": str(self.post.post_id_PK),
             "received_by": "Maria Santos",
+            "action_pin": self.action_pin if pin is None else pin,
         }
-        if otp is not None:
-            payload["otp"] = otp
         payload.update(extra)
         return self.client.post("/api/treasurer/aid-post-release/", payload)
 
@@ -865,7 +855,7 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
         book_member_fund_rows(self.ma, self.treasurer, "COL-0009", "September 2026")
         self.assertEqual(setaside_available_for_post(self.post), Decimal("100.00"))
 
-        response = self._release(otp=self._issue_otp())
+        response = self._release()
 
         self.assertEqual(response.status_code, 200, response.json())
         self.assertEqual(self._outflows(), [(Decimal("100.00"), "medical_aid")])
@@ -880,7 +870,6 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
         self.post.save(update_fields=["total_collected"])
 
         response = self._release(
-            otp=self._issue_otp(),
             ack_fund_deduction="1",
             override_reason="No set-aside was linked to this claim.",
         )
@@ -888,139 +877,103 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
         self.assertEqual(response.status_code, 200, response.json())
         self.assertEqual(self._outflows(), [(Decimal("500.00"), "medical_aid")])
 
-    def test_manual_amount_still_wins_over_the_held_set_aside(self):
+    def test_client_supplied_amount_is_ignored_release_pays_the_fixed_payout(self):
+        # The amount is fixed server-side (held set-aside): a tampered
+        # request carrying release_amount/override_amount can never change it.
         book_member_fund_rows(self.ma, self.treasurer, "COL-0010", "September 2026")
 
         response = self._release(
-            otp=self._issue_otp(),
             release_amount="250.00",
+            override_amount="250.00",
             ack_fund_deduction="1",
             override_reason="Treasurer authorised the uncovered remainder.",
         )
 
         self.assertEqual(response.status_code, 200, response.json())
-        self.assertEqual(self._outflows(), [(Decimal("250.00"), "medical_aid")])
-        # The ₱100 earmark is drawn first; the rest came from the general fund.
-        self.assertEqual(
-            AidSetAside.objects.get(aid_tracking_post_id_FK=self.post).amount_released,
-            Decimal("100.00"),
-        )
+        self.assertEqual(self._outflows(), [(Decimal("100.00"), "medical_aid")])
 
     def test_setaside_available_is_zero_before_anything_is_booked(self):
         self.assertEqual(setaside_available_for_post(self.post), Decimal("0.00"))
         self.assertEqual(setaside_available_for_post(None), Decimal("0.00"))
 
-    # --- traps: nothing moves without all four controls in place ---------
+    # --- traps: nothing moves without the PIN + recipient + ack in place -
 
-    def test_release_without_a_verification_code_is_rejected(self):
-        response = self._release()
+    def test_release_without_action_pin_is_rejected(self):
+        self._login()
+        response = self.client.post(
+            "/api/treasurer/aid-post-release/",
+            {
+                "post_id": str(self.post.post_id_PK),
+                "received_by": "Maria Santos",
+            },
+        )
 
         self.assertEqual(response.status_code, 403)
-        self.assertTrue(response.json()["requires_otp"])
+        self.assertEqual(response.json()["code"], "PIN_REQUIRED")
+        self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
+
+    def test_release_with_wrong_action_pin_is_rejected(self):
+        response = self._release(pin="0000")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], "PIN_INVALID")
         self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
 
     def test_release_without_received_by_is_rejected(self):
         self._login()
-        otp = self._issue_otp()
 
         response = self.client.post(
             "/api/treasurer/aid-post-release/",
-            {"post_id": str(self.post.post_id_PK), "otp": otp},
+            {
+                "post_id": str(self.post.post_id_PK),
+                "action_pin": self.action_pin,
+            },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertTrue(response.json()["requires_received_by"])
         self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
 
-    def test_code_issued_for_another_claim_is_rejected(self):
-        otp = self._issue_otp(post_id=999999)
-
-        response = self._release(otp=otp)
-
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("different claim", response.json()["error"])
-        self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
-
-    def test_expired_code_is_rejected(self):
-        session = self.client.session
-        session["aid_release_otp"] = {
-            "post_id": int(self.post.post_id_PK),
-            "sent_at": (timezone.now() - timedelta(seconds=400)).timestamp(),
-            "expires_at": (timezone.now() - timedelta(seconds=1)).isoformat(),
-        }
-        session.save()
-
-        response = self._release(otp=generate_otp(self.treasurer.mfa_secret or ""))
-
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("expired", response.json()["error"])
-
-    def test_manual_amount_above_the_benefit_ceiling_is_released_as_typed(self):
-        # Ceiling = benefit amount x members = post.total_expected = 1,000.
-        # A typed amount is taken at face value (the fund balance is the real
-        # limit) and the over-ceiling release is recorded in the audit trail.
-        FundTransaction.objects.create(
-            direction="inflow",
-            amount=Decimal("1000.00"),
-            source_type="manual_adjustment",
-            source_id=9998,
-            description="Top-up so the payout clears the balance guard",
-            recorded_by_user_id_FK=self.treasurer,
-        )
-        response = self._release(
-            otp=self._issue_otp(), release_amount="1500.00", ack_fund_deduction="1"
-        )
-
-        self.assertEqual(response.status_code, 200, response.json())
-        self.assertEqual(self._outflows(), [(Decimal("1500.00"), "medical_aid")])
-        trails = GlobalAuditTrail.objects.filter(
-            table_name="AID_TRACKING_POST", record_id=self.post.post_id_PK
-        )
-        self.assertTrue(
-            any("above the approved benefit" in (t.notes or "") for t in trails)
-        )
-
     def test_dipping_into_the_general_fund_requires_an_acknowledgement(self):
-        # Nothing earmarked for this claim, so the whole payout leaves the
-        # general fund — the release must be confirmed before it happens.
-        response = self._release(otp=self._issue_otp(), release_amount="300.00")
+        # Nothing earmarked for this claim, so the whole fixed payout (the
+        # ₱500 collected contributions) leaves the general fund — the release
+        # must be confirmed before it happens.
+        self.post.total_collected = Decimal("500.00")
+        self.post.save(update_fields=["total_collected"])
+
+        response = self._release()
 
         self.assertEqual(response.status_code, 409)
         payload = response.json()
         self.assertTrue(payload["requires_ack"])
-        self.assertEqual(round(payload["shortfall"], 2), 300.0)
+        self.assertEqual(round(payload["shortfall"], 2), 500.0)
         self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
 
         # Acknowledged, it goes through.
         response = self._release(
-            otp=self._issue_otp(),
-            release_amount="300.00",
             ack_fund_deduction="1",
             override_reason="Claim has no set-aside behind it.",
         )
         self.assertEqual(response.status_code, 200, response.json())
-        self.assertEqual(self._outflows(), [(Decimal("300.00"), "medical_aid")])
+        self.assertEqual(self._outflows(), [(Decimal("500.00"), "medical_aid")])
 
     def test_release_with_nothing_collected_is_refused(self):
-        response = self._release(otp=self._issue_otp())
+        response = self._release()
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Nothing has been collected", response.json()["error"])
         self.assertEqual(FundTransaction.objects.filter(direction="outflow").count(), 0)
 
     def test_general_fund_deduction_reason_is_optional(self):
-        # Reason is optional now: acknowledged, it goes through even with the
-        # old auto-filled boilerplate (or no reason at all) — the ack confirm
-        # is the fund-protection gate.
-        response = self._release(
-            otp=self._issue_otp(),
-            release_amount="300.00",
-            ack_fund_deduction="1",
-            override_reason="Manual amount",
-        )
+        # Reason is optional: acknowledged with no note, the fixed payout
+        # still goes through — the ack confirm is the fund-protection gate.
+        self.post.total_collected = Decimal("500.00")
+        self.post.save(update_fields=["total_collected"])
+
+        response = self._release(ack_fund_deduction="1")
 
         self.assertEqual(response.status_code, 200, response.json())
-        self.assertEqual(self._outflows(), [(Decimal("300.00"), "medical_aid")])
+        self.assertEqual(self._outflows(), [(Decimal("500.00"), "medical_aid")])
 
     def test_earmark_larger_than_the_benefit_pays_only_the_benefit(self):
         # Members contributed ₱1,500 for a ₱1,000 benefit: the automatic
@@ -1031,7 +984,7 @@ class AidReleaseDefaultsToHeldSetAsideTests(TestCase):
         AidSetAside.objects.filter(pk=row.pk).update(amount=Decimal("1500.00"))
         self.assertEqual(setaside_available_for_post(self.post), Decimal("1500.00"))
 
-        response = self._release(otp=self._issue_otp())
+        response = self._release()
 
         self.assertEqual(response.status_code, 200, response.json())
         self.assertEqual(self._outflows(), [(Decimal("1000.00"), "medical_aid")])

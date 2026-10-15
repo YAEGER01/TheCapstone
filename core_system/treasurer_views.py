@@ -39,12 +39,7 @@ from core_system.aid_setaside import (
     setaside_totals_by_post,
 )
 from core_system.ledger_utils import member_balance
-from core_system.services.mfa_service import (
-    generate_otp,
-    mask_email,
-    send_mfa_email,
-    verify_otp,
-)
+
 from core_system.models import (
     AidTrackingPost,
     AssessmentItem,
@@ -6142,7 +6137,15 @@ def treasurer_unfiled_setasides(request: HttpRequest):
     """Aid set-asides with no tracking post — earmarked through monthly
     deductions but no claim filed yet. Feeds the UNFILED AIDS table next to
     tracked-but-unready posts. Shaped like approved-aid-post rows so the
-    table renders both identically."""
+    table renders both identically.
+
+    Only never-drawn earmarks count as unfiled. Rows flagged
+    ``pooled_after_release`` are surplus returned to the pooled reserve by
+    ``consume_set_asides()`` when a release did not need them (e.g. trimmed
+    to the benefit ceiling — including fully-untouched rows) — that claim is
+    done (see history) and the money stays visible in the reserve headline,
+    not as a fileable case for the old recipient.
+    """
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
         return guard
@@ -6150,7 +6153,9 @@ def treasurer_unfiled_setasides(request: HttpRequest):
     from core_system.models import AidSetAside
 
     rows = (
-        AidSetAside.objects.filter(aid_tracking_post_id_FK__isnull=True)
+        AidSetAside.objects.filter(
+            aid_tracking_post_id_FK__isnull=True, pooled_after_release=False
+        )
         .values(
             "assessment_item_id_FK_id",
             "assessment_item_id_FK__purpose",
@@ -7716,11 +7721,10 @@ def treasurer_payroll_analysis_by_department(request: HttpRequest):
     })
 
 
-RELEASE_OTP_SESSION_KEY = "aid_release_otp"
-RELEASE_OTP_TTL_SECONDS = 300
-RELEASE_OTP_RESEND_SECONDS = 45
-# Boilerplate the old UI auto-filled into override_reason — never good enough
-# as a justification for paying out more than the claim's own earmarked cash.
+# The release amount is fixed server-side (held set-aside, else collected
+# contributions, trimmed to the benefit ceiling) — the Treasurer never types
+# it. Legacy override text below is ignored; it is kept only so old clients
+# posting those fields are not rejected outright.
 STOCK_OVERRIDE_REASONS = {
     "manual amount entered by treasurer",
     "manual amount",
@@ -7746,114 +7750,24 @@ def _release_ceiling(post, archive) -> Decimal:
     return max(fallback, Decimal("0"))
 
 
-def _release_otp_error(request, officer, post_id, otp_input) -> str | None:
-    """Why this release is not allowed to proceed, or ``None`` when it is.
-
-    A code is issued for one specific claim, expires in 5 minutes, and is
-    verified against the officer's own TOTP secret — so a code harvested from
-    one session cannot be replayed against another claim.
-    """
-    if not otp_input:
-        return "Verification code required to release aid funds."
-    stored = request.session.get(RELEASE_OTP_SESSION_KEY) or {}
-    if not stored:
-        return "Request a verification code first."
-    try:
-        bound_post = int(stored.get("post_id") or 0)
-    except (TypeError, ValueError):
-        bound_post = 0
-    if bound_post != int(post_id or 0):
-        return "Verification code was issued for a different claim."
-    expires_at = stored.get("expires_at")
-    if expires_at:
-        try:
-            expiry = timezone.datetime.fromisoformat(str(expires_at))
-            if timezone.is_naive(expiry):
-                expiry = timezone.make_aware(expiry)
-        except ValueError:
-            expiry = None
-        if expiry is not None and timezone.now() > expiry:
-            return "Verification code expired. Request a new one."
-    if not verify_otp(officer.mfa_secret or "", str(otp_input).strip()):
-        return "Invalid verification code."
-    return None
-
-
 @require_POST
-@transaction.atomic
 def treasurer_aid_release_otp(request: HttpRequest):
-    """Email a one-time code the Treasurer must enter to release aid funds.
+    """Retired: aid release now confirms with the offline action PIN.
 
-    Bound to a single claim and short-lived; issuing it is itself written to
-    the audit trail so an attempted release is visible even if it never
-    completes.
+    Kept so old cached pages calling this URL get a clear answer instead of
+    a 404 — the release endpoint is gated by ``@require_action_pin_view``
+    and takes no code parameter anymore.
     """
-    guard = require_role(request, role=["Treasurer", "Auditor", "President"])
-    if guard is not None:
-        return guard
-
-    officer = resolve_officer_from_session(request)
-    if officer is None:
-        return JsonResponse({"ok": False, "error": "Session missing."}, status=401)
-
-    post_id = (request.POST.get("post_id") or "").strip()
-    try:
-        post = AidTrackingPost.objects.get(
-            post_id_PK=int(post_id), is_active=True, finish_status="pending_release"
-        )
-    except (ValueError, AidTrackingPost.DoesNotExist):
-        return JsonResponse(
-            {"ok": False, "error": "Post not found or not pending release."},
-            status=404,
-        )
-
-    stored = request.session.get(RELEASE_OTP_SESSION_KEY) or {}
-    now_epoch = timezone.now().timestamp()
-    sent_at = stored.get("sent_at")
-    if sent_at and (now_epoch - float(sent_at)) < RELEASE_OTP_RESEND_SECONDS:
-        wait = int(RELEASE_OTP_RESEND_SECONDS - (now_epoch - float(sent_at)))
-        return JsonResponse(
-            {"ok": False, "error": f"A verification code was already sent. Wait {wait}s."},
-            status=429,
-        )
-
-    otp = generate_otp(officer.mfa_secret or "")
-    if not send_mfa_email(officer, otp):
-        return JsonResponse(
-            {"ok": False, "error": "Could not send the verification code. Try again."},
-            status=400,
-        )
-
-    request.session[RELEASE_OTP_SESSION_KEY] = {
-        "post_id": int(post.post_id_PK),
-        "sent_at": now_epoch,
-        "expires_at": (
-            timezone.now() + timedelta(seconds=RELEASE_OTP_TTL_SECONDS)
-        ).isoformat(),
-    }
-    request.session.modified = True
-
-    _record_audit_trail(
-        table="AID_TRACKING_POST",
-        record_id=post.post_id_PK,
-        action="RELEASE_OTP_ISSUED",
-        actor=officer,
-        new={"release_otp_issued": True},
-        notes=f"Verification code issued to {officer.full_name} for release.",
-        ip=request.META.get("REMOTE_ADDR"),
-    )
-
     return JsonResponse(
         {
-            "ok": True,
-            "delivery": "email",
-            "email": mask_email(officer.email or ""),
-            "expires_in": RELEASE_OTP_TTL_SECONDS,
-            "message": (
-                "Verification code sent. This release will be recorded and "
-                "logged on the audit trails."
+            "ok": False,
+            "code": "OTP_RETIRED",
+            "error": (
+                "Email verification codes are no longer used for aid release. "
+                "Confirm with your 4-digit action PIN instead."
             ),
-        }
+        },
+        status=410,
     )
 
 
@@ -7861,7 +7775,13 @@ def treasurer_aid_release_otp(request: HttpRequest):
 @transaction.atomic
 @require_action_pin_view
 def treasurer_aid_post_release(request: HttpRequest):
-    """Treasurer releases the aid payout: records fund in/out and closes the post."""
+    """Treasurer releases the aid payout: records fund in/out and closes the post.
+
+    Confirmed with the offline action PIN (``@require_action_pin_view``).
+    The payout is FIXED server-side — held set-aside, else collected
+    contributions, trimmed to the benefit ceiling (or ``total_expected`` for
+    fund-paid posts). Client-supplied amounts are ignored.
+    """
     guard = require_role(request, role=["Treasurer", "Auditor", "President"])
     if guard is not None:
         return guard
@@ -7887,31 +7807,11 @@ def treasurer_aid_post_release(request: HttpRequest):
         ) if piece
     )
 
-    # Release amount (auto from collected contributions) with optional manual
-    # override straight from the ISUCauFA, Inc. fund.
+    # Release amount is FIXED server-side (see effective_outflow below) — the
+    # modal shows it read-only. Any client-supplied amount fields are ignored
+    # so a tampered request can never change the payout.
     treasurer_notes = (request.POST.get("treasurer_notes") or "").strip()
     override_reason = (request.POST.get("override_reason") or "").strip()
-    override_amount = None
-    raw_override = (request.POST.get("override_amount") or "").strip()
-    if raw_override:
-        try:
-            override_amount = Decimal(str(raw_override))
-        except Exception:
-            return JsonResponse({"ok": False, "error": "Invalid override amount."}, status=400)
-        if override_amount <= 0:
-            return JsonResponse({"ok": False, "error": "Override amount must be greater than zero."}, status=400)
-
-    release_amount_raw = (request.POST.get("release_amount") or "").strip()
-    release_amount = None
-    if release_amount_raw and not override_amount:
-        try:
-            release_amount = Decimal(str(release_amount_raw))
-        except Exception:
-            release_amount = None
-        # A zero/negative release can never be honored — reject it outright
-        # instead of silently falling back to the auto amount.
-        if release_amount is not None and release_amount <= 0:
-            return JsonResponse({"ok": False, "error": "Release amount must be greater than zero."}, status=400)
 
     try:
         post = AidTrackingPost.objects.select_related("archive_id_FK").get(
@@ -7957,16 +7857,10 @@ def treasurer_aid_post_release(request: HttpRequest):
     held_setaside = setaside_available_for_post(post)
 
     # --- Strict release controls ---------------------------------------
-    # 1. A verification code issued for THIS claim is mandatory. No code, no
-    #    release — regardless of role or how much is being asked for.
-    otp_input = (request.POST.get("otp") or "").strip()
-    otp_error = _release_otp_error(request, officer, post.post_id_PK, otp_input)
-    if otp_error is not None:
-        return JsonResponse(
-            {"ok": False, "requires_otp": True, "error": otp_error}, status=403
-        )
-
-    # 2. Somebody has to be named as receiving the cash.
+    # 1. Action-PIN gate: enforced by @require_action_pin_view on this view
+    #    (offline 4-digit PIN, prompted by the modal) — no emailed code.
+    # 2. Somebody has to be named as receiving the cash. The modal
+    #    pre-selects the linked member; anything recorded here is audited.
     if not received_by:
         return JsonResponse(
             {
@@ -7987,30 +7881,23 @@ def treasurer_aid_post_release(request: HttpRequest):
         total_out=Sum("amount", filter=Q(direction="outflow")),
     )
     current_balance = (fund_totals["total_in"] or Decimal("0")) - (fund_totals["total_out"] or Decimal("0"))
-    manual_release = override_amount if override_amount is not None else release_amount
-    amount_is_manual = manual_release is not None and manual_release > 0
     if post.finish_paid_with_funds:
-        effective_outflow = override_amount if override_amount is not None else post.total_expected
+        effective_outflow = post.total_expected
     else:
-        if amount_is_manual:
-            effective_outflow = manual_release
-        else:
-            # Held set-aside first: this claim's own earmarked aid cash.
-            # Deliberately NO fallback to archive.amount — a claim with
-            # nothing collected has nothing to release by default. The
-            # Treasurer must type an amount, and it still has to clear the
-            # ceiling and the fund-deduction acknowledgement below.
-            effective_outflow = held_setaside or post.total_collected or 0
+        # Held set-aside first: this claim's own earmarked aid cash.
+        # Deliberately NO fallback to archive.amount — a claim with
+        # nothing collected has nothing to release.
+        effective_outflow = held_setaside or post.total_collected or 0
 
     amount_dec = Decimal(str(effective_outflow))
 
-    # 3. Benefit ceiling (benefit amount x contributing members) governs the
-    #    AUTOMATIC amount only. An amount the Treasurer types in is taken at
-    #    face value — the fund-balance guard below is the real limit — and the
-    #    fact that it beat the ceiling is written into the audit trail.
+    # 3. Benefit ceiling (benefit amount x contributing members) trims the
+    #    fixed payout: the recipient is entitled to the benefit, so any
+    #    surplus collected stays earmarked and consume_set_asides returns it
+    #    to the pooled reserve for the next claim.
     ceiling = _release_ceiling(post, archive)
     above_ceiling = amount_dec > ceiling
-    if ceiling <= 0 and not amount_is_manual:
+    if ceiling <= 0:
         return JsonResponse(
             {
                 "ok": False,
@@ -8022,31 +7909,17 @@ def treasurer_aid_post_release(request: HttpRequest):
             },
             status=400,
         )
-    if above_ceiling and not amount_is_manual:
-        # The automatic default (the claim's own earmarked cash) can overshoot
-        # the approved benefit when members contributed more than the benefit
-        # asks for. The benefit amount is what the recipient is entitled to, so
-        # the payout is trimmed to it; the surplus stays earmarked and
-        # consume_set_asides returns it to the pooled reserve for the next
-        # claim. A typed amount is released as typed (see above).
+    if above_ceiling:
         amount_dec = ceiling
         effective_outflow = ceiling
-    ceiling_note = (
-        f"Released above the approved benefit amount × members "
-        f"(₱{ceiling:,.2f})"
-        if above_ceiling and amount_is_manual
-        else ""
-    )
+    ceiling_note = ""
 
     # 4. Nothing to disburse.
     if amount_dec <= 0:
         return JsonResponse(
             {
                 "ok": False,
-                "error": (
-                    "Nothing has been collected for this claim — enter an amount "
-                    "to release from the fund."
-                ),
+                "error": "Nothing has been collected for this claim — no amount to release.",
             },
             status=400,
         )
@@ -8110,19 +7983,19 @@ def treasurer_aid_post_release(request: HttpRequest):
         transactions.append(
             FundTransaction(
                 direction="outflow",
-                amount=override_amount if override_amount else post.total_expected,
+                amount=post.total_expected,
                 source_type="aid_post_payment",
                 source_id=post.post_id_PK,
-                description=f"Fund disbursement — {member_name} ({post.aid_type})" + (f" · {method_note}" if method_note else "") + (" · MANUAL OVERRIDE" if override_amount else ""),
+                description=f"Fund disbursement — {member_name} ({post.aid_type})" + (f" · {method_note}" if method_note else ""),
                 reference_number=release_reference or None,
                 recorded_by_user_id_FK=officer,
             )
         )
     else:
         # Record outflow for EXACTLY the amount the balance guard already
-        # checked above (manual amount, else held set-aside, else collected
-        # contributions). Keeping this a single source means the guard and the
-        # ledger can never disagree about what is being disbursed.
+        # checked above (the fixed server-side payout). Keeping this a single
+        # source means the guard and the ledger can never disagree about what
+        # is being disbursed.
         outflow_amount = effective_outflow
         transactions.append(
             FundTransaction(
@@ -8130,7 +8003,7 @@ def treasurer_aid_post_release(request: HttpRequest):
                 amount=outflow_amount,
                 source_type=archive.transaction_type if archive else "aid_post_payment",
                 source_id=archive.record_id if archive else post.post_id_PK,
-                description=f"Aid disbursement — {member_name} ({post.aid_type})" + (f" · {method_note}" if method_note else "") + (" · MANUAL OVERRIDE" if override_amount else ""),
+                description=f"Aid disbursement — {member_name} ({post.aid_type})" + (f" · {method_note}" if method_note else ""),
                 reference_number=release_reference or None,
                 recorded_by_user_id_FK=officer,
             )
@@ -8143,9 +8016,6 @@ def treasurer_aid_post_release(request: HttpRequest):
         # outflow rows above already recorded. Atomic with the outflow so the
         # ledger and the earmark accounting can never disagree.
         consume_set_asides(post, effective_outflow)
-        # Single-use: the code is burned only once the money has actually
-        # moved, so a rejected attempt can be corrected and retried.
-        request.session.pop(RELEASE_OTP_SESSION_KEY, None)
     from core_system.signals import broadcast_fund_update
     broadcast_fund_update()
 
@@ -8161,7 +8031,7 @@ def treasurer_aid_post_release(request: HttpRequest):
 
         # Send notification to member about aid release — the released
         # payout amount is shown to the member only from this point on.
-        released_amount = float(override_amount if override_amount else post.total_expected)
+        released_amount = float(post.total_expected)
         try:
             notify_member(
                 archive.member_id_FK,
@@ -8226,7 +8096,7 @@ def treasurer_aid_post_release(request: HttpRequest):
                 "inflow_count": sum(1 for t in transactions if t.direction == "inflow"),
                 "outflow_count": sum(1 for t in transactions if t.direction == "outflow"),
             },
-            notes=" · ".join(piece for piece in (method_note, f"Manual override: {override_amount} — {override_reason}" if override_amount else "", f"Notes: {treasurer_notes}" if treasurer_notes else "", ceiling_note) if piece) or None,
+            notes=" · ".join(piece for piece in (method_note, f"Notes: {treasurer_notes}" if treasurer_notes else "", f"Reason: {override_reason}" if override_reason else "", ceiling_note) if piece) or None,
             ip=request.META.get("REMOTE_ADDR"),
         )
 

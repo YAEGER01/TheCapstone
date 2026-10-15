@@ -67,15 +67,77 @@ def _get_smtp_retry_delay() -> float:
 def _is_transient_smtp_error(exc: Exception) -> bool:
     """True for dropped-socket / mid-send disconnects worth one retry."""
     import smtplib
+    import socket
     # SMTPException inherits OSError on py3.10 — auth failures are OSError
     # too, but retrying a dead credential only spams the log.
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         return False
     if isinstance(exc, smtplib.SMTPServerDisconnected):
         return True
+    # DNS resolution failure (e.g. gaierror 11001 getaddrinfo failed) means
+    # no network / unresolvable SMTP host — an immediate retry 1s later will
+    # fail identically while doubling the time a MySQL handle sits idle
+    # (which is what gets it killed → InterfaceError (0, '') on the next
+    # save). Fail fast; the queue's next drain will retry after recovery.
+    if isinstance(exc, socket.gaierror) or type(exc).__name__ == "gaierror":
+        return False
     if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
         return True
     return False
+
+
+def _ensure_db_alive() -> None:
+    """Reconnect the thread's MySQL handle if it went stale mid-drain.
+
+    SMTP sends block for seconds (DNS timeout + fallback + retry) while the
+    DB handle sits idle; MySQL/shared-host firewalls routinely kill such
+    idle sockets, so the next ORM save raises ``InterfaceError (0, '')``.
+    Calling this before every claim/save keeps the worker on a live handle.
+    """
+    try:
+        connection.ensure_connection()
+    except Exception:
+        try:
+            from django.db import close_old_connections
+            close_old_connections()
+        except Exception:
+            pass
+
+
+def _release_db_handle_before_smtp() -> None:
+    """Drop the thread's MySQL handle before blocking SMTP I/O.
+
+    Skipped inside an atomic block (tests / request transactions): closing
+    there breaks the enclosing transaction (TransactionManagementError).
+    In production the queue worker never runs inside atomic, so the handle
+    is released and MySQL cannot reap it idle mid-send.
+    """
+    try:
+        if getattr(connection, "in_atomic_block", False):
+            return
+        connection.close()
+    except Exception:
+        pass
+
+
+def _safe_save_email(email_record, update_fields) -> None:
+    """Save a queue row, reconnecting once if the handle died mid-SMTP."""
+    from django.db.utils import InterfaceError as DjangoInterfaceError, OperationalError
+    try:
+        _ensure_db_alive()
+        email_record.save(update_fields=update_fields)
+    except (DjangoInterfaceError, OperationalError, OSError):
+        # Handle died during the blocking SMTP above (pymysql
+        # InterfaceError (0, '')). Drop it and retry the save once on a
+        # fresh connection; if that also fails, let the caller handle it.
+        # Never close inside atomic — that would break the transaction.
+        try:
+            if not getattr(connection, "in_atomic_block", False):
+                connection.close()
+        except Exception:
+            pass
+        _ensure_db_alive()
+        email_record.save(update_fields=update_fields)
 
 
 def _is_smtp_auth_error(exc: Exception) -> bool:
@@ -1251,7 +1313,7 @@ def _send_queued_email(email_record):
             try:
                 email_record.status = OutgoingEmail.PENDING
                 email_record.claimed_at = None
-                email_record.save(update_fields=["status", "claimed_at"])
+                _safe_save_email(email_record, ["status", "claimed_at"])
             except Exception:
                 pass
             return False
@@ -1265,21 +1327,33 @@ def _send_queued_email(email_record):
     # Contribution" to the requester, who is explicitly excluded from
     # contributing to their own aid.
     if email_record.html_template == "emails/aid_bulk_contribution_notice.html":
-        recipients = set(email_record.recipient_list or [])
-        fresh_emails = set(
-            Member.objects.exclude(membership_status__iexact="Retired")
-            .exclude(email__isnull=True)
-            .exclude(email__exact="")
-            .values_list("email", flat=True)
-        )
-        # Keep only recipients that are still active members (drops the
-        # requester and anyone who left), preserving queue-time exclusions.
-        email_record.recipient_list = sorted(recipients & fresh_emails)
+        try:
+            _ensure_db_alive()
+            recipients = set(email_record.recipient_list or [])
+            fresh_emails = set(
+                Member.objects.exclude(membership_status__iexact="Retired")
+                .exclude(email__isnull=True)
+                .exclude(email__exact="")
+                .values_list("email", flat=True)
+            )
+            # Keep only recipients that are still active members (drops the
+            # requester and anyone who left), preserving queue-time exclusions.
+            email_record.recipient_list = sorted(recipients & fresh_emails)
+        except Exception:
+            logger.exception(
+                "Recipient refresh failed for queued email %s; using queue-time list",
+                getattr(email_record, "outgoing_email_id", "?"),
+            )
 
     if email_record.retry_count:
         delay = min(_get_smtp_retry_delay() * email_record.retry_count, 10.0)
         if delay:
             time.sleep(delay)
+
+    # Release the MySQL handle before the blocking SMTP handshake (DNS +
+    # TLS + DATA can stall ~30s+). Holding it idle is what gets it reaped
+    # server-side, so the save below would hit InterfaceError (0, '').
+    _release_db_handle_before_smtp()
 
     if email_record.html_template == "emails/mfa_challenge.html":
         # MFA/Zero Trust codes use Gmail only.  The specialist mailer opens a
@@ -1309,7 +1383,7 @@ def _send_queued_email(email_record):
         email_record.retry_count += 1
         email_record.status = OutgoingEmail.PENDING
         email_record.claimed_at = None
-        email_record.save(update_fields=["status", "retry_count", "claimed_at"])
+        _safe_save_email(email_record, ["status", "retry_count", "claimed_at"])
         return False
 
     email_record.status = OutgoingEmail.SENT if ok else OutgoingEmail.FAILED
@@ -1321,7 +1395,7 @@ def _send_queued_email(email_record):
         )
     email_record.sent_at = timezone.now()
     email_record.claimed_at = None
-    email_record.save(update_fields=["status", "sent_at", "error_message", "claimed_at"])
+    _safe_save_email(email_record, ["status", "sent_at", "error_message", "claimed_at"])
     return ok
 
 
@@ -1416,7 +1490,12 @@ def process_email_queue(batch_size=None, daily_limit=None):
         daily_limit = 450
 
     # Check daily limit before processing
-    sent_today = _get_daily_sent_count()
+    try:
+        _ensure_db_alive()
+        sent_today = _get_daily_sent_count()
+    except Exception:
+        logger.exception("Email queue daily-limit check failed; aborting drain")
+        return 0
     if sent_today >= daily_limit:
         logger.warning("Daily email limit reached (%d/%d). Queue paused.", sent_today, daily_limit)
         return 0
@@ -1424,54 +1503,113 @@ def process_email_queue(batch_size=None, daily_limit=None):
     # Recover rows stuck in "sending" (worker thread died mid-send).
     # claimed_at records when the row was claimed; created_at alone wrongly
     # treats an old pending row that was *just* claimed as already stale.
-    stale_cutoff = timezone.now() - timedelta(minutes=3)
-    stuck_q = OutgoingEmail.objects.filter(status="sending")
-    stuck_q.filter(claimed_at__isnull=False, claimed_at__lt=stale_cutoff).update(
-        status=OutgoingEmail.PENDING, claimed_at=None
-    )
-    stuck_q.filter(claimed_at__isnull=True, created_at__lt=stale_cutoff).update(
-        status=OutgoingEmail.PENDING
-    )
+    try:
+        _ensure_db_alive()
+        stale_cutoff = timezone.now() - timedelta(minutes=3)
+        stuck_q = OutgoingEmail.objects.filter(status="sending")
+        stuck_q.filter(claimed_at__isnull=False, claimed_at__lt=stale_cutoff).update(
+            status=OutgoingEmail.PENDING, claimed_at=None
+        )
+        stuck_q.filter(claimed_at__isnull=True, created_at__lt=stale_cutoff).update(
+            status=OutgoingEmail.PENDING
+        )
+    except Exception:
+        logger.exception("Email queue stuck-row recovery failed; continuing with drain")
 
     sent_count = 0
     remaining_today = daily_limit - sent_today
     effective_batch = remaining_today if batch_size is None else min(batch_size, remaining_today)
+    # Rows already attempted in THIS drain are skipped on later iterations.
+    # Without this, a row that _send_queued_email puts back to PENDING
+    # (transient SMTP) is still the earliest PENDING row, so one drain with
+    # batch_size=10 would hammer the same failing address 10x (≈20 DNS
+    # lookups) — the log storm in the incident report.
+    attempted_ids: set = set()
 
-    for _ in range(effective_batch):
-        candidate_ids = list(
-            OutgoingEmail.objects.filter(status=OutgoingEmail.PENDING)
-            .annotate(
-                otp_priority=Case(
-                    When(subject__icontains="verification", then=Value(0)),
-                    When(subject__icontains="OTP", then=Value(0)),
-                    default=Value(1),
-                    output_field=IntegerField(),
+    try:
+        for _ in range(effective_batch):
+            try:
+                _ensure_db_alive()
+                pending_q = OutgoingEmail.objects.filter(status=OutgoingEmail.PENDING)
+                if attempted_ids:
+                    pending_q = pending_q.exclude(outgoing_email_id__in=list(attempted_ids))
+                candidate_ids = list(
+                    pending_q
+                    .annotate(
+                        otp_priority=Case(
+                            When(subject__icontains="verification", then=Value(0)),
+                            When(subject__icontains="OTP", then=Value(0)),
+                            default=Value(1),
+                            output_field=IntegerField(),
+                        )
+                    )
+                    .order_by("otp_priority", "created_at")
+                    .values_list("outgoing_email_id", flat=True)[:1]
                 )
-            )
-            .order_by("otp_priority", "created_at")
-            .values_list("outgoing_email_id", flat=True)[:1]
-        )
-        if not candidate_ids:
-            break
-        # Atomic claim: only ONE concurrent worker can flip this row to
-        # "sending"; everyone else sees 0 rows updated and moves on.
-        claimed_count = OutgoingEmail.objects.filter(
-            outgoing_email_id=candidate_ids[0],
-            status=OutgoingEmail.PENDING,
-        ).update(status="sending", claimed_at=timezone.now())
-        if claimed_count == 0:
-            continue
-        claimed = OutgoingEmail.objects.get(outgoing_email_id=candidate_ids[0])
+            except Exception:
+                logger.exception("Email queue candidate lookup failed")
+                break
+            if not candidate_ids:
+                break
+            # Atomic claim: only ONE concurrent worker can flip this row to
+            # "sending"; everyone else sees 0 rows updated and moves on.
+            try:
+                claimed_count = OutgoingEmail.objects.filter(
+                    outgoing_email_id=candidate_ids[0],
+                    status=OutgoingEmail.PENDING,
+                ).update(status="sending", claimed_at=timezone.now())
+            except Exception:
+                logger.exception("Email queue claim failed for row %s", candidate_ids[0])
+                attempted_ids.add(candidate_ids[0])
+                continue
+            if claimed_count == 0:
+                attempted_ids.add(candidate_ids[0])
+                continue
+            try:
+                _ensure_db_alive()
+                claimed = OutgoingEmail.objects.get(outgoing_email_id=candidate_ids[0])
+            except Exception:
+                logger.exception("Email queue fetch failed for claimed row %s", candidate_ids[0])
+                attempted_ids.add(candidate_ids[0])
+                continue
+            attempted_ids.add(claimed.outgoing_email_id)
 
+            try:
+                if _send_queued_email(claimed):
+                    sent_count += 1
+            except Exception as exc:
+                # The DB handle often dies during the blocking SMTP above, so
+                # a stale-instance save here would raise InterfaceError (0,'')
+                # and mask the real failure. Update by PK on a fresh handle.
+                logger.error("Failed to send queued email %s: %s", claimed.outgoing_email_id, exc)
+                try:
+                    _ensure_db_alive()
+                    OutgoingEmail.objects.filter(
+                        outgoing_email_id=claimed.outgoing_email_id
+                    ).update(
+                        status=OutgoingEmail.FAILED,
+                        error_message=str(exc)[:500],
+                        claimed_at=None,
+                    )
+                    # Best-effort retry-count bump; a second UPDATE so a
+                    # failure here cannot mask the FAILED marking above.
+                    try:
+                        row = OutgoingEmail.objects.filter(
+                            outgoing_email_id=claimed.outgoing_email_id
+                        ).first()
+                        if row is not None:
+                            row.retry_count = (row.retry_count or 0) + 1
+                            _safe_save_email(row, ["retry_count"])
+                    except Exception:
+                        pass
+                except Exception:
+                    logger.exception(
+                        "Failed to mark queued email %s as failed", claimed.outgoing_email_id
+                    )
+    finally:
         try:
-            if _send_queued_email(claimed):
-                sent_count += 1
-        except Exception as exc:
-            claimed.status = OutgoingEmail.FAILED
-            claimed.error_message = str(exc)[:500]
-            claimed.retry_count += 1
-            claimed.save(update_fields=["status", "error_message", "retry_count"])
-            logger.error("Failed to send queued email %s: %s", claimed.outgoing_email_id, exc)
-
-    connection.close()
+            if not getattr(connection, "in_atomic_block", False):
+                connection.close()
+        except Exception:
+            pass
     return sent_count

@@ -1,17 +1,17 @@
 """A release can never exceed the available fund balance.
 
-Scenario from the treasurer's Release Queue: fund holds ₱400, the release
-modal must refuse ₱401+. The frontend clamps the input, but the real
-guarantee lives here — the release endpoint rejects any effective outflow
-(manual override included, both fund-paid and contribution posts) that is
-greater than the current fund balance.
+Scenario from the treasurer's Release Queue: fund holds ₱400 while the fixed
+payout is ₱500 — the endpoint must refuse. The amount is fixed server-side
+(held set-aside, else collected, trimmed to the benefit ceiling), so the
+fund-balance guard applies to that fixed figure on both fund-paid and
+contribution posts.
 """
 from decimal import Decimal
-from datetime import timedelta
 
 from django.test import TestCase
 from django.utils import timezone
 
+from core_system.auth_utils import hash_pin
 from core_system.models import (
     AidTrackingPost,
     FundTransaction,
@@ -20,7 +20,6 @@ from core_system.models import (
     SystemSetting,
     TransactionArchive,
 )
-from core_system.services.mfa_service import generate_otp
 from core_system.tests import _create_zt_verified_session
 
 
@@ -33,7 +32,9 @@ class ReleaseFundCapTests(TestCase):
             role="Treasurer",
             account_status="Active",
             mfa_secret="release-otp-test-secret",
+            action_pin_hash=hash_pin("5793"),
         )
+        self.action_pin = "5793"
         session, token = _create_zt_verified_session(self.officer)
         test_session = self.client.session
         test_session["access_token"] = token
@@ -82,19 +83,12 @@ class ReleaseFundCapTests(TestCase):
         )
 
     def _release(self, **extra):
-        # Stand in for the emailed verification code: every release now needs
-        # a code bound to this claim, a named recipient and an acknowledgement
-        # that any shortfall leaves the general fund.
-        test_session = self.client.session
-        test_session["aid_release_otp"] = {
-            "post_id": int(self.post.post_id_PK),
-            "sent_at": timezone.now().timestamp(),
-            "expires_at": (timezone.now() + timedelta(seconds=300)).isoformat(),
-        }
-        test_session.save()
+        # Every release is confirmed with the offline action PIN and needs a
+        # named recipient plus an acknowledgement that any shortfall leaves
+        # the general fund. The payout itself is fixed server-side.
         payload = {
             "post_id": str(self.post.post_id_PK),
-            "otp": generate_otp(self.officer.mfa_secret or ""),
+            "action_pin": self.action_pin,
             "received_by": "Juan Dela Cruz",
             "ack_fund_deduction": "1",
             "override_reason": "Release approved from the general fund.",
@@ -102,8 +96,9 @@ class ReleaseFundCapTests(TestCase):
         payload.update(extra)
         return self.client.post("/api/treasurer/aid-post-release/", payload)
 
-    def test_manual_override_above_fund_balance_rejected(self):
-        response = self._release(override_amount="500")
+    def test_fixed_payout_above_fund_balance_rejected(self):
+        # Fixed payout ₱500 (total_collected) vs fund ₱400.
+        response = self._release()
         self.assertEqual(response.status_code, 400, response.content)
         self.assertIn("exceeds the available fund balance", response.json()["error"])
         self.assertIn("400.00", response.json()["error"])
@@ -115,21 +110,23 @@ class ReleaseFundCapTests(TestCase):
         self.assertEqual(self.post.finish_status, "pending_release")
 
     def test_release_at_exact_fund_balance_allowed(self):
-        response = self._release(override_amount="400")
+        self.post.total_collected = 400
+        self.post.save(update_fields=["total_collected"])
+        response = self._release()
         self.assertEqual(response.status_code, 200, response.content)
         outflows = FundTransaction.objects.filter(direction="outflow")
         self.assertEqual(outflows.count(), 1)
         self.assertEqual(float(outflows.first().amount), 400.0)
 
-    def test_fund_paid_post_override_above_balance_rejected(self):
+    def test_fund_paid_post_above_balance_rejected(self):
         """The paid-with-funds path also honors the cap (before its own
-        safety-threshold check), using the override — not total_expected."""
+        safety-threshold check), using total_expected as the fixed payout."""
         SystemSetting.objects.update_or_create(
             setting_key="safety_threshold", defaults={"setting_value": "0"}
         )
         self.post.finish_paid_with_funds = True
         self.post.save(update_fields=["finish_paid_with_funds"])
-        response = self._release(override_amount="401")
+        response = self._release()
         self.assertEqual(response.status_code, 400, response.content)
         self.assertIn("exceeds the available fund balance", response.json()["error"])
         self.assertFalse(

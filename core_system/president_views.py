@@ -82,6 +82,7 @@ from core_system.constants.status_constants import (
     is_rejected,
 )
 from core_system.constants.policy_constants import (
+    get_accidental_sickness_aid_threshold,
     get_death_aid_amount,
     get_membership_fee_amount,
     get_monthly_dues_amount,
@@ -1565,15 +1566,19 @@ def submit_presidential_aid_decision(request):
         )
 
         if table_name == "medical_aid" and decision == "Approved":
-            # Note: for Treasurer-created medical aids `requested_amount` is 0
-            # or the ₱100 per-member benefit, so the hospital bill is the only
-            # reliable ceiling for the total payout.
+            # Hospital bill is an ELIGIBILITY floor (By-Laws Art. XI Sec. 1.b:
+            # bill >= threshold qualifies), NOT a payout ceiling. The amount
+            # receivable is per-member benefit x contributors (e.g. ₱100 x
+            # ~670 members ≈ ₱67,000) and is routinely larger than the bill
+            # (e.g. ₱26,700 bill → ₱67,000 payout) — that full amount must be
+            # approvable and releasable.
+            threshold = float(get_accidental_sickness_aid_threshold())
             hospital_bill = float(record.hospital_bill_amount or 0)
-            if payout_total > hospital_bill:
+            if hospital_bill < threshold:
                 return JsonResponse(
                     {
                         "success": False,
-                        "message": f"Total approved payout (₱{payout_total:,.2f}) cannot exceed the hospital bill amount (₱{hospital_bill:,.2f}).",
+                        "message": f"Hospital bill (₱{hospital_bill:,.2f}) is below the ₱{threshold:,.2f} eligibility threshold for accidental/sickness aid.",
                     },
                     status=400,
                 )
