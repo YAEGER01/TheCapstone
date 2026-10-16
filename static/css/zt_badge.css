@@ -673,3 +673,15 @@ body.zt-locked #zt-toast-wrap {
   font-family: inherit !important;
   text-decoration: underline !important;
 }
+
+.zt-warn-testmsg {
+  margin: 0 !important;
+  font-size: 0.72rem !important;
+  line-height: 1.45 !important;
+  color: #7a8a7e !important;
+  min-height: 1em !important;
+}
+
+.zt-warn-testmsg:empty {
+  display: none !important;
+}

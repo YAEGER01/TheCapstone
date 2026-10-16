@@ -177,6 +177,41 @@
     });
   }
 
+  // ---- survey type ------------------------------------------------------
+  // A Post-Survey must name its paired Pre-Survey; the row stays hidden for
+  // Normal and Pre kinds so it can never send a stale pairing. When no
+  // Pre-Survey exists yet the Post option is disabled server-side and the
+  // pairing row only shows an explanatory note.
+  var kindEl = document.getElementById("fb-kind");
+  var pairedRow = document.getElementById("fb-paired-row");
+  var pairedEl = document.getElementById("fb-paired-pre");
+
+  function hasPreOption() {
+    if (typeof CURRENT.hasPre === "boolean") return CURRENT.hasPre;
+    if (!pairedEl) return false;
+    return pairedEl.options && pairedEl.options.length > 1;
+  }
+
+  function syncKindRow() {
+    if (!pairedRow) return;
+    var isPost = kindEl && kindEl.value === "post";
+    pairedRow.hidden = !isPost;
+  }
+
+  if (kindEl) {
+    kindEl.addEventListener("change", function () {
+      // Guard against a stale/tampered selection: Post is unavailable until
+      // a Pre-Survey exists (except when editing an existing Post form).
+      var blockedPost = kindEl.value === "post" && !hasPreOption() && CURRENT.kind !== "post";
+      if (blockedPost) {
+        say("Create a Pre-Survey first — Post-Survey unlocks after that.", "error");
+        kindEl.value = "pre";
+      }
+      syncKindRow();
+    });
+    syncKindRow();
+  }
+
   // ---- adders -------------------------------------------------------------
   Array.prototype.forEach.call(document.querySelectorAll("[data-fb-add]"), function (btn) {
     btn.addEventListener("click", function () {
@@ -189,6 +224,42 @@
   });
 
   // ---- save ---------------------------------------------------------------
+  // Warn before a question edit wipes existing answers: the server starts a
+  // fresh round (resetting every response) only when the question set really
+  // changed, so compare against the loaded original first.
+  function normQ(q) {
+    var qtype = q.qtype === "likert" || q.qtype === "text" ? q.qtype : "mc";
+    var opts = q.options;
+    if (typeof opts === "string") opts = opts.split("\n");
+    if (!Array.isArray(opts)) opts = [];
+    opts = opts.map(function (o) { return String(o == null ? "" : o).trim(); })
+      .filter(function (o) { return o; }).slice(0, 12);
+    var smin = parseInt(q.scale_min, 10) || 1;
+    var smax = parseInt(q.scale_max, 10) || 5;
+    if (smin >= smax) smax = smin + 1;
+    var minc = Math.max(1, parseInt(q.min_choices, 10) || 1);
+    var maxc = Math.max(1, parseInt(q.max_choices, 10) || 1);
+    if (maxc < minc) maxc = minc;
+    if (qtype === "likert") { minc = 1; maxc = 1; }
+    return {
+      prompt: String(q.prompt == null ? "" : q.prompt).trim(),
+      qtype: qtype,
+      options: opts,
+      scale_min: smin,
+      scale_max: smax,
+      min_choices: minc,
+      max_choices: maxc,
+      is_required: q.is_required !== false,
+      help_text: String(q.help_text == null ? "" : q.help_text).trim()
+    };
+  }
+
+  function questionsChanged(next) {
+    var prev = (CURRENT.questions || []).map(normQ).filter(function (q) { return q.prompt; });
+    var curr = (next || []).map(normQ).filter(function (q) { return q.prompt; });
+    return JSON.stringify(prev) !== JSON.stringify(curr);
+  }
+
   if (editorForm) {
     editorForm.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -201,9 +272,32 @@
         return;
       }
 
+      var kind = kindEl ? kindEl.value : (CURRENT.kind || "normal");
+      if (kind === "post" && !hasPreOption()) {
+        say("Create a Pre-Survey first — a Post-Survey needs a Pre-Survey to pair with.", "error");
+        return;
+      }
+      if (kind === "post" && pairedEl && !pairedEl.value) {
+        say("A Post-Survey must be paired with a Pre-Survey.", "error");
+        if (!pairedEl.hidden) pairedEl.focus();
+        return;
+      }
+
+      var nextQuestions = readQuestions();
+      var existing = parseInt(CURRENT.responseCount, 10) || 0;
+      if (CURRENT.formId && existing > 0 && questionsChanged(nextQuestions)) {
+        var ok = window.confirm(
+          "The questions changed: saving will permanently reset all " + existing +
+          " existing response(s) so everyone answers the new round. Continue?"
+        );
+        if (!ok) return;
+      }
+
       var payload = {
         form_id: CURRENT.formId || "",
         title: titleField.value.trim(),
+        kind: kind,
+        paired_pre_id: kind === "post" && pairedEl ? pairedEl.value : "",
         section_title: editorForm.querySelector("[name=section_title]").value.trim(),
         description: editorForm.querySelector("[name=description]").value.trim(),
         is_active: editorForm.querySelector("[name=is_active]").checked ? "1" : "0",
@@ -211,7 +305,7 @@
         show_on_roles: Array.prototype.slice
           .call(editorForm.querySelectorAll("[name=show_on_roles]:checked"))
           .map(function (box) { return box.value; }),
-        questions: readQuestions()
+        questions: nextQuestions
       };
 
       if (saveBtn) saveBtn.disabled = true;

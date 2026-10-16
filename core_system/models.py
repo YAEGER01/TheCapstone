@@ -2919,14 +2919,25 @@ FEEDBACK_QUESTION_TYPES = (
     ("text", "Freeform text"),
 )
 
-# Roles that can ever be shown a feedback form. Members are deliberately
-# excluded: this is an officer-facing instrument.
+# Survey behaviour. ``normal`` is the one-shot prompt; ``pre``/``post``
+# surveys stay pinned (no dismiss, logout blocked until answered) and a
+# ``post`` only unlocks once its paired ``pre`` form is completed.
+FEEDBACK_FORM_KINDS = (
+    ("normal", "Normal survey"),
+    ("pre", "Pre-Survey"),
+    ("post", "Post-Survey"),
+)
+
+# Roles that can ever be shown a feedback form. Members are included:
+# they sign in through the same OfficerUser session and answer exactly
+# like officers (one FeedbackResponse per form).
 FEEDBACK_ROLES = (
     "President",
     "Treasurer",
     "Auditor",
     "Secretary",
     "Public Information Officer",
+    "Member",
     "Superadmin",
     "System",
 )
@@ -2950,6 +2961,19 @@ class FeedbackForm(models.Model):
     is_open = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
     show_on_roles = models.JSONField(default=list, blank=True)
+    # Survey behaviour: "normal" (one-shot prompt), "pre" (pinned Pre-Survey)
+    # or "post" (pinned Post-Survey, gated on its paired Pre-Survey).
+    kind = models.CharField(max_length=10, choices=FEEDBACK_FORM_KINDS, default="normal")
+    # Only used when kind == "post": the Pre-Survey that must be completed
+    # before this form is shown to anyone.
+    paired_pre_FK = models.ForeignKey(
+        "FeedbackForm",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="paired_pre_FK",
+        related_name="paired_posts",
+    )
     created_by_id_FK = models.ForeignKey(
         OfficerUser,
         null=True,
@@ -3014,7 +3038,7 @@ class FeedbackQuestion(models.Model):
         ordering = ["display_order", "question_id_PK"]
 
     def __str__(self):
-        return f"{self.form_id_PK.title}: {self.prompt[:40]}"
+        return f"{self.form_id_FK.title if self.form_id_FK_id else '?'}: {self.prompt[:40]}"
 
     def option_labels(self) -> list:
         return [str(o) for o in (self.options or [])]
@@ -3060,14 +3084,15 @@ class FeedbackResponse(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.officer_id_FK} -> {self.form_id_PK.title}"
+        form_title = self.form_id_FK.title if self.form_id_FK_id else "?"
+        return f"{self.officer_id_FK} -> {form_title}"
 
     def answer_map(self) -> dict:
         answers = sorted(
             self.answers.select_related("question_id_FK"),
             key=lambda a: (a.question_id_FK.display_order, a.answer_id_PK),
         )
-        return {a.question_id_PK: a for a in answers}
+        return {a.question_id_FK_id: a for a in answers}
 
 
 class FeedbackAnswer(models.Model):
@@ -3105,7 +3130,11 @@ class FeedbackAnswer(models.Model):
                 return ""
             labels = self.question_id_FK.likert_labels()
             label = labels.get(self.value_int, "")
-            return f"{self.value_int} - {label}" if label else str(self.value_int)
+            # When no custom anchor labels exist the label IS the number
+            # (e.g. "4"); show just "4" instead of the confusing "4 - 4".
+            if not label or str(label) == str(self.value_int):
+                return str(self.value_int)
+            return f"{self.value_int} - {label}"
         if self.question_id_FK.qtype == "mc":
             return ", ".join(str(v) for v in (self.value_list or []))
         return self.value_text or ""

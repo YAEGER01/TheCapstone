@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Feedback Forms &middot; CAUFA System</title>
-  <link rel="stylesheet" href="{% static 'css/feedback_admin.css' %}?v=20260929fb1">
+  <link rel="stylesheet" href="{% static 'css/feedback_admin.css' %}?v=20261015fb5">
   <link rel="stylesheet" href="{% static 'css/zt_badge.css' %}?v=20261008zt9">
 </head>
 <body class="fbadmin">
   <header class="fbadmin-top">
     <a class="fbadmin-back" href="{% url 'superadmin_dashboard' %}">&larr; Superadmin Dashboard</a>
-    <h1>Officer Feedback Forms</h1>
+    <h1>Officer &amp; Member Feedback Forms</h1>
     <p class="fbadmin-tagline">
-      Build the form that appears on the President, Treasurer and Auditor dashboards.
-      Officers answer once; you review and export.
+      Build the form that appears on the President, Treasurer, Auditor and Member dashboards.
+      Officers and members answer once; you review and export.
     </p>
   </header>
 
@@ -36,6 +36,9 @@
                   {{ f.n_responses }} response{{ f.n_responses|pluralize }}
                 </span>
                 <span class="fb-badges">
+                  {% if f.kind == "pre" %}<span class="fb-badge is-pre">pre-survey</span>
+                  {% elif f.kind == "post" %}<span class="fb-badge is-post">post-survey</span>
+                  {% endif %}
                   {% if f.is_archived %}<span class="fb-badge is-archived">archived</span>
                   {% elif f.is_active %}<span class="fb-badge is-on">active</span>
                   {% else %}<span class="fb-badge is-off">hidden</span>{% endif %}
@@ -75,6 +78,44 @@
 
       <form id="fb-editor-form" class="fb-editor">
         <input type="hidden" name="form_id" value="{% if fb_selected %}{{ fb_selected.form_id_PK }}{% endif %}">
+
+        <label class="fb-field">
+          <span class="fb-label">Survey type</span>
+          <select name="kind" id="fb-kind" class="fb-q-field">
+            {% for value, label in fb_kind_choices %}
+              <option value="{{ value }}"
+                      {% if fb_selected and fb_selected.kind == value %}selected{% elif not fb_selected and value == "normal" %}selected{% endif %}
+                      {% if value == "post" and fb_post_disabled %}disabled{% endif %}>
+                {{ label }}{% if value == "post" and fb_post_disabled %} (requires a Pre-Survey){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <p class="fb-hint">Pre/Post surveys stay pinned: no dismiss button, and logout is blocked until answered. A Post-Survey only appears after its paired Pre-Survey is completed.</p>
+          {% if not fb_has_pre %}
+            <p class="fb-hint is-warning" id="fb-no-pre-hint">No Pre-Survey exists yet — create and save a Pre-Survey first. Post-Survey unlocks after that.</p>
+          {% endif %}
+        </label>
+
+        <label class="fb-field" id="fb-paired-row"
+               {% if not fb_selected or fb_selected.kind != "post" %}hidden{% endif %}>
+          <span class="fb-label">Paired Pre-Survey <em>(required for Post-Survey)</em></span>
+          {% if fb_has_pre %}
+            <select name="paired_pre_id" id="fb-paired-pre" class="fb-q-field">
+              <option value="">-- Select a Pre-Survey --</option>
+              {% for pre in fb_pre_forms %}
+                <option value="{{ pre.id }}"
+                        {% if fb_selected and fb_selected.paired_pre_FK_id == pre.id %}selected{% endif %}>
+                  {{ pre.title }}
+                </option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <select name="paired_pre_id" id="fb-paired-pre" class="fb-q-field" hidden>
+              <option value="">-- Select a Pre-Survey --</option>
+            </select>
+            <p class="fb-hint is-warning">No Pre-Surveys available yet. Save a Pre-Survey first, then create the Post-Survey.</p>
+          {% endif %}
+        </label>
 
         <label class="fb-field">
           <span class="fb-label">Form title <em>(internal)</em></span>
@@ -145,11 +186,74 @@
       <div class="fbadmin-panel-head">
         <h2>Responses &mdash; {{ fb_selected.title }}</h2>
         <div class="fb-export-links">
+          <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=xlsx">Export XLSX</a>
           <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=csv">Export CSV</a>
           <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=pdf">Export PDF</a>
           <a class="fb-mini" href="{% url 'feedback_export' fb_selected.form_id_PK %}?format=txt">Export TXT</a>
         </div>
       </div>
+
+      {% if fb_coverage %}
+        <div class="fb-summary fb-coverage">
+          <h3>Coverage summary</h3>
+          <div class="fb-summary-headline">
+            {{ fb_coverage.responded }} responded of {{ fb_coverage.expected }} expected ({{ fb_coverage.rate }}%)
+            &middot; {{ fb_coverage.remaining }} outstanding
+          </div>
+          <p class="fb-hint">
+            Expected = active accounts in “Show on dashboards for”
+            ({{ fb_coverage.roles|join:", "|default:"(no target roles)" }}).
+            Checking Member makes the denominator larger.
+          </p>
+          {% if fb_coverage.role_rows %}
+            <table class="fb-resp-table fb-coverage-table">
+              <thead>
+                <tr><th>Role</th><th>Responded</th><th>Expected</th><th>Rate</th><th>Outstanding</th></tr>
+              </thead>
+              <tbody>
+                {% for r in fb_coverage.role_rows %}
+                  <tr>
+                    <td class="fb-strong">{{ r.role }}</td>
+                    <td>{{ r.responded }}</td>
+                    <td>{{ r.expected }}</td>
+                    <td>{{ r.rate }}%</td>
+                    <td>{{ r.remaining }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+          {% if fb_overall_interpretation %}
+            <p class="fb-interpretation fb-interpretation-overall">{{ fb_overall_interpretation }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% if fb_question_summaries %}
+        <div class="fb-summary">
+          <h3>Totals per question</h3>
+          <p class="fb-hint">Choice lines show share of answered plus count/expected coverage, e.g. “A. Yes: 10 (100.0% of answered, 10/10 expected = 100.0% of expected)”.</p>
+          {% for s in fb_question_summaries %}
+            <div class="fb-summary-item">
+              <div class="fb-summary-title">
+                <strong>{{ s.full_title }}</strong>
+                <span class="fb-summary-scale">{{ s.scale_text }} &middot; {{ s.qtype }}</span>
+              </div>
+              <div class="fb-summary-headline">{{ s.headline }}</div>
+              {% if s.breakdown %}
+                <ul class="fb-summary-breakdown">
+                  {% for b in s.breakdown %}
+                    <li>{{ b.line }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+              {% if s.interpretation %}
+                <p class="fb-interpretation">{{ s.interpretation }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
 
       {% if fb_response_rows %}
         <div class="fb-resp-scroll">
@@ -159,8 +263,8 @@
                 <th>Officer</th>
                 <th>Role</th>
                 <th>Submitted</th>
-                {% for q in fb_selected_questions %}
-                  <th title="{{ q.prompt }}">Q{{ forloop.counter }}</th>
+                {% for s in fb_question_summaries %}
+                  <th title="{{ s.full_title }}">{{ s.code }}</th>
                 {% endfor %}
               </tr>
             </thead>
@@ -178,6 +282,15 @@
             </tbody>
           </table>
         </div>
+        {% if fb_selected_questions %}
+          <ol class="fb-legend">
+            {% for s in fb_question_summaries %}
+              <li><strong>{{ s.code }}:</strong> {{ s.prompt }}
+                <em>({{ s.scale_text }} &middot; {{ s.qtype }})</em>
+                &mdash; {{ s.headline }}</li>
+            {% endfor %}
+          </ol>
+        {% endif %}
       {% else %}
         <p class="fbadmin-empty">No responses have been submitted yet.</p>
       {% endif %}
@@ -194,6 +307,11 @@
     window.FB_TOKENS = { csrf: "{{ csrf_token }}" };
     window.FB_CURRENT = {
       formId: "{% if fb_selected %}{{ fb_selected.form_id_PK }}{% endif %}",
+      kind: "{% if fb_selected %}{{ fb_selected.kind }}{% else %}normal{% endif %}",
+      pairedPreId: "{% if fb_selected and fb_selected.paired_pre_FK_id %}{{ fb_selected.paired_pre_FK_id }}{% endif %}",
+      hasPre: {% if fb_has_pre %}true{% else %}false{% endif %},
+      postDisabled: {% if fb_post_disabled %}true{% else %}false{% endif %},
+      responseCount: {{ fb_selected_responses|length }},
       questions: [
         {% for q in fb_selected_questions %}
           {
@@ -211,6 +329,6 @@
       ]
     };
   </script>
-  <script src="{% static 'js/Superadmin/feedback_admin.js' %}?v=20260929fb1" defer></script>
+  <script src="{% static 'js/Superadmin/feedback_admin.js' %}?v=20261016fb6" defer></script>
 </body>
 </html>

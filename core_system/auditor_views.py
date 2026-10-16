@@ -3673,7 +3673,7 @@ def auditor_notify_unfiled_aid(request: HttpRequest):
     ).exists():
         return JsonResponse({
             "ok": False,
-            "error": "This aid is already being expedited — see the NoticeCard.",
+            "error": "This aid is already marked urgent — see the NoticeCard.",
         }, status=409)
 
     case_bit = f" ({case_suffix})" if case_suffix else ""
@@ -3719,7 +3719,7 @@ def auditor_notify_unfiled_aid(request: HttpRequest):
             "notified_officers": len(targets),
         },
         ip=request.META.get("REMOTE_ADDR"),
-        notes=f"Auditor expedited filing of {aid_label} for {recipient}.",
+        notes=f"Auditor marked filing of {aid_label} for {recipient} as urgent.",
     )
     try:
         _broadcast_to_group("treasurer_dashboard", {"type": "data_changed", "section": "notices"})

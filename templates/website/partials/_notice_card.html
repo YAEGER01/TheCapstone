@@ -84,7 +84,7 @@
 
 <div id="nc-panel" aria-hidden="true" role="dialog" aria-label="NoticeCard">
   <div id="nc-head">
-    <div id="nc-title">NoticeCard<small>Auditor expedites for filing</small></div>
+    <div id="nc-title">NoticeCard<small>Auditor urgent filings</small></div>
     <button type="button" class="nc-icon-btn" onclick="ncRefresh()" title="Refresh">&#8635;</button>
     <button type="button" class="nc-icon-btn" onclick="ncToggle(false)" title="Hide">&times;</button>
   </div>
@@ -165,7 +165,7 @@
       setDot(data.unread || 0);
       var items = data.notices || [];
       if (!items.length) {
-        if (list) list.innerHTML = '<div class="nc-empty"><i class="fas fa-bell-slash" style="font-size:1.4rem;display:block;margin-bottom:8px;color:#d1d5db;"></i>No expedite notices yet.</div>';
+        if (list) list.innerHTML = '<div class="nc-empty"><i class="fas fa-bell-slash" style="font-size:1.4rem;display:block;margin-bottom:8px;color:#d1d5db;"></i>No urgent notices yet.</div>';
         return;
       }
       function kv(k, v, money) {

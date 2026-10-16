@@ -1,20 +1,24 @@
 {% load static %}
 {% comment %}
-Officer feedback prompt + modal. Returned by feedback_views.feedback_card
-and injected by static/js/shared/feedback_card.js.
+Officer + member feedback prompt + modal. Returned by
+feedback_views.feedback_card and injected by
+static/js/shared/feedback_card.js.
 
-Rendered only when the officer has NOT yet responded to the active form, so
+Rendered only when the viewer has NOT yet responded to the active form, so
 this whole fragment is naturally one-shot per form.
 
 All text goes through Django autoescaping - no |safe on any officer-supplied
 value - so a response can never inject markup back into this template.
 {% endcomment %}
-<div class="fb-shell" data-fb-shell data-fb-form="{{ fb_form.form_id_PK }}">
+<div class="fb-shell" data-fb-shell data-fb-form="{{ fb_form.form_id_PK }}"
+     data-fb-kind="{{ fb_kind|default:'normal' }}"{% if fb_persistent %} data-fb-persistent="1"{% endif %}>
 
   {# ------------------------------------------------------------------ #}
   {# Top-centre prompt toast. Opens the locked modal on click.           #}
+  {# Pre/Post surveys are persistent: pinned toast, no dismiss button,  #}
+  {# logout blocked until answered.                                     #}
   {# ------------------------------------------------------------------ #}
-  <div class="fb-toast" data-fb-toast role="status" aria-live="polite">
+  <div class="fb-toast{% if fb_kind == 'pre' %} is-presurvey{% elif fb_kind == 'post' %} is-postsurvey{% endif %}" data-fb-toast role="status" aria-live="polite">
     <span class="fb-toast-icon" aria-hidden="true">
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
            viewBox="0 0 24 24">
@@ -22,10 +26,12 @@ value - so a response can never inject markup back into this template.
         <path d="M8 9h8M8 13h5"/>
       </svg>
     </span>
-    <span class="fb-toast-text">Care to give a feedback??</span>
-    <button type="button" class="fb-toast-btn" data-fb-open>Yeah, Sure</button>
-    <button type="button" class="fb-toast-x" data-fb-dismiss-toast
-            title="Dismiss" aria-label="Dismiss">&times;</button>
+    <span class="fb-toast-text">{% if fb_kind == "pre" %}PRE-SURVEY{% elif fb_kind == "post" %}POST-SURVEY{% else %}Care to give a feedback??{% endif %}</span>
+    <button type="button" class="fb-toast-btn" data-fb-open>{% if fb_persistent %}Answer Now{% else %}Yeah, Sure{% endif %}</button>
+    {% if not fb_persistent %}
+      <button type="button" class="fb-toast-x" data-fb-dismiss-toast
+              title="Dismiss" aria-label="Dismiss">&times;</button>
+    {% endif %}
   </div>
 
   {# ------------------------------------------------------------------ #}

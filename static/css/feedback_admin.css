@@ -121,6 +121,8 @@
 .fb-badge.is-on, .fb-badge.is-open { background: #e3f2e5; color: #1b5e20; }
 .fb-badge.is-off, .fb-badge.is-closed { background: #ececec; color: #666; }
 .fb-badge.is-archived { background: #fdece0; color: #a04a12; }
+.fb-badge.is-pre { background: #e3ecf9; color: #1a3f7d; }
+.fb-badge.is-post { background: #f1e4f7; color: #6a1b9a; }
 
 .fb-form-actions {
   display: flex;
@@ -211,6 +213,7 @@
 .fb-role input { accent-color: #1b5e20; }
 
 .fb-hint { margin: 6px 0 0; font-size: 0.75rem; color: #7a8a76; }
+.fb-hint.is-warning { color: #8a5a00; background: #fff8e6; border: 1px solid #f0dca8; border-radius: 6px; padding: 6px 9px; }
 
 /* --------------------------- question builder ---------------------------- */
 
@@ -305,3 +308,23 @@
 .fb-nowrap { white-space: nowrap; }
 
 .fb-cell-text { max-width: 260px; white-space: pre-wrap; word-break: break-word; }
+
+/* --------------------------- summary (totals) -------------------------- */
+
+.fb-summary { margin: 4px 0 16px; border: 1px solid #e3eadf; border-radius: 9px; padding: 12px 14px; background: #fcfdfb; }
+.fb-summary h3 { margin: 0 0 10px; font-size: 0.88rem; color: #24401f; }
+.fb-summary-item { padding: 9px 0; border-top: 1px solid #eef2ea; }
+.fb-summary-item:first-of-type { border-top: 0; padding-top: 0; }
+.fb-summary-title { font-size: 0.84rem; color: #24401f; }
+.fb-summary-scale { margin-left: 8px; font-size: 0.72rem; font-weight: 600; color: #5c6a58; background: #eef3ec; border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+.fb-summary-headline { margin-top: 3px; font-size: 0.8rem; font-weight: 600; color: #1b5e20; }
+.fb-summary-breakdown { margin: 6px 0 0 18px; padding: 0; font-size: 0.78rem; color: #3c4a38; }
+.fb-summary-breakdown li { margin-bottom: 2px; }
+
+.fb-legend { margin: 12px 0 0 20px; padding: 0; font-size: 0.78rem; color: #3c4a38; }
+.fb-legend li { margin-bottom: 4px; }
+.fb-legend em { color: #7a8a76; }
+.fb-coverage-table { margin-top: 10px; }
+.fb-coverage .fb-hint { margin-bottom: 4px; }
+.fb-interpretation { margin: 8px 0 0; font-size: 0.78rem; color: #3c4a38; font-style: italic; line-height: 1.5; }
+.fb-interpretation-overall { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eef2ea; }

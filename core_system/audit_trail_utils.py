@@ -70,6 +70,7 @@ ACTION_LABELS = {
     "LOGIN_MFA_REQUIRED": "Login (MFA Required)",
     "ZT_CONFIRM": "Zero-Trust Confirmed",
     "PASSWORD_CHANGED": "Password Changed",
+    "AID_FILE_EXPEDITED": "Marked Urgent for Filing",
 }
 
 # Tables/actions considered "security / system" rather than financial-operational.

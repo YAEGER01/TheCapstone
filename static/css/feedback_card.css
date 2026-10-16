@@ -65,6 +65,27 @@
   opacity: 0;
 }
 
+/* Logout-intercept emphasis: the pinned Pre/Post toast pulses with a red
+   edge so it reads as a blocker, not a suggestion. Motion is disabled
+   for users who prefer reduced motion. */
+.fb-toast.is-emphasis {
+  border-left-color: #c62828;
+  border-left-width: 6px;
+  box-shadow:
+    0 0 0 3px rgba(198, 40, 40, 0.35),
+    0 10px 28px rgba(198, 40, 40, 0.28);
+  animation: fb-attention 1s ease-in-out 3;
+}
+
+@keyframes fb-attention {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(0) scale(1.045); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-toast.is-emphasis { animation: none; }
+}
+
 .fb-toast.is-success { border-left-color: #2e7d32; }
 .fb-toast.is-info { border-left-color: #1b5e20; }
 
@@ -139,7 +160,9 @@
   justify-content: center;
   padding: 24px;
   background: rgba(20, 32, 18, 0.62);
-  backdrop-filter: blur(2px);
+  /* No backdrop-filter here on purpose: blurring a full dashboard repaint
+     every frame is what made the popup feel laggy on low-end devices.
+     The plain dim layer composites cheaply. */
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -321,7 +344,11 @@
 
 .fb-option:hover { border-color: #9cc48f; background: #f3f9f1; }
 
-.fb-option:has(input:checked) {
+/* Checked state is toggled as .is-checked by feedback_card.js (single
+   delegated change listener). A :has(input:checked) selector would look
+   simpler but forces the browser to re-evaluate styles across the whole
+   dashboard on every keystroke/click, which caused visible jank. */
+.fb-option.is-checked {
   border-color: #1b5e20;
   background: #eaf5e8;
   font-weight: 600;
@@ -359,7 +386,8 @@
 
 .fb-likert-option:hover { border-color: #9cc48f; background: #f3f9f1; }
 
-.fb-likert-option:has(input:checked) {
+/* See .fb-option.is-checked note above: class-based, not :has(). */
+.fb-likert-option.is-checked {
   border-color: #1b5e20;
   background: #eaf5e8;
 }

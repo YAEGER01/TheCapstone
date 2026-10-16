@@ -546,10 +546,15 @@
       '  <div class="zt-warn-bar"><div id="zt-lock-warn-fill"></div></div>' +
       '  <p class="zt-warn-sub">Your screen locks when the timer ends. Move the mouse, press any key, or stay signed in.</p>' +
       '  <button type="button" class="zt-warn-btn" id="zt-lock-warn-stay">Stay signed in</button>' +
+      '  <button type="button" class="zt-warn-linkbtn" id="zt-lock-warn-test">Test sound</button>' +
+      '  <p class="zt-warn-testmsg" id="zt-lock-warn-testmsg" aria-live="polite"></p>' +
       "</div>";
     document.body.appendChild(overlay);
     overlay.querySelector("#zt-lock-warn-stay").addEventListener("click", function () {
       resetIdleTimer();  // cancels the warning and re-arms the idle timer
+    });
+    overlay.querySelector("#zt-lock-warn-test").addEventListener("click", function () {
+      testWarnAudio();  // a click is a gesture: allowed even under strict autoplay
     });
     return overlay;
   }
@@ -614,6 +619,31 @@
   }
 
   var warnAudioPrimed = false;
+  var sharedCtx = null;
+  // One AudioContext for the whole page, created early and resumed on every
+  // real gesture. Timer-time code must reuse a RUNNING context — creating a
+  // fresh one (or playing the mp3) with no prior activation renders total
+  // silence on strict autoplay policies, which is how the alarm used to go
+  // missing for mouse-only sessions (mousemove resets idle but grants no
+  // playback rights, so both the mp3 and fresh-context beeps failed).
+  function sharedContext() {
+    try {
+      if (!sharedCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        sharedCtx = new AC();
+      }
+      if (typeof sharedCtx.resume === "function" && sharedCtx.state === "suspended") {
+        var r = sharedCtx.resume();
+        if (r && typeof r.catch === "function") r.catch(function () {});
+      }
+    } catch (e) { return null; }
+    return sharedCtx;
+  }
+  function noteGesture() {
+    primeWarnAudio();
+    sharedContext();  // resume during activation so later timer beeps can sound
+  }
   function primeWarnAudio() {
     // Must run inside a real user gesture; a muted play+pause unlocks later
     // unmuted playback from timers.
@@ -621,6 +651,10 @@
     warnAudioPrimed = true;
     var audio = null;
     try { audio = ensureWarnAudio(); } catch (e) { return; }
+    // Generation guard: prime's play() can stay pending for a while, and a
+    // warning may start before it settles. The stale continuation must never
+    // pause/rewind a live alarm — it only restores the muted flag.
+    var myGen = warnAudioGen;
     try {
       var prevMuted = audio.muted;
       audio.muted = true;
@@ -628,39 +662,57 @@
       try { p = audio.play(); } catch (e) { audio.muted = prevMuted; return; }
       if (p && typeof p.then === "function") {
         p.then(function () {
-          try { audio.pause(); } catch (e) {}
-          try { audio.currentTime = 0; } catch (e) {}
+          if (myGen === warnAudioGen) {
+            try { audio.pause(); } catch (e) {}
+            try { audio.currentTime = 0; } catch (e) {}
+          }
           audio.muted = prevMuted;
         }, function () { audio.muted = prevMuted; });
       } else {
-        try { audio.pause(); } catch (e) {}
+        if (myGen === warnAudioGen) {
+          try { audio.pause(); } catch (e) {}
+        }
         audio.muted = prevMuted;
       }
     } catch (e) { /* best-effort */ }
   }
-  ["pointerdown", "keydown", "touchstart", "mousedown"].forEach(function (evt) {
-    document.addEventListener(evt, primeWarnAudio, { passive: true });
+  ["pointerdown", "keydown", "touchstart", "mousedown", "click"].forEach(function (evt) {
+    document.addEventListener(evt, noteGesture, { passive: true });
   });
 
   var fallbackBeepTimer = null;
   var fallbackAudioCtx = null;
+  var fallbackOwnsCtx = false;
   function stopFallbackBeeps() {
     if (fallbackBeepTimer) { clearInterval(fallbackBeepTimer); fallbackBeepTimer = null; }
     try {
-      if (fallbackAudioCtx && typeof fallbackAudioCtx.close === "function") fallbackAudioCtx.close();
+      // Only close contexts we created per-warning; the shared gesture-fed
+      // context stays alive for the next alarm.
+      if (fallbackOwnsCtx && fallbackAudioCtx && typeof fallbackAudioCtx.close === "function") fallbackAudioCtx.close();
     } catch (e) { /* best-effort */ }
-    fallbackAudioCtx = null;
+    if (fallbackOwnsCtx) fallbackAudioCtx = null;
+    fallbackOwnsCtx = false;
   }
   function startFallbackBeeps() {
     // Last resort when the mp3 element cannot play (strict autoplay block
-    // or a missing/corrupt file): synthesize the alarm with WebAudio.
+    // or a missing/corrupt file): synthesize the alarm with WebAudio,
+    // preferring the gesture-resumed shared context.
     stopFallbackBeeps();
     try {
-      var AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      var ctx = new AC();
-      fallbackAudioCtx = ctx;
-      try { if (typeof ctx.resume === "function") ctx.resume(); } catch (e) { /* best-effort */ }
+      var ctx = null;
+      try {
+        if (sharedCtx && sharedCtx.state === "running") ctx = sharedCtx;
+      } catch (e) { ctx = null; }
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        ctx = new AC();
+        try { if (typeof ctx.resume === "function") ctx.resume(); } catch (e) { /* best-effort */ }
+        fallbackAudioCtx = ctx;
+        fallbackOwnsCtx = true;
+      } else {
+        fallbackOwnsCtx = false;
+      }
       var beep = function () {
         try {
           var osc = ctx.createOscillator();
@@ -744,6 +796,62 @@
     } catch (e) { /* best-effort */ }
   }
 
+  // Audible lock cue: every engageLock path lands here, including the ones
+  // that bypass the 15s warning entirely (server poll, heartbeat 403,
+  // cross-tab lock). Short and one-shot — unlike the looping pre-lock alarm.
+  function chimeBeeps() {
+    var ctx = null;
+    try { ctx = sharedContext(); } catch (e) { ctx = null; }
+    if (!ctx) return;
+    // The lock often engages from a timer with no fresh gesture, so the
+    // shared context may still be suspended. Attempt a resume and schedule
+    // the beeps anyway — if the resume lands they sound; previously this
+    // returned silently and the lock had no audible cue at all.
+    try {
+      if (ctx.state === "suspended" && typeof ctx.resume === "function") {
+        var r = ctx.resume();
+        if (r && typeof r.catch === "function") r.catch(function () {});
+      }
+    } catch (e) { /* best-effort */ }
+    [60, 410, 760].forEach(function (delay, idx) {
+      setTimeout(function () {
+        if (ctx.state !== "running") return;
+        try {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = idx === 2 ? "triangle" : "sine";
+          osc.frequency.value = idx === 2 ? 660 : 880;
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.32);
+        } catch (e) { /* one missed chime is fine */ }
+      }, delay);
+    });
+  }
+  function playLockChime() {
+    if (typeof document !== "undefined" && document.hidden) return;  // never alarm a background tab
+    try { sharedContext(); } catch (e) { /* resume attempt for the fallback path */ }
+    try {
+      var a = new Audio(getWarnAudioUrl());
+      a.loop = false;
+      try { a.muted = false; a.volume = 1.0; } catch (e) { /* never play muted */ }
+      try { a.setAttribute("data-zt-warn", "1"); } catch (e) { /* best-effort */ }
+      var cutoff = setTimeout(function () { try { a.pause(); } catch (e) {} }, 4000);
+      var p = a.play();
+      if (p && typeof p.then === "function") {
+        p.then(function () {
+          // One-shot: let ~2.5s of the loop file through, then cut it.
+          setTimeout(function () { try { a.pause(); } catch (e) {} }, 2500);
+          try { clearTimeout(cutoff); } catch (e) {}
+        }, function () { chimeBeeps(); });
+      }
+    } catch (e) { chimeBeeps(); }
+  }
+
   // On-demand sound check, wired to the "Test sound" button on the warning
   // overlay. A click IS a user gesture, so playback here is always allowed
   // by autoplay policy — if this stays silent, the problem is the file, the
@@ -758,6 +866,7 @@
     var a = null;
     try {
       a = new Audio(getWarnAudioUrl());
+      try { a.muted = false; a.volume = 1.0; } catch (e) { /* never test muted */ }
       try { a.setAttribute("data-zt-warn", "1"); } catch (e) { /* best-effort */ }
     } catch (e) {
       say("Could not create audio. (" + e + ")");
@@ -1026,6 +1135,7 @@
     }
     broadcastLock("lock");
     document.body.classList.add("zt-locked");
+    playLockChime();  // audible cue on every lock path (skips background tabs)
     var pw = document.getElementById("zt-lock-password");
     if (pw) setTimeout(function () { pw.focus(); }, 60);
   }
